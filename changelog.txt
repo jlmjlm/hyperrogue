@@ -4675,3 +4675,112 @@ Fixed some bugs in the new features for tes, and also fixed spherical geometry.
 - teleportation in bounded minesweeper no longer follows the limited range rule
 - you can now display Minefield clues as numbers (right-click minefield to get its help screen where you can change this option)
 - new projections mostly for Solv: Lie perspective and Lie orthogonal
+
+2022-06-17 12:17 Update 12.0r:
+
+Gameplay:
+- ghosts prioritize attacking players over attacking allies
+- fixed some Orbs not affecting slime
+- Orb of the Sword can now kill yourself through mirror or topology
+- sword attacks reflect in mirrors
+- swords in mirrors are now displayed correctly
+- mimic movements are now affected by Empathy, and no longer can reverse slime colors by going through mirror
+- Woods+Time: do not waste charge on attacking monsters in trees
+- fixed help for life Orbs in the shmup mode
+- Halloween:: fixed the jack-o-lantern
+- the Racing mode now loads pre-generated files instead of trusting the track will be generated in the same way
+- you can also edit the Racing tracks and save them ()
+- Hall of Mirror maps should now be saved correctly
+- fixed a crash bug in computing minefield neighborhoods in some tilings
+- fixed sl2 rendering
+
+Menu improvements:
+- unified the quest status (previously ESC) and main menu (previously V) into a single screen ("game menu")
+- 'creative mode' is moved to the game menu
+- a cleanup to some menus (special modes, highlights, peace&exploration)
+- dual geometry puzzle removed (will still be available in RogueViz)
+- switching shmup mode no longer invokes keyboard configuration
+
+2022-06-23 10:50 Update 12.0s:
+
+- fixed Minesweeper in the highlights menu
+- fixed the racers keeping their speed when restarting
+- when generating strict tree maps for Archimedean/regular tessellation, you now have an option to have all the symmetries of the tessellation taken into account (to minimize the tree)
+- tes files with tree data (tessellations/sample/horotiling.tes) and star tes files (tessellations/sample/star-7-72.tes) should load correctly again
+- show treasure bubbles in the Dice Reserve
+- Shift+A key leaves the map editor, also all options are now displayed in the cheat menu (some obsolete ones are removed)
+
+2022-07-05 14:12 Update 12.0t:
+  Tranlations and bugfixes:
+  - French translation by 3raven (42% complete and untested yet)
+  - fixed the Polish translation of the description of False Princess
+  - a bug where some racing times are set to 0 should now be fixed
+
+  Menu improvements:
+  - fixed the help button in the pause menu
+  - you can now configure by how much you want to darken the background in the menu
+  - menu display should be more consistent now
+  - in sidescreen menus, the background under the menu is now darkened
+  - start animations now can be disabled
+  - nicer sliders and color selectors (unless the ASCII mode is on)
+
+2022-07-12 14:47 Update 12.0u:
+  - honeycomb tree rules for 345 and 355 (better performance, variations work)
+  - some fixes to the French translation
+  - options to show less items/kills in the portrait/landscape mode
+  - an option to have menus centered even in widescreen
+  - mobile fixes: fixed an incorrect button shown in the mobile game menu, and items/kills going over buttons
+
+2022-07-17 14:47 Update 12.0v:
+  - fixes for new Android
+  - preliminary work on tree structures for 3D honeycombs
+  - auto-rotation (Ivory Tower etc.) now works on devices who know their orientation
+  - nicer "pipes" (fat grid lines) in 3D
+  - fixed some crash bugs related to the memory saving mode
+
+2022-08-07 03:03 Update 12.0w:
+- fixed a bug with 'world overview' breaking ESC menu
+- racing fixed (hopefully)
+- minor changes to HyperRogue help: now directly offered when displaying context help; do not suggest to try the Guided Tour if already in the Guided Tour
+- made the RogueViz presentations which contain no HyperRogue PC easier to control (control the camera by using the keys which usually move the PC)
+- added some more demos to RogueViz
+
+2022-08-07 15:01 Update 12.0x:
+- yet another fix to racing
+- fixed a crash when deleting 3-sphere maps
+
+2022-08-26 13:46 Update 12.0y:
+  - new implemenatation of hyperbolic honeycombs in action
+  - field quotients in 3D now finds more honeycombs
+  - variations now work for Euclidean cube tiling
+  - tessellation, texture, etc. files can now be found via HYPERPATH
+  - fixed the Slaying+side attack combo
+  - Pearls now use the Disk graphics
+  - Added some land incompatibilities
+  - updates to French translation
+  - fixes to stereographic projection (as a way to get high FOV)
+
+2022-09-06 14:20 Update 12.0z:
+- various fixes related to 'orb used' rollback
+- fixed Sol geometry (a bug caused the map to change incorrectly when moving)
+- fixed variations of hyperbolic honeycombs (when a ruleset was available only for the pure honeycomb, loading it would reset variation to pure)
+
+2022-09-15 12:40 Update 12.1:
+- documentation for TES files added
+- an option to select the savefile on startup (settings -> other settings)
+- fixed missing 'too far' messages on Frog-like orbs
+- fixed Teleport and Illusion draining Aether etc on mousing (disregarding Time)
+- fixed a crash problem with tes files in 2.5D
+- fixed a possible crash in raytracer
+- when tes files are loaded, football-colorability is now detected (and used to improve the graphics and gameplay)
+- GPU glitches when rendering long bands should be no more
+- fixed the loading of tessellations/affine/affine-square.tes
+- fixed the crash on converting regular/Archimedean tilings to tes format and generating tree rules
+- improvements to line patterns
+- fixed a possible crash when saving images
+
+2022-09-17 12:12 Update 12.1a:
+- fixed Orb of Teleport/Illusion thinking that they are unusable
+- Orb of Earth no longer marked useless in Wetland
+- some fixes for the treasure/kill list: fixed the Onyx graphics; made some icons larger; dark stuff have their text brightened (or use the auxiliary orb color)
+- the monster movement order is more random now (no preference for clockwise)

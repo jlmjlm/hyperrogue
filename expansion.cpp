@@ -113,14 +113,15 @@ void expansion_analyzer::preliminary_grouping() {
       for(int v: rulegen::treestates[i].rules)
         if(v >= 0) children[i].push_back(v);
     }
-  else if(reg3::in_rule()) {
+  else if(reg3::exact_rules()) {
 #if MAXMDIM >= 4
     rootid = reg3::rule_get_root(0);
     auto& chi = reg3::rule_get_children();
-    N = isize(chi) / S7;    
+    auto& chpos = reg3::rule_get_childpos();
+    N = isize(chpos) - 1;
     children.resize(N);
     int k = 0;
-    for(int i=0; i<N; i++) for(int j=0; j<S7; j++) {
+    for(int i=0; i<N; i++) for(int j=0; j<chpos[i+1]-chpos[i]; j++) {
       int ck = chi[k];
       if(ck < -1) ck += (1<<16);
       if(ck >= 0)
@@ -144,7 +145,7 @@ void expansion_analyzer::preliminary_grouping() {
   }
 
 void expansion_analyzer::reduce_grouping() {
-  if(reg3::in_rule()) return;
+  if(reg3::exact_rules()) return;
   if(currentmap->strict_tree_rules()) return;
   int old_N = N;
   vector<int> grouping;
@@ -190,7 +191,7 @@ void expansion_analyzer::reduce_grouping() {
   for(int i=0; i<nogroups; i++) 
     for(int j: children[groupsample[i]])
       newchildren[i].push_back(grouping[j]);
-  children = move(newchildren);
+  children = std::move(newchildren);
   for(auto& p: codeid) p.second = grouping[p.second];
   N = nogroups;
   rootid = grouping[rootid];
@@ -238,7 +239,7 @@ bool expansion_analyzer::verify(int id) {
 
 int expansion_analyzer::valid(int v, int step) {
   if(step < 0) return 0;
-  int more = reg3::in_rule() ? 1 : 5;
+  int more = reg3::exact_rules() ? 1 : 5;
   #if CAP_GMP == 0
   if(get_descendants(step+v+v+more).approx_int() >= bignum::BASE) return 0;
   typedef ld val;
@@ -391,7 +392,7 @@ int type_in_quick(expansion_analyzer& ea, cell *c, const cellfunction& f) {
   }
 
 EX bool sizes_known() {
-  if(reg3::in_rule()) return true;
+  if(reg3::exact_rules()) return true;
   if(closed_manifold) return false;
   // Castle Anthrax is infinite
   if(bt::in()) return false;
@@ -421,10 +422,12 @@ string expansion_analyzer::approximate_descendants(int d, int max_length) {
   return XLAT("about ") + fts(pow(10, log_10 - more_digits)) + "E" + its(more_digits);
   }
 
+#if HDR
 enum eDistanceFrom { dfPlayer, dfStart, dfWorld };
+#endif
 EX string dfnames[3] = { "player", "start", "land" };
 
-eDistanceFrom distance_from = dfPlayer;
+EX eDistanceFrom distance_from = dfPlayer;
 
 #if HDR
 enum eNumberCoding { ncNone, ncDistance, ncType, ncDebug, ncError };
@@ -432,7 +435,7 @@ enum eNumberCoding { ncNone, ncDistance, ncType, ncDebug, ncError };
 EX string ncnames[5] = { "NO", "distance", "type", "debug", "error" };
 EX eNumberCoding number_coding = ncDistance;
 
-bool mod_allowed() {
+EX bool mod_allowed() {
   return cheater || autocheat || arcm::in() || tour::on;
   }
 
@@ -441,6 +444,7 @@ EX int curr_dist(cell *c) {
     case dfPlayer:
       return c->cpdist < INFD ? c->cpdist : celldistance(cwt.at, c);
     case dfStart:
+      if(!mod_allowed()) return 0;
       return celldist(c);
     case dfWorld:
       if(!mod_allowed() && !among(c->land, laOcean, laIvoryTower, laEndorian, laDungeon, laTemple, laWhirlpool, laCanvas))
@@ -580,7 +584,7 @@ void celldrawer::do_viewdist() {
       }
     case ncType: {
       int t = -1;
-      if(reg3::in_rule()) switch(distance_from) {
+      if(reg3::exact_rules()) switch(distance_from) {
         case dfPlayer: 
           t = -1;
           break;
@@ -631,7 +635,7 @@ void celldrawer::do_viewdist() {
 EX void viewdist_configure_dialog() {
   dialog::init("");
   cmode |= sm::SIDE | sm::MAYDARK | sm::EXPANSION;
-  gamescreen(0);
+  gamescreen();
   
   dialog::addSelItem(XLAT("which distance"), XLAT(dfnames[distance_from]), 'c');
   dialog::add_action([] () { distance_from = mod_allowed() ? eDistanceFrom((distance_from + 1) % 3) : eDistanceFrom(2 - distance_from); });
@@ -651,15 +655,8 @@ EX void viewdist_configure_dialog() {
   dialog::addBoolItem(XLAT("strict tree maps"), currentmap->strict_tree_rules(), 's');
   dialog::add_action_push(rulegen::show);
 
-  int id = 0;
-  using namespace linepatterns;
-  for(auto& lp: {&patTriTree, &patTriRings, &patTriOther}) {
-    dialog::addColorItem(XLAT(lp->lpname), lp->color, '1'+(id++));
-    dialog::add_action([&lp] () {
-      dialog::openColorDialog(lp->color, NULL);
-      dialog::dialogflags |= sm::MAYDARK | sm::SIDE | sm::EXPANSION;
-      });
-    }
+  dialog::addItem(XLAT("line patterns"), 'L');
+  dialog::add_action_push(linepatterns::showMenu);
   
   if(!mod_allowed()) {
     dialog::addItem(XLAT("enable the cheat mode for additional options"), 'C');
@@ -737,7 +734,7 @@ void expansion_analyzer::view_distances_dialog() {
   
   if(really_use_analyzer) {
     int t;
-    if(reg3::in_rule() || currentmap->strict_tree_rules()) {
+    if(reg3::exact_rules() || currentmap->strict_tree_rules()) {
       if(!N) preliminary_grouping();      
       t = rootid;
       }

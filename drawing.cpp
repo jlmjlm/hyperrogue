@@ -700,8 +700,13 @@ void dqi_poly::gldraw() {
       current_display->set_all(ed, sl2 ? 0 : V.shift);
       glhr::set_index_sl(V.shift + M_PI * min_slr * hybrid::csteps / cgi.psl_steps);
       }
+    else if(sl2) {
+      current_display->set_all(ed, 0);
+      glhr::set_index_sl(V.shift);
+      }
     else {
-      current_display->set_all(ed, V.shift);
+      current_display->set_all(ed, sl2 ? 0 : V.shift);
+      glhr::set_index_sl(V.shift + M_PI * min_slr * hybrid::csteps / cgi.psl_steps);
       }
     bool draw = color;
 
@@ -2201,13 +2206,13 @@ EX void sort_drawqueue() {
 
   #if MINIMIZE_GL_CALLS
   map<color_t, vector<unique_ptr<drawqueueitem>>> subqueue;
-  for(auto& p: ptds) subqueue[(p->prio == PPR::CIRCLE || p->prio == PPR::OUTCIRCLE) ? 0 : p->outline_group()].push_back(move(p));
+  for(auto& p: ptds) subqueue[(p->prio == PPR::CIRCLE || p->prio == PPR::OUTCIRCLE) ? 0 : p->outline_group()].push_back(std::move(p));
   ptds.clear();
-  for(auto& p: subqueue) for(auto& r: p.second) ptds.push_back(move(r));
+  for(auto& p: subqueue) for(auto& r: p.second) ptds.push_back(std::move(r));
   subqueue.clear();
-  for(auto& p: ptds) subqueue[(p->prio == PPR::CIRCLE || p->prio == PPR::OUTCIRCLE) ? 0 : p->color].push_back(move(p));
+  for(auto& p: ptds) subqueue[(p->prio == PPR::CIRCLE || p->prio == PPR::OUTCIRCLE) ? 0 : p->color].push_back(std::move(p));
   ptds.clear();
-  for(auto& p: subqueue) for(auto& r: p.second) ptds.push_back(move(r));
+  for(auto& p: subqueue) for(auto& r: p.second) ptds.push_back(std::move(r));
   #endif
     
   for(auto& p: ptds) {
@@ -2228,7 +2233,7 @@ EX void sort_drawqueue() {
   vector<unique_ptr<drawqueueitem>> ptds2;  
   ptds2.resize(siz);
   
-  for(int i = 0; i<siz; i++) ptds2[qp[int(ptds[i]->prio)]++] = move(ptds[i]);
+  for(int i = 0; i<siz; i++) ptds2[qp[int(ptds[i]->prio)]++] = std::move(ptds[i]);
   swap(ptds, ptds2);
   }
 
@@ -2740,7 +2745,7 @@ EX void write_in_space(const shiftmatrix& V, int fsize, double size, const strin
     }
   
   if(frame) for(int i=0; i<360; i+=45) {
-    auto &res = queuetable(V * xspinpush(i*degree, frame*scale), curvedata, isize(curvedata)-curvestart, col & 0xFF, col & 0xFF, prio);
+    auto &res = queuetable(V * xspinpush(i*degree, frame*scale), curvedata, isize(curvedata)-curvestart, poly_outline, poly_outline, prio);
     res.offset = curvestart;
     res.offset_texture = fstart;
     res.tinf = &finf;

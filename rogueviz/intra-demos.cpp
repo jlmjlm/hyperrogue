@@ -133,7 +133,7 @@ void create_intra_floors() {
   build_wall(cwt, 0xFF80FF, 0xFF00FF);
   become();
 
-  start();
+  intra::start();
 
   // rogueviz::rv_hook(hooks_handleKey, 150, intra_key);
   }
@@ -193,7 +193,7 @@ void create_intra_solv() {
     }
   become();
 
-  start();
+  intra::start();
   
   println(hlog, "Started");
 
@@ -489,35 +489,37 @@ auto hooks =
     auto load = [] (string s, ld x, int y) {
       return [s, x, y] {
         slide_backup(vid.cells_drawn_limit, 100);
-        slide_backup(smooth_scrolling, true);
         slide_backup(ray::max_cells, 999999);
         slide_backup(walking::on, true);
         slide_backup(walking::eye_level, x);
         mapstream::loadMap(s);
         slide_backup(ray::fixed_map, true);
         slide_backup(ray::max_iter_intra, y);
-        slide_backup(mapeditor::drawplayer, false);
-        slide_backup(playermoved, false);
         #if CAP_VR
         slide_backup(vrhr::hsm, vrhr::eHeadset::holonomy);
         slide_backup(vrhr::eyes, vrhr::eEyes::truesim);
         slide_backup(vrhr::cscr, vrhr::eCompScreen::eyes);
         #endif
+        popScreenAll();
+        resetGL();
         };
       };
 
     auto add = [&] (string s, string desc, string youtube, string twitter, reaction_t loader) {
       v.push_back(tour::slide{
-        s, 10, tour::LEGAL::NONE | tour::QUICKSKIP | tour::QUICKGEO, desc,
+        s, 10, tour::LEGAL::NONE | tour::QUICKSKIP | tour::QUICKGEO | tour::ALWAYS_TEXT, desc,
         [=] (tour::presmode mode) {
           setCanvas(mode, '0');
           if(youtube != "")
             slide_url(mode, 'y', "YouTube link", youtube);
           if(twitter != "")
             slide_url(mode, 't', "Twitter link", twitter);
+            
+          slide_url(mode, 'b', "Bridges paper link", "https://archive.bridgesmathart.org/2022/bridges2022-297.html");
           slide_action(mode, 'r', "run this visualization", loader);
           slidecommand = "portal options";
           if(mode == tour::pmKey) pushScreen(intra::show_portals);
+          rogueviz::pres::non_game_slide_scroll(mode);
           }
         });
       };

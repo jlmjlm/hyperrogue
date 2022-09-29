@@ -17,7 +17,7 @@ EX namespace dialog {
 
   static const int DONT_SHOW = 16;
 
-  enum tDialogItem {diTitle, diItem, diBreak, diHelp, diInfo, diIntSlider, diSlider, diBigItem, diKeyboard, diCustom};
+  enum tDialogItem {diTitle, diItem, diBreak, diHelp, diInfo, diIntSlider, diSlider, diBigItem, diKeyboard, diCustom, diColorItem};
 
   struct item {
     tDialogItem type;
@@ -246,17 +246,11 @@ EX namespace dialog {
     }
 
   EX void addColorItem(string body, int value, int key) {
-    item it;
-    it.type = diItem;
-    it.body = body;
-    it.value = COLORBAR;
-    it.key = key;
-    it.color = it.colorv = displaycolor(value);
-    it.colors = it.color ^ 0x404040;
-    it.colorc = it.color ^ 0x808080;
-    it.colork = 0x808080;
-    it.scale = 100;
-    items.push_back(it);
+    addSelItem(body, COLORBAR, key);
+    auto& it = items.back();
+    it.type = diColorItem;
+    it.colorv = displaycolor(value);
+    it.param = value & 0xFF;
     }
 
   EX void addHelp(string body) {
@@ -378,7 +372,7 @@ EX namespace dialog {
         tothei += displayLong(items[i].body, dfsize * items[i].scale / 100, 0, true);
       else {
         tothei += dfspace * items[i].scale / 100;
-        if(items[i].type == diItem) 
+        if(among(items[i].type, diItem, diColorItem))
           innerwidth = max(innerwidth, textwidth(dfsize * items[i].scale / 100, items[i].body));
         if(items[i].type == diTitle || items[i].type == diInfo || items[i].type == diBigItem)
           dialogwidth = max(dialogwidth, textwidth(dfsize * items[i].scale / 100, items[i].body) * 10/9);
@@ -401,6 +395,77 @@ EX namespace dialog {
   
   EX void queue_key(int key) { key_queue.push_back(key); }
   
+  EX int uishape() {
+    int a = S7;
+    if(a < 3) a = 3;
+    if(a > 36) a = 36;
+    return a;
+    }
+
+  EX void draw_slider(int sl, int sr, int y, item& I) {
+    int sw = sr-sl;
+    int mid = y;
+
+    if(!wmascii) {
+      int a =uishape();
+
+      flat_model_enabler fme;
+      initquickqueue();
+      ld pix = 1 / (2 * cgi.hcrossf / cgi.crossf);
+      shiftmatrix V = shiftless(atscreenpos(0, 0, pix));
+
+      color_t col = addalpha(I.color);
+
+      ld siz = dfsize * I.scale / 150;
+      ld si = siz / 2;
+      if(I.type == diIntSlider && I.p2 < sw/4) {
+        for(int a=0; a<=I.p2; a++) {
+          ld x = sl + sw * a * 1. / I.p2;
+          curvepoint(hyperpoint(x, y-si, 1, 1));
+          curvepoint(hyperpoint(x, y+si, 1, 1));
+          queuecurve(V, col, 0, PPR::LINE);
+          }
+        }
+
+      curvepoint(hyperpoint(sl, y-si, 1, 1));
+      for(int i=0; i<=a/2; i++)
+        curvepoint(hyperpoint(sr + si * sin(i*2*M_PI/a), y - si * cos(i*2*M_PI/a), 1, 1));
+      for(int i=(a+1)/2; i<=a; i++)
+        curvepoint(hyperpoint(sl + si * sin(i*2*M_PI/a), y - si * cos(i*2*M_PI/a), 1, 1));
+      queuecurve(V, col, 0x80, PPR::LINE);
+      quickqueue();
+
+      ld x = sl + sw * (I.type == diIntSlider ? I.p1 * 1. / I.p2 : I.param);
+      if(x < sl-si) {
+        curvepoint(hyperpoint(sl-si, y, 1, 1));
+        curvepoint(hyperpoint(x, y, 1, 1));
+        queuecurve(V, col, 0x80, PPR::LINE);
+        quickqueue();
+        }
+      if(x > sr+si) {
+        curvepoint(hyperpoint(sr+si, y, 1, 1));
+        curvepoint(hyperpoint(x, y, 1, 1));
+        queuecurve(V, col, 0x80, PPR::LINE);
+        quickqueue();
+        }
+      for(int i=0; i<=a; i++) curvepoint(hyperpoint(x + siz * sin(i*2*M_PI/a), y - siz * cos(i*2*M_PI/a), 1, 1));
+      queuecurve(V, col, col, PPR::LINE);
+      quickqueue();
+      }
+    else if(I.type == diSlider) {
+      displayfr(sl, mid, 2, dfsize * I.scale/100, "(", I.color, 16);
+      displayfr(sl + double(sw * I.param), mid, 2, dfsize * I.scale/100, "#", I.color, 8);
+      displayfr(sr, mid, 2, dfsize * I.scale/100, ")", I.color, 0);
+      }
+    else {
+      displayfr(sl, mid, 2, dfsize * I.scale/100, "{", I.color, 16);
+      if(I.p2 < sw / 4) for(int a=0; a<=I.p2; a++) if(a != I.p1)
+        displayfr(sl + double(sw * a / I.p2), mid, 2, dfsize * I.scale/100, a == I.p1 ? "#" : ".", I.color, 8);
+      displayfr(sl + double(sw * I.p1 / I.p2), mid, 2, dfsize * I.scale/100, "#", I.color, 8);
+      displayfr(sr, mid, 2, dfsize * I.scale/100, "}", I.color, 0);
+      }
+    }
+
   EX void display() {
 
     callhooks(hooks_display_dialog);
@@ -437,6 +502,54 @@ EX namespace dialog {
     
     tothei = (vid.yres - tothei) / 2;
     
+    if(current_display->sidescreen && darken < menu_darkening) {
+      int steps = menu_darkening - darken;
+      color_t col = (backcolor << 8) | (255 - (255 >> steps));
+
+      if(svg::in || !(auraNOGL || vid.usingGL)) {
+        flat_model_enabler fme;
+        initquickqueue();
+        ld pix = 1 / (2 * cgi.hcrossf / cgi.crossf);
+        curvepoint(hyperpoint(vid.xres-dwidth, -10, 1, 1));
+        curvepoint(hyperpoint(vid.xres + 10, -10, 1, 1));
+        curvepoint(hyperpoint(vid.xres + 10, vid.yres + 10, 1, 1));
+        curvepoint(hyperpoint(vid.xres-dwidth, vid.yres + 10, 1, 1));
+        curvepoint(hyperpoint(vid.xres-dwidth, -10, 1, 1));
+        shiftmatrix V = shiftless(atscreenpos(0, 0, pix));
+        queuecurve(V, 0, col, PPR::LINE);
+        quickqueue();
+        }
+
+      #if CAP_GL
+      else {
+        auto full = part(col, 0);
+        static vector<glhr::colored_vertex> auravertices;
+        auravertices.clear();
+        ld width = vid.xres / 100;
+        for(int i=4; i<steps && i < 8; i++) width /= sqrt(2);
+        for(int x=0; x<16; x++) {
+          for(int c=0; c<6; c++) {
+            int bx = (c == 1 || c == 3 || c == 5) ? x+1 : x;
+            int by = (c == 2 || c == 4 || c == 5) ? vid.yres : 0;
+            int cx = bx == 0 ? 0 : bx == 16 ?vid.xres :
+              vid.xres - dwidth + width * tan((bx-8)/8. * 90 * degree);
+            part(col, 0) = lerp(0, full, bx / 16.);
+            if(c == 0) println(hlog, "bx = ", bx, " -> cx = ", cx, " darken = ", part(col, 0));
+            auravertices.emplace_back(hyperpoint(cx - current_display->xcenter, by - current_display->ycenter, 0, 1), col);
+            }
+          }
+        glflush();
+        current_display->next_shader_flags = GF_VARCOLOR;
+        dynamicval<eModel> m(pmodel, mdPixel);
+        current_display->set_all(0, 0);
+        glhr::id_modelview();
+        glhr::prepare(auravertices);
+        glhr::set_depthtest(false);
+        glDrawArrays(GL_TRIANGLES, 0, isize(auravertices));
+        }
+      #endif
+      }
+
     for(int i=0; i<N; i++) {
       item& I = items[i];
 
@@ -456,7 +569,7 @@ EX namespace dialog {
         displayfr(dcenter, mid, 2, dfsize * I.scale/100, I.body, I.color, 8);
         if(xthis) getcstat = I.key;
         }
-      else if(I.type == diItem || I.type == diBigItem) {
+      else if(among(I.type, diItem, diBigItem, diColorItem)) {
         bool xthis = (mousey >= top && mousey < tothei);
         if(cmode & sm::DIALOG_STRICT_X)
           xthis = xthis && (mousex >= dcenter - dialogwidth/2 && mousex <= dcenter + dialogwidth/2);
@@ -480,9 +593,25 @@ EX namespace dialog {
           if(!mousing)
             displayfr(keyx, mid, 2, dfsize * I.scale/100, keyname(I.key), I.colork, 16);
           displayfr(itemx, mid, 2, dfsize * I.scale/100, I.body, I.color, 0);
-          int siz = dfsize * I.scale/100;
-          while(siz > 6 && textwidth(siz, I.value) >= vid.xres - valuex) siz--;
-          displayfr(valuex, mid, 2, siz, I.value, I.colorv, 0);
+
+          if(I.type == diColorItem && !wmascii) {
+            int a = uishape();
+            flat_model_enabler fme;
+            initquickqueue();
+            ld pix = 1 / (2 * cgi.hcrossf / cgi.crossf);
+            color_t col = addalpha(I.color);
+            ld sizf = dfsize * I.scale / 150;
+            ld siz = sizf * sqrt(0.15+0.85*I.param/255.);
+            for(int i=0; i<=a; i++) curvepoint(hyperpoint(siz * sin(i*2*M_PI/a), -siz * cos(i*2*M_PI/a), 1, 1));
+            shiftmatrix V = shiftless(atscreenpos(valuex + sizf, mid, pix));
+            queuecurve(V, col, (I.colorv << 8) | 0xFF, PPR::LINE);
+            quickqueue();
+            }
+          else {
+            int siz = dfsize * I.scale/100;
+            while(siz > 6 && textwidth(siz, I.value) >= vid.xres - valuex) siz--;
+            displayfr(valuex, mid, 2, siz, I.value, I.colorv, 0);
+            }
           }
         if(xthis) getcstat = I.key;
         }      
@@ -493,19 +622,7 @@ EX namespace dialog {
           sl = vid.yres + vid.fsize*2, sr = vid.xres - vid.fsize*2;
         else
           sl = vid.xres/4, sr = vid.xres*3/4;
-        int sw = sr-sl;
-        if(I.type == diSlider) {
-          displayfr(sl, mid, 2, dfsize * I.scale/100, "(", I.color, 16);
-          displayfr(sl + double(sw * I.param), mid, 2, dfsize * I.scale/100, "#", I.color, 8);
-          displayfr(sr, mid, 2, dfsize * I.scale/100, ")", I.color, 0);
-          }
-        else {
-          displayfr(sl, mid, 2, dfsize * I.scale/100, "{", I.color, 16);
-          if(I.p2 < sw / 4) for(int a=0; a<=I.p2; a++) if(a != I.p1)
-            displayfr(sl + double(sw * a / I.p2), mid, 2, dfsize * I.scale/100, a == I.p1 ? "#" : ".", I.color, 8);
-          displayfr(sl + double(sw * I.p1 / I.p2), mid, 2, dfsize * I.scale/100, "#", I.color, 8);
-          displayfr(sr, mid, 2, dfsize * I.scale/100, "}", I.color, 0);
-          }
+        draw_slider(sl, sr, mid, I);
         if(xthis) getcstat = I.key, inslider = true, slider_x = mousex;
         }
       else if(I.type == diCustom) {
@@ -550,7 +667,7 @@ EX namespace dialog {
     }
 
   bool isitem(item& it) {
-    return it.type == diItem || it.type == diBigItem;
+    return among(it.type, diItem, diBigItem, diColorItem);
     }
 
   EX void handle_actions(int &sym, int &uni) {
@@ -683,7 +800,7 @@ EX namespace dialog {
   
   EX void drawColorDialog() {
     cmode = sm::NUMBER | dialogflags;
-    if(cmode & sm::SIDE) gamescreen(0);
+    if(cmode & sm::SIDE) gamescreen();
     else emptyscreen();
 
     dcenter = vid.xres/2;
@@ -721,17 +838,23 @@ EX namespace dialog {
         }
       }
 
+    item it;
+    it.type = diSlider;
+    it.scale = 100;
+
     for(int i=0; i<4; i++) {
       int y = vid.yres / 2 + (2-i) * vid.fsize * 2;
       if(i == 3 && !colorAlpha) continue;
-      
-      color_t col = ((i==colorp) && !mousing) ? 0xFFD500 : dialogcolor;
+      int in = 3 - i - (colorAlpha?0:1);
 
-      displayColorButton(dcenter - dwidth/4, y, "(", 0, 16, 0, col);
-      string rgt = ") "; rgt += "ABGR" [i+(colorAlpha?0:1)];
-      displayColorButton(dcenter + dwidth/4, y, rgt, 0, 0, 0, col);
-      displayColorButton(dcenter - dwidth/4 + dwidth * part(color, i) / 510, y, "#", 0, 8, 0, col);
-      
+      color_t colors[4] = {0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF};
+      it.color = colors[in];
+      it.param = part(color, i) / 255.;
+      draw_slider(dcenter - dwidth / 4, dcenter + dwidth / 4, y, it);
+
+      color_t col = ((i==colorp) && !mousing) ? 0xFFD500 : dialogcolor;
+      string rgt; rgt += "RGBA" [in];
+      displayColorButton(dcenter + dwidth/4 + vid.fsize, y, rgt, 0, 0, 0, col);
       if(mousey >= y - vid.fsize && mousey < y + vid.fsize)
         getcstat = 'A' + i, inslider = true, slider_x = mousex;
       }
@@ -827,8 +950,6 @@ EX namespace dialog {
       };
     }
 
-  EX int numberdark;
-
   EX void formula_keyboard(bool lr) {
     addKeyboardItem("1234567890");
     addKeyboardItem("=+-*/^()\x3");
@@ -891,9 +1012,7 @@ EX namespace dialog {
   
   EX void drawNumberDialog() {
     cmode = sm::NUMBER | dialogflags;
-    if(numberdark < DONT_SHOW)
-    gamescreen(numberdark);
-    else emptyscreen();
+    gamescreen();
     init(ne.title);
     addInfo(ne.s);
     if(ne.intval && ne.sc.direct == &identity_f)
@@ -1057,7 +1176,6 @@ EX namespace dialog {
     reaction = reaction_t();
     reaction_final = reaction_t();
     extra_options = reaction_t();
-    numberdark = 0;
     ne.animatable = true;
     #if CAP_ANIMATIONS
     anims::get_parameter_animation(x, ne.s);
@@ -1297,9 +1415,7 @@ EX namespace dialog {
   
   EX void string_edit_dialog() {
     cmode = sm::NUMBER | dialogflags;
-    if(numberdark < DONT_SHOW)
-    gamescreen(numberdark);
-    else emptyscreen();
+    gamescreen();
     init(ne.title);
     addInfo(view_edited_string());
     addBreak(100);
@@ -1336,11 +1452,11 @@ EX namespace dialog {
     pushScreen(string_edit_dialog);
     reaction = reaction_t();
     extra_options = reaction_t();
-    numberdark = 0;
     }
 
   EX void confirm_dialog(const string& text, const reaction_t& act) {
-    gamescreen(1);
+    cmode = sm::DARKEN;
+    gamescreen();
     dialog::addBreak(250);
     dialog::init(XLAT("WARNING"), 0xFF0000, 150, 100);
     dialog::addHelp(text);

@@ -65,7 +65,7 @@ string exec_name = "";
 
 void set_linux() {
   preprocessor = "g++ -E";
-  compiler = "g++ -Wall -Wextra -Wno-maybe-uninitialized -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-invalid-offsetof -rdynamic -fdiagnostics-color=always -c -march=native";
+  compiler = "g++ -Wall -Wextra -Wno-maybe-uninitialized -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-invalid-offsetof -rdynamic -fdiagnostics-color=always -c";
   linker = "g++ -rdynamic";
   default_exec_name = "hyper";
   if(sdlver == 2) {
@@ -84,7 +84,7 @@ void set_linux() {
 
 void set_mac() {
   preprocessor = "g++ -E";
-  compiler = "g++ -march=native -W -Wall -Wextra -Wsuggest-override -pedantic -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-invalid-offsetof -c";
+  compiler = "g++ -W -Wall -Wextra -Wsuggest-override -pedantic -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-invalid-offsetof -c";
   linker = "g++";
   default_exec_name = "hyper";
   opts = "-DMAC -I/usr/local/include";
@@ -94,7 +94,7 @@ void set_mac() {
 void set_mingw64() {
   mingw64 = true;
   preprocessor = "g++ -E";
-  compiler = "g++ -mwindows -march=native -W -Wall -Wextra -Werror -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
+  compiler = "g++ -mwindows -W -Wall -Wextra -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
   linker = "g++";
   default_exec_name = "hyper";
   opts = "-DWINDOWS -DCAP_GLEW=0 -DCAP_PNG=1";
@@ -105,11 +105,16 @@ void set_mingw64() {
 /* cross-compile Linux to Windows (tested on Archlinux) */
 void set_mingw64_cross() {
   preprocessor = "x86_64-w64-mingw32-g++ -E";
-  compiler = "x86_64-w64-mingw32-g++ -mwindows -march=native -W -Wall -Wextra -Werror -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
+  compiler = "x86_64-w64-mingw32-g++ -mwindows -W -Wall -Wextra -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
   linker = "x86_64-w64-mingw32-g++";
   default_exec_name = "hyper.exe";
-  opts = "-DWINDOWS -DGLEW_STATIC -DUSE_STDFUNCTION=1 -DCAP_PNG=1 -I /usr/x86_64-w64-mingw32/include/SDL/";
-  libs = " hyper64.res -static-libgcc -lopengl32 -lSDL -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpthread -lz -lglew32 -lpng";
+  opts = "-DWINDOWS -DGLEW_STATIC -DUSE_STDFUNCTION=1 -DCAP_PNG=1";
+  if(sdlver == 1) opts += " -I /usr/x86_64-w64-mingw32/include/SDL/";
+  if(sdlver == 2) opts += " -I /usr/x86_64-w64-mingw32/include/SDL2/";
+  libs = " hyper64.res -static-libgcc -lopengl32";
+  if(sdlver == 1) libs += " -lSDL -lSDL_gfx -lSDL_mixer -lSDL_ttf";
+  if(sdlver == 2) libs += " -lSDL2 -lSDL2_gfx -lSDL2_mixer -lSDL2_ttf";
+  libs += " -lpthread -lz -lglew32 -lpng";
   setvbuf(stdout, NULL, _IONBF, 0); // MinGW is quirky with output buffering
   if(!file_exists("hyper64.res"))
     mysystem("x86_64-w64-mingw32-windres hyper.rc -O coff -o hyper64.res");
@@ -143,11 +148,32 @@ void set_os(string o) {
   }
 
 vector<string> modules;
+vector<string> hidden_dependencies;
 
 time_t get_file_time(const string s) {
   struct stat attr;
   if(stat(s.c_str(), &attr)) return 0;
-  return attr.st_mtime;
+  time_t res = attr.st_mtime;
+
+  for(auto& hd: hidden_dependencies) if(s.substr(0, hd.size()) == hd) {
+    int pos = 0;
+    vector<int> slashes = {0};
+    int numslash = 0;
+    for(char c: s) { pos++; if(c == '/') slashes.push_back(pos), numslash++; }
+    ifstream ifs(s);
+    string s1;
+    while(getline(ifs, s1)) {
+      if(s1.substr(0, 10) == "#include \"") {
+        string t = s1.substr(10);
+        t = t.substr(0, t.find("\""));
+        int qdot = 0;
+        while(t.substr(0, 3) == "../" && qdot < numslash) qdot++, t = t.substr(3);
+        string u = s.substr(0, slashes[numslash - qdot]) + t;
+        res = max(res, get_file_time(u));
+        }
+      }
+    }
+  return res;
   }
 
 int optimized = 0;
@@ -227,13 +253,14 @@ int main(int argc, char **argv) {
       setdir += "../";
       opts += " -DCAP_SDL2=1";
       }
-    else if(s.substr(0, 2) == "-f") {
+    else if(s.substr(0, 2) == "-f" || s.substr(0, 2) == "-m") {
       opts += " " + s;
       obj_dir += "/";
       setdir += "../";
       for(char c: s) 
         if(!isalnum(c)) obj_dir += "_"; 
         else obj_dir += c;
+      compiler += " " + s;
       linker += " " + s;
       }
     else if(s == "-o") {
@@ -251,6 +278,8 @@ int main(int argc, char **argv) {
       optimized = 2, compiler += " -O2", obj_dir += "/O2", setdir += "../";
     else if(s == "-O3")
       optimized = 3, compiler += " -O3", obj_dir += "/O3", setdir += "../";
+    else if(s == "-Werror")
+      compiler += " -Werror", obj_dir += "/Werror", setdir += "../";
     else if(s.substr(0, 4) == "-std")
       standard = s;
     else if(s.substr(0, 2) == "-l")
@@ -266,8 +295,14 @@ int main(int argc, char **argv) {
     else if(s == "-vr") {
       obj_dir += "/vr";
       setdir += "../";
-      linker += " -lopenvr_api";
-      opts += " -DCAP_VR=1 -I/usr/include/openvr/";
+      if(os == "mingw64" || os == "mingw64-cross") {
+        linker += " for-win64/mingw64/bin/libopenvr_api.dll";
+        opts += " -DCAP_VR=1 -I./for-win64/mingw64/include/openvr/";
+        }
+      else {
+        linker += " -lopenvr_api";
+        opts += " -DCAP_VR=1 -I/usr/include/openvr/";
+        }
       }
     else if(s == "-rv") {
       
@@ -281,6 +316,10 @@ int main(int argc, char **argv) {
           string t = s.substr(10);
           t = t.substr(0, t.find(".cpp\""));
           modules.push_back("rogueviz/" + t);
+          }
+        if(s.substr(0, 24) == "// hidden dependencies: ") {
+          while(s.back() == 10 || s.back() == 13) s.pop_back();
+          hidden_dependencies.push_back(s.substr(24));
           }
         }
       }

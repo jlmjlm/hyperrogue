@@ -125,7 +125,6 @@ EX bool wrongMode(char flags) {
   if(yendor::on) return true;
   if(peace::on) return true;
   if(tactic::on) return true;
-  if(dpgen::in) return true;
 #if CAP_TOUR
   if(tour::on) return true;
 #endif
@@ -175,7 +174,7 @@ EX void achievement_log(const char* s, char flags) {
 #if CAP_SAVE
   remove_emergency_save();
 
-  FILE *f = fopen(scorefile, "at");
+  FILE *f = fopen(scorefile.c_str(), "at");
   if(!f) return;
   
   int t = (int) (time(NULL) - timerstart);

@@ -1,13 +1,10 @@
 # HyperRogue
-<p align="right">
+<p>
 <a href="https://travis-ci.org/zenorogue/hyperrogue/builds">
-<img align="right" src="https://badges.herokuapp.com/travis/zenorogue/hyperrogue?branch=master&env=TRAVIS_BUILD_SYSTEM=Makefile&label=make" alt="TravisCI badge">
-<img align="right" src="https://badges.herokuapp.com/travis/zenorogue/hyperrogue?branch=master&env=TRAVIS_BUILD_SYSTEM=mymake&label=mymake" alt="TravisCI badge">
-<img align="right" src="https://badges.herokuapp.com/travis/zenorogue/hyperrogue?branch=master&env=TRAVIS_BUILD_SYSTEM=emscripten&label=web" alt="TravisCI badge">
+<img src="https://badges.herokuapp.com/travis/zenorogue/hyperrogue?branch=master&env=TRAVIS_BUILD_SYSTEM=Makefile&label=make" alt="TravisCI badge">
+<img src="https://badges.herokuapp.com/travis/zenorogue/hyperrogue?branch=master&env=TRAVIS_BUILD_SYSTEM=mymake&label=mymake" alt="TravisCI badge">
+<img src="https://badges.herokuapp.com/travis/zenorogue/hyperrogue?branch=master&env=TRAVIS_BUILD_SYSTEM=emscripten&label=web" alt="TravisCI badge">
 </a>
-</p>
-<p align="left">
-<b>Current version: 11.3f</b>
 </p>
 
 A puzzle roguelike in the hyperbolic plane. See the [HyperRogue website](http://roguetemple.com/z/hyper.php) for detailed and most up-to-date information.
@@ -78,7 +75,8 @@ make
 
 The `mymake` program builds HyperRogue in parts. It takes longer than the method shown above, but it uses significantly less memory during compilation, and when you change something, `mymake` will only recompile the changed file.
 Additionally, it can be easily configured, e.g., to produce an optimized build, or to include addons (see `mymake.cpp` for some example invocations, and `devmods` for some example addons).
-Most useful parameters include `-O3` (optimized build), `-rv` (include the RogueViz demos), `-vr` (build the VR version).
+Most useful parameters include `-O3` (optimized build), `-rv` (include the RogueViz demos), `-vr` (build the VR version). Compiler flags like `-Werror` (treat warnings as errors) and `-march=native` work too.
+
 
 ```
 make mymake && ./mymake

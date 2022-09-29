@@ -342,7 +342,7 @@ void drawCurse(const shiftmatrix& V, eItem it) {
 
 #define UNTRANS (GDIM == 3 ? 0x000000FF : 0)
 
-EX void drawPlayerEffects(const shiftmatrix& V, cell *c, eMonster m) {
+EX void drawPlayerEffects(const shiftmatrix& V, const shiftmatrix& Vparam, cell *c, eMonster m) {
   bool onplayer = m == moPlayer;
   if(!onplayer && !items[itOrbEmpathy]) return;
   if(items[itOrbShield] > (shmup::on ? 0 : ORBBASE)) drawShield(V, itOrbShield);
@@ -369,7 +369,7 @@ EX void drawPlayerEffects(const shiftmatrix& V, cell *c, eMonster m) {
 #if CAP_SHAPES
       shiftmatrix Vsword = 
         shmup::on ? V * shmup::swordmatrix[multi::cpid] * cspin(2, 0, M_PI/2) 
-                  : gmatrix[c] * rgpushxto0(inverse_shift(gmatrix[c], tC0(V))) * sword::dir[multi::cpid].T;
+                  : Vparam * rgpushxto0(inverse_shift(gmatrix[c], tC0(V))) * sword::dir[multi::cpid].T;
 
       if(items[itOrbSword])
         queuepoly(Vsword * cspin(1,2, ticks / 150.), (peace::on ? cgi.shMagicShovel : cgi.shMagicSword), darkena(iinf[itOrbSword].color, 0, 0xC0 + 0x30 * sintick(200)));
@@ -384,7 +384,7 @@ EX void drawPlayerEffects(const shiftmatrix& V, cell *c, eMonster m) {
       ang %= sword::sword_angles;
 
 #if CAP_QUEUE || CAP_SHAPES
-      shiftmatrix Vnow = gmatrix[c] * rgpushxto0(inverse_shift(gmatrix[c], tC0(V))) * ddspin(c,0,M_PI);
+      shiftmatrix Vnow = Vparam * rgpushxto0(inverse_shift(Vparam, tC0(V))) * ddspin(c,0,M_PI);
 #endif
 
       int adj = 1 - ((sword_angles/cwt.at->type)&1);
@@ -836,7 +836,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
     
 #if CAP_SHAPES
   auto sinptick = [c, pticks] (int period) { return c ? sintick(period) : sin(animation_factor * vid.ispeed * pticks / period);};
-  auto spinptick = [c, pticks] (int period, ld phase) { return c ? spintick(period, phase) : spin((animation_factor * vid.ispeed * pticks + phase) / period); };
+  auto spinptick = [c, pticks] (int period, ld phase) { return c ? spintick(period, phase) : spin((animation_factor * vid.ispeed * pticks) / period + phase * 2 * M_PI); };
   int ct6 = c ? ctof(c) : 1;
   hpcshape *xsh = 
     (it == itPirate || it == itKraken) ? &cgi.shPirateX :
@@ -844,7 +844,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
     it == itHolyGrail ? &cgi.shGrail :
     isElementalShard(it) ? &cgi.shElementalShard :
     (it == itBombEgg || it == itTrollEgg || it == itCursed) ? &cgi.shEgg :
-    it == itFrog ? &cgi.shDisk :
+    (it == itFrog || it == itWhirlpool) ? &cgi.shDisk :
     it == itHunting ? &cgi.shTriangle :
     (it == itDodeca || it == itDice) ? &cgi.shDodeca :
     xch == '*' ? &cgi.shGem[ct6] : 
@@ -2539,7 +2539,7 @@ EX int cellcolor(cell *c) {
 
 int taildist(cell *c) {
   int s = 0;
-  while(s < 1000 && c->mondir != NODIR && isWorm(c->monst)) {
+  while(s < 1000 && c && c->mondir != NODIR && isWorm(c->monst)) {
     s++; c = c->move(c->mondir);
     }
   return s;
@@ -2874,7 +2874,7 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
       if(!nospins && flipplayer) Vs = Vs * pispin;
       
       res = res && drawMonsterType(moMimic, c, Vs, col, footphase, asciicol);
-      drawPlayerEffects(Vs, c, c->monst);
+      drawPlayerEffects(Vs, Vparam, c, c->monst);
       }
     }
   
@@ -2884,7 +2884,7 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
     multi::cpid = 0;
     if(c->monmirror) Vs = Vs * Mirror;
     drawMonsterType(c->monst, c, Vs, col, footphase, asciicol);
-    drawPlayerEffects(Vs, c, c->monst);
+    drawPlayerEffects(Vs, Vparam, c, c->monst);
     }
 
   // wolves face the heat
@@ -2941,7 +2941,7 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
     if(!nospins && c->mondir < c->type) Vs = Vs * ddspin(c, c->mondir, M_PI);
     if(c->monst == moPair) Vs = Vs * xpush(-.12);
     if(c->monmirror) Vs = Vs * Mirror;
-    if(isFriendly(c)) drawPlayerEffects(Vs, c, c->monst);
+    if(isFriendly(c)) drawPlayerEffects(Vs, Vparam, c, c->monst);
     res = res && drawMonsterTypeDH(m, c, Vs, col, darkhistory, footphase, asciicol);
     }
 
@@ -2995,7 +2995,7 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
 
     asciicol = getcs().uicolor >> 8;
 
-    drawPlayerEffects(Vs, c, moPlayer);
+    drawPlayerEffects(Vs, Vparam, c, moPlayer);
     if(inmirrorcount && !mouseout() && !nospins && GDIM == 2) {
       hyperpoint h = inverse_shift(ocwtV, mouseh);
       if(flipplayer) h = pispin * h;
@@ -3987,7 +3987,8 @@ EX void gridline(const shiftmatrix& V1, const hyperpoint h1, const shiftmatrix& 
   if(WDIM == 3 && fat_edges) {
     shiftmatrix T = V1 * rgpushxto0(h1);
     transmatrix S = rspintox(inverse_shift(T, V2) * h2);
-    auto& p = queuepoly(T * S, cgi.generate_pipe(d, vid.linewidth), col);
+    transmatrix U = rspintoc(inverse_shift(T*S, shiftless(C0)), 2, 1);
+    auto& p = queuepoly(T * S * U, cgi.generate_pipe(d, vid.linewidth, ePipeEnd::ball), col);
     p.intester = xpush0(d/2);
     return;
     }
@@ -4283,6 +4284,10 @@ struct flashdata {
   };
 
 vector<flashdata> flashes;
+
+auto ahgf = addHook(hooks_removecells, 1, [] () {
+  eliminate_if(flashes, [] (flashdata& f) { return is_cell_removed(f.where); });
+  });
 
 EX void drawBubble(cell *c, color_t col, string s, ld size) {
   LATE( drawBubble(c, col, s, size); )
@@ -5110,10 +5115,7 @@ EX void drawthemap() {
     cellwalker cw = cwt; bool f = flipplayer;
     items[itWarning]+=2;
     
-    bool recorduse[ittypes];
-    for(int i=0; i<ittypes; i++) recorduse[i] = orbused[i];
     movepcto(mousedest.d, mousedest.subdir, true);
-    for(int i=0; i<ittypes; i++) orbused[i] = recorduse[i];
     items[itWarning] -= 2;
     if(cw.spin != cwt.spin) mirror::act(-mousedest.d, mirror::SPINSINGLE);
     cwt = cw; flipplayer = f;
@@ -5185,6 +5187,8 @@ EX int corner_centering;
 
 EX bool permaside;
 
+EX bool old_center;
+
 EX void calcparam() {
 
   DEBBI(DF_GRAPH, ("calc param"));
@@ -5207,12 +5211,12 @@ EX void calcparam() {
 
   current_display->sidescreen = permaside;
   
-  if(vid.xres < vid.yres - 2 * vid.fsize && !inHighQual && !in_perspective()) {
+  if(vid.xres < vid.yres - 2 * vid.fsize && !inHighQual && (old_center || !in_perspective())) {
     cd->ycenter = lerp(vid.fsize + cd->scrsize, vid.yres - cd->scrsize - vid.fsize, .8);
     }
   else {
     bool ok = !vrhr::active();
-    if(vid.xres > vid.yres * 4/3+16 && (cmode & sm::SIDE) && ok)
+    if(vid.xres > vid.yres * 4/3+16 && (cmode & sm::SIDE) && ok && !((cmode & sm::MAYDARK) && centered_menus))
       current_display->sidescreen = true;
 #if CAP_TOUR
     if(tour::on && (tour::slides[tour::currentslide].flags & tour::SIDESCREEN) && ok)
@@ -5293,6 +5297,8 @@ EX void drawfullmap() {
 
   clearaura();
   if(!nomap) drawthemap();
+  else callhooks(hooks_frame);
+
   if(!inHighQual) {
     if((cmode & sm::NORMAL) && !rug::rugged) {
       if(multi::players > 1) {
@@ -5323,14 +5329,22 @@ extern bool wclick;
 
 EX bool just_refreshing;
 
-EX void gamescreen(int _darken) {
+EX int menu_darkening = 2;
+EX bool centered_menus = false;
+
+EX void gamescreen() {
+
+  if(cmode & sm::NOSCR) {
+    emptyscreen();
+    return;
+    }
 
   if(just_refreshing) return;
 
   if(subscreens::split([=] () {
     calcparam();
     compute_graphical_distance();
-    gamescreen(_darken);
+    gamescreen();
     })) {
     if(racing::on) return;
     // create the gmatrix
@@ -5348,7 +5362,7 @@ EX void gamescreen(int _darken) {
   if(dual::split([=] () { 
     vid.xres = gx;
     vid.yres = gy;
-    dual::in_subscreen([=] () { gamescreen(_darken); });
+    dual::in_subscreen([=] () { gamescreen(); });
     })) {
     calcparam(); 
     return; 
@@ -5356,19 +5370,27 @@ EX void gamescreen(int _darken) {
   
   calcparam();
   
-  if((cmode & sm::MAYDARK) && !current_display->sidescreen && !inHighQual) {
-    _darken += 2;
+  darken = 0;
+
+  if(!inHighQual && !vrhr::active()) {
+    if((cmode & sm::MAYDARK) && !current_display->sidescreen)
+      darken += menu_darkening;
+    else if(cmode & sm::DARKEN)
+      darken += menu_darkening;
+    }
+  if(vid.highlightmode == (hiliteclick ? 0 : 2))
+    darken++;
+  if(darken >= 8) {
+    emptyscreen();
+    return;
     }
 
-  darken = _darken;
-  if(vrhr::active()) darken = 0;
-  
   if(history::includeHistory) history::restore();
 
   anims::apply();
 #if CAP_RUG
   if(rug::rugged) {
-    rug::actDraw();
+    if(!nomap) rug::actDraw();
     } else
 #endif
   wrap_drawfullmap();
@@ -5428,13 +5450,13 @@ EX void normalscreen() {
   mouseovers = standard_help();
 
 #if CAP_TOUR  
-  if(tour::on) mouseovers = tour::tourhelp;
+  if(tour::on) mouseovers = (tour::slides[tour::currentslide].flags & tour::NOTITLE) ? "" : tour::tourhelp;
 #endif
 
   if(GDIM == 3 || !outofmap(mouseh.h)) getcstat = '-';
   cmode = sm::NORMAL | sm::DOTOUR | sm::CENTER;
   if(viewdists && show_distance_lists) cmode |= sm::SIDE | sm::MAYDARK;
-  gamescreen((vid.highlightmode == (hiliteclick ? 0 : 2)) ? 1 : 0); drawStats();
+  gamescreen(); drawStats();
   if(nomenukey || ISMOBILE)
     ;
 #if CAP_TOUR
@@ -5491,12 +5513,16 @@ namespace sm {
   static const int VR_MENU = (1<<18); // always show the menu in VR
   static const int SHOWCURSOR = (1<<19); // despite MAP/DRAW always show the cursor, no panning
   static const int PANNING = (1<<20); // smooth scrolling works
+  static const int DARKEN = (1<<21); // darken the game background
+  static const int NOSCR = (1<<22); // do not show the game background
   }
 #endif
 
 EX int cmode;
 
 EX bool dont_display_minecount = false;
+
+EX color_t titlecolor;
 
 EX void drawscreen() {
 
@@ -5555,6 +5581,7 @@ EX void drawscreen() {
 #if !ISMOBILE
   color_t col = linf[cwt.at->land].color;
   if(cwt.at->land == laRedRock) col = 0xC00000;
+  if(titlecolor) col = titlecolor;
   if(!nohelp)
     displayfr(vid.xres/2, vid.fsize,   2, vid.fsize, mouseovers, col, 8);
 #endif

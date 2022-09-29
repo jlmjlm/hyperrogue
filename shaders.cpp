@@ -83,7 +83,7 @@ EX string stereo_shader() {
     "float s = t.z;\n"
     "float l = length(t.xyz);\n"
     "t /= max(l, 1e-2);\n"
-    "t.z += " + glhr::to_glsl(panini_alpha) + ";\n"
+    "t.z += " + glhr::to_glsl(stereo_alpha) + ";\n"
     "t *= l;\n"
     "t.w = 1.;\n";
   }
@@ -451,7 +451,6 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
       shader_flags |= SF_ORIENT;
       }
     else if((shader_flags & SF_PERS3) && stereo_alpha && !vrhr::rendering_eye()) {
-      vmain += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
       vmain += stereo_shader();
       }
       
@@ -570,7 +569,7 @@ void display_data::set_projection(int ed, ld shift) {
   if(selected->uIterations != -1) {
     glhr::set_index_sl(0);
     glhr::set_sv(stretch::not_squared());
-    glhr::set_sl_iterations(slr::steps);
+    glhr::set_sl_iterations(slr::shader_iterations);
     }
 
   glhr::new_projection();

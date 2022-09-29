@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "12.0q"
-#define VERNUM_HEX 0xA911
+#define VER "12.1a"
+#define VERNUM_HEX 0xA921
 
 #include "sysconfig.h"
 
@@ -110,6 +110,11 @@ struct hr_shortest_path_exception { };
 #define GEN_F 1
 #define GEN_N 2
 #define GEN_O 3
+#define GEN_BASE_MASK   7
+
+#define GENF_ELISION    (1 << 3)
+#define GENF_PLURALONLY (1 << 4)
+#define GENF_PROPER     (1 << 5)
 
 // Add a message to the GUI.
 // If multiple messages appear with the same spamtype != 0, the older ones disappear quickly
@@ -124,7 +129,7 @@ void addMessage(string s, char spamtype = 0);
 #define hyperbolic_37 (S7 == 7 && S3 == 3 && !bt::in() && !arcm::in())
 #define hyperbolic_not37 ((S7 > 7 || S3 > 3 || bt::in() || arcm::in()) && hyperbolic)
 #define weirdhyperbolic ((S7 > 7 || S3 > 3 || !STDVAR || bt::in() || arcm::in() || arb::in()) && hyperbolic)
-#define stdhyperbolic (S7 == 7 && S3 == 3 && STDVAR && !bt::in() && !arcm::in())
+#define stdhyperbolic (S7 == 7 && S3 == 3 && STDVAR && !bt::in() && !arcm::in() && !arb::in())
 
 #define cgflags cginf.flags 
 

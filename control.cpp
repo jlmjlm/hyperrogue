@@ -117,7 +117,7 @@ EX movedir vectodir(hyperpoint P) {
   }
 
 EX void remission() {
-  if(!canmove && (cmode & sm::NORMAL)) showMissionScreen();
+  if(!canmove && (cmode & sm::NORMAL) && !game_keys_scroll) showMissionScreen();
  }
 
 EX hyperpoint move_destination_vec(int d) {
@@ -356,13 +356,21 @@ EX void full_forward_camera(ld t) {
     }
   }
 
-EX void full_strafe_camera(ld t) {
+EX void full_cstrafe_camera(int dir, ld t) {
   if(GDIM == 3) {
-    shift_view(ctangent(0, t * camera_speed));
+    shift_view(ctangent(dir, t * camera_speed));
     didsomething = true;
     playermoved = false;
     }
   }
+
+EX void full_strafe_camera(ld t) { full_cstrafe_camera(0, t); }
+
+EX void full_ystrafe_camera(ld t) {
+  if(walking::on) { walking::eye_level += t; if(walking::eye_level < 1e-3) walking::eye_level = 1e-3; }
+  else full_cstrafe_camera(1, t);
+  }
+
 
 EX ld third_person_rotation = 0;
 
@@ -498,7 +506,7 @@ EX array<int, 8> keys_numpad = {{SDLK_KP6, SDLK_KP3, SDLK_KP2, SDLK_KP1, SDLK_KP
 EX void handleKeyNormal(int sym, int uni) {
 
   if(cheater && sym < 256 && sym > 0) {
-    if(applyCheat(uni, mouseover))
+    if(applyCheat(uni))
       uni = sym = 0;
     }
 
@@ -512,7 +520,7 @@ EX void handleKeyNormal(int sym, int uni) {
   if(handleTune(sym, uni)) return;
 #endif
 
-  if(!(uni >= 'A' && uni <= 'Z') && DEFAULTCONTROL) {
+  if(!(uni >= 'A' && uni <= 'Z') && DEFAULTCONTROL && !game_keys_scroll) {
     for(int i=0; i<8; i++)
       if(among(sym, keys_vi[i], keys_wasd[i], keys_numpad[i]))
         movepckeydir(i);
@@ -535,7 +543,7 @@ EX void handleKeyNormal(int sym, int uni) {
     }
   #endif
   
-  if(DEFAULTCONTROL) {
+  if(DEFAULTCONTROL && !game_keys_scroll) {
     if(sym == '.' || sym == 's') movepcto(-1, 1);
     if((sym == SDLK_DELETE || sym == SDLK_KP_PERIOD || sym == 'g') && uni != 'G' && uni != 'G'-64) 
       movepcto(MD_DROP, 1);
@@ -550,7 +558,7 @@ EX void handleKeyNormal(int sym, int uni) {
       }
     }
 
-  if(sym == SDLK_KP5 && DEFAULTCONTROL) movepcto(-1, 1);
+  if(sym == SDLK_KP5 && DEFAULTCONTROL && !game_keys_scroll) movepcto(-1, 1);
 
   if(sym == SDLK_F5) {
     #if CAP_DAILY
@@ -558,7 +566,7 @@ EX void handleKeyNormal(int sym, int uni) {
     else
     #endif
     if(needConfirmation()) 
-      pushScreen(showMission);
+      pushScreen(showGameMenu);
     else restart_game();
     }
 
@@ -574,13 +582,13 @@ EX void handleKeyNormal(int sym, int uni) {
     if(daily::on) daily::handleQuit(2);
     else
     #endif
-    if(needConfirmation()) pushScreen(showMission);
+    if(needConfirmation()) pushScreen(showGameMenu);
     else quitmainloop = true;
     }
   
   if(uni == 'o' && DEFAULTNOR(sym)) get_o_key().second();
 #if CAP_INV
-  if(uni == 'i' && DEFAULTNOR(sym) && inv::on) 
+  if(uni == 'i' && DEFAULTNOR(sym) && inv::on && !game_keys_scroll)
     pushScreen(inv::show);
 #endif
   
@@ -592,10 +600,10 @@ EX void handleKeyNormal(int sym, int uni) {
     }
   
   if(sym == 'v' && DEFAULTNOR(sym)) 
-    pushScreen(showMainMenu);
+    showMissionScreen();
 
   if(sym == PSEUDOKEY_MENU) 
-    pushScreen(showMainMenu);
+    showMissionScreen();
   
   if(sym == PSEUDOKEY_NOHINT)
     no_find_player = true;
@@ -689,12 +697,15 @@ EX void resize_screen_to(int x, int y) {
 
 int lastframe;
 
-EX int sc_ticks;
+EX int sc_ticks, sc_ticks2;
 
 EX bool mouseaiming(bool shmupon) {
   return
     (GDIM == 3 && !shmupon) || (rug::rugged && (lctrlclick ^ rug::mouse_control_rug));
   }
+
+/* visualization only -- the HyperRogue movement keys should move the camera */
+EX bool game_keys_scroll;
 
 EX void mainloopiter() {
   GLWRAP;
@@ -907,8 +918,6 @@ EX void mainloopiter() {
     lastticks = ticks;
     
     #if CAP_SDL2
-    const Uint8 *keystate = SDL_GetKeyboardState(NULL);
-
     if(keystate[SDL_SCANCODE_END] && GDIM == 3 && DEFAULTNOR(SDL_SCANCODE_END)) full_forward_camera(-t);
     if(keystate[SDL_SCANCODE_HOME] && GDIM == 3 && DEFAULTNOR(SDL_SCANCODE_HOME)) full_forward_camera(t);
     if(keystate[SDL_SCANCODE_RIGHT] && DEFAULTNOR(SDL_SCANCODE_RIGHT)) full_rotate_camera(0, -t);
@@ -919,7 +928,6 @@ EX void mainloopiter() {
     if(keystate[SDL_SCANCODE_PAGEDOWN] && DEFAULTNOR(SDL_SCANCODE_PAGEDOWN)) full_rotate_view(-t * 180 / M_PI, -t);
 
     #else
-    Uint8 *keystate = SDL_GetKeyState(NULL);
 
     if(keystate[SDLK_END] && GDIM == 3 && DEFAULTNOR(SDLK_END)) full_forward_camera(-t);
     if(keystate[SDLK_HOME] && GDIM == 3 && DEFAULTNOR(SDLK_HOME)) full_forward_camera(t);
@@ -932,6 +940,27 @@ EX void mainloopiter() {
     #endif
     }
   else sc_ticks = ticks;
+
+  if(game_keys_scroll && !shmup::on && (cmode & sm::NORMAL) && !keystate[SDLK_LALT] && !keystate[SDLK_RALT]) {
+    rug::using_rugview urv;
+    auto& lastticks = sc_ticks2;
+    ld t = (ticks - lastticks) * shiftmul / 1000.;
+    lastticks = ticks;
+
+    if(keystate['d'] && DEFAULTNOR('d')) full_rotate_camera(0, -t);
+    if(keystate['a'] && DEFAULTNOR('a')) full_rotate_camera(0, t);
+    if(keystate['w'] && DEFAULTNOR('w')) full_rotate_camera(1, t);
+    if(keystate['s'] && DEFAULTNOR('s')) full_rotate_camera(1, -t);
+    if(keystate['q'] && DEFAULTNOR('q')) full_rotate_view(t * 180 / M_PI, t);
+    if(keystate['e'] && DEFAULTNOR('e')) full_rotate_view(-t * 180 / M_PI, -t);
+
+    if(keystate['i'] && GDIM == 3 && DEFAULTNOR('i')) full_forward_camera(-t);
+    if(keystate['k'] && GDIM == 3 && DEFAULTNOR('k')) full_forward_camera(t);
+    if(keystate['l'] && GDIM == 3 && DEFAULTNOR('l')) full_strafe_camera(-t);
+    if(keystate['j'] && GDIM == 3 && DEFAULTNOR('j')) full_strafe_camera(t);
+    if(keystate['h'] && GDIM == 3 && DEFAULTNOR('h')) full_ystrafe_camera(-t);
+    if(keystate['y'] && GDIM == 3 && DEFAULTNOR('y')) full_ystrafe_camera(t);
+    }
 
   #if CAP_VR
   vrhr::vr_control();
@@ -1056,6 +1085,9 @@ EX void handle_event(SDL_Event& ev) {
         }      
       #else
       uni = ev.key.keysym.unicode;
+      if(uni == 0 && (sym >= 'a' && sym <= 'z')) {
+        if(ev.key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) uni = sym - 96;
+        }
       if(ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT)) shiftmul = -1;
       if(ev.key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) shiftmul /= 10;
       #endif
@@ -1402,7 +1434,7 @@ void delayed_reset() {
 EX void show() {
 #if CAP_ORIENTATION
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
 
   dialog::init(XLAT("scrolling by device rotation"));
   

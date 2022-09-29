@@ -18,6 +18,9 @@ struct intra_data {
 
 EX vector<intra_data> data;
 
+/** tells gamedata store that we are just storing one world */
+EX bool switching;
+
 /** index of the space we are currently in */
 EX int current;
 
@@ -285,9 +288,9 @@ EX portal_data make_portal(cellwalker cw, int spin) {
       println(hlog, "deep       ", x, " = ", hdist(res(x*.1,0,0), res(x*.1,0,0.001)));
       }
     hyperpoint a = hyperpoint(.4, .2, .1, 1);
-    println(hlog, "a = ", a);
-    println(hlog, "b = ", id.from_poco(a));
-    println(hlog, "c = ", id.to_poco(id.from_poco(a)));
+    println(hlog, "a = ", kz(a));
+    println(hlog, "b = ", kz(id.from_poco(a)));
+    println(hlog, "c = ", kz(id.to_poco(id.from_poco(a))));
     }
 
   if(debug_portal & 1) {
@@ -327,6 +330,7 @@ EX connection_data* find_connection(int a, int b) {
 
 EX void switch_to(int id) {
   if(current == id) return;
+  dynamicval<bool> is(switching, true);
   data[current].gd.storegame();
   current = id;
   ginf[gProduct] = data[current].gi;
@@ -435,6 +439,7 @@ EX void regenerate_full_sample_list() {
 
 /** make currentmap into one of the spaces in intra */
 EX void become() {
+  dynamicval<bool> is(switching, true);
   if(intra::in) {
     /* let them add more spaces in this case */
     data[current].gd.storegame();
@@ -462,6 +467,7 @@ EX void become() {
 EX void start(int id IS(0)) {
   in = true;
   current = id;
+  dynamicval<bool> is(switching, true);
   data[current].gd.restoregame();
   ginf[gProduct] = data[current].gi;
 
@@ -644,7 +650,8 @@ void erase_unconnected(cellwalker cw) {
 int edit_spin;
 
 EX void show_portals() {
-  gamescreen(1);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
 
   dialog::init(XLAT("manage portals"));
 
@@ -781,6 +788,7 @@ EX void kill(int id) {
 
 EX void erase_all_maps() {
   println(hlog, "erase_all_maps called");
+  dynamicval<bool> is(switching, true);
   data[current].gd.storegame();
   in = false;
   for(int i=0; i<isize(data); i++) {
@@ -845,7 +853,7 @@ EX ld eye_level = 0.2174492;
 EX ld eye_angle = 0;
 EX ld eye_angle_scale = 1;
 
-int ticks_end, ticks_last;
+EX int ticks_end, ticks_last;
 
 EX set<color_t> colors_of_floors;
 
@@ -1014,16 +1022,18 @@ EX void handle() {
   ticks_last = ticks;
   }
 
+EX void switch_walking() {
+  on = !on;
+  if(on && auto_eyelevel) eye_level = -1;
+  floor_dir = -1;
+  on_floor_of = nullptr;
+  ticks_last = ticks;
+  ticks_end = ticks + 1000;
+  }
+
 EX void add_options() {
   dialog::addBoolItem("walking mode", on, 'w');
-  dialog::add_action([] {
-    on = !on;
-    if(on && auto_eyelevel) eye_level = -1;
-    floor_dir = -1;
-    on_floor_of = nullptr;
-    ticks_last = ticks;
-    ticks_end = ticks + 1000;
-    });
+  dialog::add_action(switch_walking);
   add_edit(eye_level);
   add_edit(eye_angle);
   if(point_direction >= 0 && point_direction < centerover->type) {

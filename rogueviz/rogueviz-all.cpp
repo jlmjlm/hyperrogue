@@ -53,8 +53,11 @@
 #include "ascending-descending.cpp"
 #include "balls.cpp"
 #include "pentaroll.cpp"
+#include "nil-compass.cpp"
 #if CAP_RVSLIDES
 #include "playing-with-impossibility.cpp"
+#include "hyperbolic-minesweeper-pres.cpp"
+#include "dhrg-pres.cpp"
 #endif
 #include "highdim-demo.cpp"
 #include "horo63.cpp"
@@ -62,8 +65,11 @@
 #include "intra-demos.cpp"
 #include "gobot.cpp"
 #include "extra-projections.cpp"
-#include "nil-compass.cpp"
 #include "balloonsim.cpp"
+#include "dpgen.cpp"
+#include "antidesitter.cpp"
+
+#include "dhrg/dhrg.cpp"
 
 #include "som/kohonen.cpp"
 #include "som/embeddings.cpp"
@@ -71,6 +77,10 @@
 #include "som/tests.cpp"
 #include "som/voronoi.cpp"
 #include "som/measures.cpp"
+
+// the following comments are read by mymake so that it knows that the files include other files there:
+// hidden dependencies: rogueviz/nilrider/
+// hidden dependencies: rogueviz/dhrg/
 
 //#endif
 

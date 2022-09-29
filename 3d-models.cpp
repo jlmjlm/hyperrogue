@@ -1235,40 +1235,66 @@ void geometry_information::make_3d_models() {
   finishshape();
   }
 
-hpcshape& geometry_information::generate_pipe(ld length, ld width) {
-  int id = int(length * 17 + .5) + int(157003 * log(width+.001));
+hpcshape& geometry_information::generate_pipe(ld length, ld width, ePipeEnd endtype) {
+  int id = int(length * 172 + .5) + int(157003 * log(width+.001));
+  bool pers = in_perspective();
+  if(!pers) id ^= 0x4126891;
   if(shPipe.count(id)) return shPipe[id];
   hpcshape& pipe = shPipe[id];
   println(hlog, "generating pipe of length ", length, " and width ", width);
   bshape(pipe, PPR::WALL);
 
+#if CAP_GL
+  auto& utt = models_texture;
+  if(floor_textures) {
+    pipe.tinf = &utt;
+    pipe.texture_offset = isize(utt.tvertices);
+    }
+#endif
+
   const int MAX_X = 8;
   const int MAX_R = 20;
-  auto at = [length, width] (int i, int a) {
-    return xpush(i * length / MAX_X) * cspin(1, 2, 360 * degree * a / MAX_R) * ypush0(width); 
+  auto at = [&] (ld i, ld a, ld z = 1, ld s = 1) {
+    a += 0.5;
+    ld alpha = 360 * degree * a / MAX_R;
+    hpcpush(xpush(i * length / MAX_X) * cspin(1, 2, alpha) * ypush0(width*z));
+    #if CAP_GL
+    if(floor_textures) utt.tvertices.push_back(glhr::makevertex(0, pers ? 0.549 - s * 0.45 * sin(alpha) : 0.999, 0));
+    #endif
     };
   for(int i=0; i<MAX_X; i++) {
     for(int a=0; a<MAX_R; a++) {
-      hpcpush(at(i, a));
-      hpcpush(at(i, a+1));
-      hpcpush(at(i+1, a));
-      hpcpush(at(i+1, a+1));
-      hpcpush(at(i+1, a));
-      hpcpush(at(i, a+1));
+      at(i, a, 1);
+      at(i, a+1, 1);
+      at(i+1, a, 1);
+      at(i+1, a+1, 1);
+      at(i+1, a, 1);
+      at(i, a+1, 1);
       }
     }
 
-  for(int a=0; a<MAX_R; a++) {
-    hpcpush(at(MAX_X, a));
-    hpcpush(at(MAX_X, a+1));
-    hpcpush(xpush0(length));
-    hpcpush(at(MAX_X, a+1));
-    hpcpush(at(MAX_X, a));
-    hpcpush(C0);
+  if(endtype == ePipeEnd::sharp) for(int a=0; a<MAX_R; a++) for(int x: {0, MAX_X}) {
+    at(x, a, 1, 0);
+    at(x, a+1, 1, 0);
+    at(x, 0, 0, 0);
+    }
+
+  if(endtype == ePipeEnd::ball) for(int a=0; a<MAX_R; a++) for(int x=-MAX_R; x<MAX_R; x++) {
+    ld xb = x < 0 ? 0 : MAX_X;
+    ld mul = MAX_X * width/length * .9; // .9 to prevent Z-fighting
+    ld x0 = xb + mul * sin(x * 90 * degree / MAX_R);
+    ld x1 = xb + mul * sin((x+1) * 90 * degree / MAX_R);
+    ld z0 = cos(x * 90 * degree / MAX_R);
+    ld z1 = cos((x+1) * 90 * degree / MAX_R);
+    at(x0, a, z0, z0);
+    at(x0, a+1, z0, z0);
+    at(x1, a, z1, z1);
+    at(x1, a+1, z1, z1);
+    at(x1, a, z1, z1);
+    at(x0, a+1, z0, z0);
     }
 
   last->flags |= POLY_TRIANGLES | POLY_PRINTABLE;
-  add_texture(*last);
   finishshape();
   extra_vertices();
   return pipe;

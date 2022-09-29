@@ -141,7 +141,7 @@ transmatrix try_harder_relative_matrix(cell *at, cell *from) {
 
 void edit_segment(int aid) {
   cmode = sm::PANNING;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("animation segment"), 0xFFFFFFFF, 150, 0);
   dialog::addSelItem("interval", fts(anims[aid].start_interval), 'i');
   edit_interval(anims[aid].start_interval);
@@ -181,7 +181,7 @@ void generate_trace();
 
 void edit_step(animation& anim, int id) {
   cmode = 0;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("animation step"), 0xFFFFFFFF, 150, 0);
   auto& f = anim.frames[id];
   dialog::addSelItem("title", f.title, 't');
@@ -268,7 +268,7 @@ void handle_animation(ld t);
 
 void show() {
   cmode = 0;
-  gamescreen(0);
+  gamescreen();
   draw_crosshair();
   dialog::init(XLAT("smooth camera"), 0xFFFFFFFF, 150, 0);
   char key = 'A';
@@ -571,7 +571,7 @@ void enable() {
   rogueviz::rv_hook(anims::hooks_anim, 100, handle_animation0);
   rogueviz::rv_hook(hooks_drawcell, 100, draw_labels);
   rogueviz::rv_hook(hooks_o_key, 190, [] (o_funcs& v) { v.push_back(named_dialog("smoothcam", show)); });
-  rogueviz::rv_hook(mapstream::hooks_savemap, 100, [] (fhstream& f) {
+  rogueviz::rv_hook(mapstream::hooks_savemap, 100, [] (hstream& f) {
     f.write<int>(17);
     hwrite(f, anims);
     });
@@ -598,7 +598,7 @@ auto hooks = arg::add3("-smoothcam", enable_and_show)
       dialog::add_action(enable_and_show);
       }
     }) +
-  + addHook(mapstream::hooks_loadmap, 100, [] (fhstream& f, int id) {
+  + addHook(mapstream::hooks_loadmap, 100, [] (hstream& f, int id) {
     if(id == 17) {
       enable();
       hread(f, anims);

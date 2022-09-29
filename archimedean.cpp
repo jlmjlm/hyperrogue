@@ -678,7 +678,7 @@ struct hrmap_archimedean : hrmap {
       alt = (heptagon*) s;
       }
       
-    DEBB(DF_GEOM, ("look for: ", alt, " / ", T * C0));
+    DEBB(DF_GEOM, ("look for: ", alt, " / ", kz(T * C0)));
   
     for(auto& p2: altmap[alt]) if(same_point_may_warn(p2.second * C0, T * C0)) {
       DEBB(DF_GEOM, ("cell found: ", p2.first));
@@ -686,7 +686,7 @@ struct hrmap_archimedean : hrmap {
         heptspin hs(p2.first, d2);
         auto& t2 = current.get_triangle(p2.first, d2);
         transmatrix T1 = T * spin(M_PI + t2.first);
-        DEBB(DF_GEOM, ("compare: ", T1 * xpush0(1), ":: ", p2.second * xpush0(1)));
+        DEBB(DF_GEOM, ("compare: ", kz(T1 * xpush0(1)), ":: ", kz(p2.second * xpush0(1))));
         if(same_point_may_warn(T1 * xpush0(1), p2.second * xpush0(1))) {
         
           // T1 = p2.second
@@ -1314,7 +1314,7 @@ EX void show() {
       }
     else {
       tested.coloring = col;
-      tilings.push_back(move(tested));
+      tilings.push_back(std::move(tested));
       /* sort(tilings.begin(), tilings.end(), [] (archimedean_tiling& s1, archimedean_tiling& s2) {
         if(s1.euclidean_angle_sum < s2.euclidean_angle_sum - 1e-6) return true;
         if(s2.euclidean_angle_sum < s1.euclidean_angle_sum - 1e-6) return false;
@@ -1323,7 +1323,7 @@ EX void show() {
       }
     }
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);  
+  gamescreen();
   dialog::init(XLAT("Archimedean tilings"));
   
   if(symbol_editing) {

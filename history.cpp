@@ -190,14 +190,16 @@ EX namespace history {
   int lastprogress;
   
   EX void progress_screen() {
-    gamescreen(0);
+    gamescreen();
     mouseovers = "";
     }
+
+  EX int progress_each = 250;
 
   EX void progress(string str) {
 #if CAP_SDL
     int tick = SDL_GetTicks();
-    if(tick > lastprogress + 250) {
+    if(tick > lastprogress + progress_each) {
       lastprogress = tick;
       msgs.clear();
       addMessage(str);
@@ -568,7 +570,7 @@ EX namespace history {
   
   EX void history_menu() {
     cmode = sm::SIDE | sm::MAYDARK;
-    gamescreen(0);
+    gamescreen();
     
     dialog::init(XLAT("history mode"));
 

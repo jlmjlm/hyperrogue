@@ -164,7 +164,7 @@ void edit_fifteen() {
 
   auto ss = mapstream::save_start();
   ss->item = itGold;
-  gamescreen(0);
+  gamescreen();
   ss->item = itNone;
   
   dialog::init("Fifteen Puzzle", iinf[itPalace].color, 150, 100);
@@ -301,7 +301,7 @@ void launch() {
 
 void enable();
 
-void load_fifteen(fhstream& f) {
+void load_fifteen(hstream& f) {
   int num;
   f.read(num);
   fif.clear();
@@ -334,7 +334,7 @@ void o_key(o_funcs& v) {
 void enable() {
   rogueviz::rv_hook(hooks_o_key, 80, o_key);
   rogueviz::rv_hook(hooks_drawcell, 100, draw_fifteen);
-  rogueviz::rv_hook(mapstream::hooks_savemap, 100, [] (fhstream& f) {
+  rogueviz::rv_hook(mapstream::hooks_savemap, 100, [] (hstream& f) {
     f.write<int>(15);
     f.write<int>(isize(fif));
     for(auto cd: fif) {
@@ -437,7 +437,7 @@ auto fifteen_hook =
     anims::moved();
     }); })
 #endif
-+ addHook(mapstream::hooks_loadmap, 100, [] (fhstream& f, int id) {
++ addHook(mapstream::hooks_loadmap, 100, [] (hstream& f, int id) {
     if(id == 15) load_fifteen(f);
     })
 + addHook(hooks_configfile, 100, [] {
@@ -474,8 +474,10 @@ auto fifteen_hook =
                 slide_backup(mapeditor::drawplayer, mapeditor::drawplayer);
                 slide_backup(vid.wallmode, 2);
                 slide_backup(pconf.scale, .6);
+                slide_backup(no_find_player, true);
                 stop_game();
                 mapstream::loadMap(fname);
+                popScreenAll();
                 fullcenter();
                 if(lev == "coiled" || lev == "mobiusband")
                   View = spin(90*degree) * View;

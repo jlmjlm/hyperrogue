@@ -2714,6 +2714,12 @@ EX void cast() {
     }
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+  if(!floor_textures) {
+    println(hlog, "make_floor_textures called");
+    make_floor_textures();
+    check_cgi();
+    }
+
   glActiveTexture(GL_TEXTURE0 + 0);
   glBindTexture(GL_TEXTURE_2D, floor_textures->renderedTexture);
 
@@ -2745,7 +2751,7 @@ EX void random_fog() {
 
 EX void menu() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("volumetric raycasting"));  
 
   if(!cheater) {
@@ -2797,7 +2803,7 @@ EX }
 
 EX void configure() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("raycasting configuration"));
   
   dialog::addBoolItem(XLAT("available in current geometry"), available(), 0);
@@ -2999,6 +3005,8 @@ void addconfig() {
   param_i(max_cells, "ray_max_cells");
   addsaver(rays_generate, "ray_generate");
   param_b(fixed_map, "ray_fixed_map");
+  param_i(max_wall_offset, "max_wall_offset");
+  param_i(max_celltype, "max_celltype");
   }
 auto hookc = addHook(hooks_configfile, 100, addconfig);
 #endif

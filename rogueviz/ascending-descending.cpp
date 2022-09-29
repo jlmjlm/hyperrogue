@@ -216,7 +216,7 @@ bool draw_ply() {
 
 void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("Ascending & Descending"), 0xFFFFFFFF, 150, 0);
 
   dialog::addSelItem("advance", fts(advance), 'a');
@@ -260,6 +260,12 @@ void enable() {
     t *= 1000;
     
     centerover = currentmap->gamestart();
+
+    #if CAP_VR
+    if(vrhr::active())
+      View = gpushxto0(interpolate_at(route, t));
+    else
+    #endif
     set_view(
       interpolate_at(route, t),
       interpolate_at(forwards, t),

@@ -737,6 +737,7 @@ EX string compress_string(string s) {
   if(deflate(&strm, Z_FINISH) != Z_STREAM_END) throw hr_exception("z-error-2");
   println(hlog, "deflate ok");
   string out(&buf[0], (char*)(strm.next_out) - &buf[0]);
+  deflateEnd(&strm);
   println(hlog, isize(s), " -> ", isize(out));
   return out;
   }
@@ -753,8 +754,9 @@ EX string decompress_string(string s) {
   vector<char> buf(10000000, 0);
   strm.avail_out = 10000000;
   strm.next_out = (Bytef*) &buf[0];
-  if(inflate(&strm, Z_FINISH) != Z_STREAM_END) throw hr_exception("z-error-2");
+  if(inflate(&strm, Z_FINISH) != Z_STREAM_END) throw hr_exception("z-error-2");  
   string out(&buf[0], (char*)(strm.next_out) - &buf[0]);
+  inflateEnd(&strm);
   println(hlog, isize(s), " -> ", isize(out));
   return out;
   }
@@ -762,6 +764,19 @@ EX string decompress_string(string s) {
 
 EX bool file_exists(string fname) {
   return access(fname.c_str(), F_OK) != -1;
+  }
+
+/** find a file named s, possibly in HYPERPATH */
+EX string find_file(string s) {
+  string s1;
+  if(file_exists(s)) return s;
+  char *p = getenv("HYPERPATH");
+  if(p && file_exists(s1 = s0 + p + s)) return s1;
+  if(file_exists(s1 = HYPERPATH + s)) return s1;
+#ifdef FHS
+  if(file_exists(s1 = "/usr/share/hyperrogue/" + s)) return s1;
+#endif
+  return s;
   }
 
 EX void open_url(string s) {
@@ -804,6 +819,21 @@ EX void open_wiki(const char *title) {
     }
   open_url(url);
 }
+
+EX string read_file_as_string(string fname) {
+  string buf;
+  #if ISANDROID || ISIOS
+  buf = get_asset(fname);
+  #else
+  FILE *f = fopen(fname.c_str(), "rb");
+  if(!f) f = fopen((rsrcdir + fname).c_str(), "rb");
+  buf.resize(1000000);
+  int qty = fread(&buf[0], 1, 1000000, f);
+  buf.resize(qty);
+  fclose(f);
+  #endif
+  return buf;
+  }
 
 EX void floyd_warshall(vector<vector<char>>& v) {
   int N = isize(v);

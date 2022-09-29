@@ -17,7 +17,7 @@ EX string rsrcdir = "";
 #endif
 
 #if CAP_COMMANDLINE
-EX const char *scorefile = "hyperrogue.log";
+EX string scorefile = "hyperrogue.log";
 
 EX namespace arg {
 EX eLand readland(const string& ss) {
@@ -63,7 +63,7 @@ EX void initializeCLI() {
   if(getenv("HOME")) {
     sbuf = getenv("HOME"); sbuf += "/."; sbuf += scorefile;
     cbuf = getenv("HOME"); cbuf += "/."; cbuf += conffile;
-    scorefile = sbuf.c_str();
+    scorefile = sbuf;
     conffile = cbuf.c_str();
     }
   #endif
@@ -168,7 +168,8 @@ int arg::readCommon() {
 
 // first phase options
 
-  if(argis("-s")) { PHASE(1); shift(); scorefile = argcs(); }
+  if(argis("-s")) { PHASE(2); shift(); scorefile = args(); savefile_selection = false; }
+  else if(argis("-no-s")) { PHASE(2); scorefile = ""; savefile_selection = false; }
   else if(argis("-rsrc")) { PHASE(1); shift(); rsrcdir = args(); }
   else if(argis("-nogui")) { PHASE(1); noGUI = true; }
 #ifndef EMSCRIPTEN
@@ -255,17 +256,26 @@ int arg::readCommon() {
     shift(); ld a = argf();
     shift(); ld b = argf();
     View = View * spin(M_PI * 2 * a / b);
+    playermoved = false;
+    }
+  else if(argis("-rotate-up")) {
+    start_game();
+    shiftmatrix S = ggmatrix(cwt.at->master->move(0)->c7);
+    View = spin(90*degree) * spintox(S.T*C0) * View;
+    playermoved = false;
     }
   else if(argis("-rotate3")) {
     PHASE(3);  start_game();
     shift(); ld a = argf();
     shift(); ld b = argf();
     View = View * cspin(1, 2, M_PI * 2 * a / b);
+    playermoved = false;
     }
   else if(argis("-face-vertex")) {
     PHASE(3);  start_game();
     auto &ss = currentmap->get_cellshape(cwt.at);
     View = cspin(0, 2, M_PI/2) * spintox(ss.vertices_only_local[0]);
+    playermoved = false;
     }
   else if(argis("-face-face")) {
     PHASE(3);  start_game();
@@ -276,9 +286,20 @@ int arg::readCommon() {
     shift(); int i = argi();
     shift(); int j = argi();
     shift(); View = View * cspin(i, j, argf());
+    playermoved = false;
+    }
+  else if(argis("-cview")) {
+    PHASE(3);  start_game();
+    View = Id;
     }
   else if(argis("-exit")) {
-    PHASE(3); printf("Success.\n");
+    PHASE(3);
+    int t = SDL_GetTicks();
+    if(t > 1800 * 1000)
+      println(hlog, "Great Success!\n");
+    else
+      println(hlog, "Success.\n");
+    fflush(stdout);
     exit(0);
     }
 

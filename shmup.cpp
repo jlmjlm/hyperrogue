@@ -64,13 +64,20 @@ struct monster {
   int split_owner;  ///< in splitscreen mode, which player handles this
   int split_tick;   ///< in which tick was split_owner computed
 
-  monster() { 
-    dead = false; inBoat = false; parent = NULL; nextshot = 0; 
-    stunoff = 0; blowoff = 0; fragoff = 0; footphase = 0; no_targetting = false;
-    swordangle = 0; inertia = Hypc; ori = Id; refs = 1;    
-    split_tick = -1; split_owner = -1;
+  void reset() {
+    nextshot = 0;
+    stunoff = 0; blowoff = 0; fragoff = 0; footphase = 0;
+    inertia = Hypc; ori = Id; vel = 0;
+    swordangle = 0;
     }
-  
+
+  monster() {
+    reset();
+    refs = 1; split_tick = -1; split_owner = -1;
+    no_targetting = false;
+    dead = false; inBoat = false; parent = NULL;
+    }
+
   eMonster get_parenttype() { return parent ? parent->type : moNone; }
 
   void store();
@@ -2660,7 +2667,7 @@ EX void turn(int delta) {
 
     int qb = 0;
     for(qb=0; qb < isize(pathq); qb++) {
-      cell *c = pathq[qb];
+      cell *c = pathq[qb].at;
       int d = c->pathdist;
       if(d == PINFD-1) continue;
       for(int i=0; i<c->type; i++) {
@@ -2903,7 +2910,7 @@ EX void clearMemory() {
   }
 
 void gamedata(hr::gamedata* gd) { 
-  if(shmup::on) {
+  if(true) {
     gd->store(pc[0]); // assuming 1 player!
     gd->store(nextmove);
     gd->store(curtime);
@@ -2971,7 +2978,6 @@ EX void switch_shmup() {
   switch_game_mode(rg::shmup);
   resetScores();
   start_game();
-  configure();
   }
 
 #if MAXMDIM >= 4
@@ -3050,7 +3056,7 @@ bool celldrawer::draw_shmup_monster() {
         bool ths = subscreens::is_current_player(m->pid);
         
         if(!ths || !h) {
-          drawPlayerEffects(view, c, m->type);
+          drawPlayerEffects(view, V, c, m->type);
           if(WDIM == 3) {
             if(prod) {
               hyperpoint h = m->ori * C0; // ztangent(1)

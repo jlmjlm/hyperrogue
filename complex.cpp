@@ -1446,7 +1446,8 @@ EX namespace mirror {
         changes.ccell(c);
         if(!m.second.mirrored) nummirage++;
         auto cw2 = m.second + wstep;
-        if(inmirror(cw2)) cw2 = reflect(cw2);
+        bool thru = inmirror(cw2);
+        if(thru) cw2 = reflect(cw2);
         cell *c2 = cw2.at;
         changes.ccell(c2);
         if(c2->monst) {
@@ -1464,7 +1465,11 @@ EX namespace mirror {
         else if(c2->wall == waSmallTree)
           c2->wall = waNone;
         if(fwd) {
-          if(noMirrorOn(c2) || !passable_for(moMimic, c2, c, P_MONSTER | P_MIRROR | P_MIRRORWALL)) {
+          if(thru && c == c2 && isAlchAny(c) && !checkflags(P_ISFRIEND | P_MONSTER | P_MIRROR | P_MIRRORWALL, P_AETHER)) {
+            survive = false;
+            continue;
+            }
+          if(noMirrorOn(c2) || !passable_for(moMimic, c2, c, P_ISFRIEND | P_MONSTER | P_MIRROR | P_MIRRORWALL)) {
             survive = false;
             continue;
             }
@@ -2077,7 +2082,7 @@ EX namespace heat {
         }
       }
     
-    offscreen_heat = move(offscreen2);
+    offscreen_heat = std::move(offscreen2);
   
     for(int i=0; i<numplayers(); i++) {
       cell *c = playerpos(i);
@@ -2324,7 +2329,7 @@ EX namespace heat {
         }
       }
    
-    offscreen_fire = move(offscreen2);
+    offscreen_fire = std::move(offscreen2);
     }  
 
 EX }
@@ -2704,6 +2709,7 @@ EX namespace dragon {
       total += c->hitpoints;
       if(c->mondir == NODIR) return total;
       c = c->move(c->mondir);
+      if(!c) return total;
       }
     return total;
     }
@@ -2732,6 +2738,7 @@ EX namespace dragon {
           }
         while(c->mondir != NODIR) {
           c = c->move(c->mondir);
+          if(!c) return;
           c->stuntime = 2;
           }
         break;
@@ -2829,7 +2836,9 @@ EX namespace sword {
     if(s<0) s += sword_angles * 2;
     s *= t;
     s /= (sword_angles * 2);
-    return c->move(s);
+    auto c1 = c->move(s);
+    if(inmirror(c1)) c1 = mirror::reflect(c1).at;
+    return c1;
     }
   
   EX cell *pos(cell *c, const sworddir& sd, bool rev) {
@@ -2972,7 +2981,6 @@ EX namespace kraken {
     }
   
   EX void attacks() {
-    pathdata pd(2);
     bool offboat[MAXPLAYER];
     for(int i=0; i<MAXPLAYER; i++) offboat[i] = false;
     for(int i=0; i<isize(dcal); i++) {
@@ -3032,7 +3040,9 @@ EX namespace kraken {
     vector<pair<cell*, cell*> > acells;
     acells.push_back(make_pair(c2, c));
     forCellIdEx(c3, i, c) {
-      c3->monst = moKrakenT, c3->mondir = c->c.spin(i), c3->monmirror = c->monmirror ^ c->c.mirror(i), onpath(c3, 0);
+      c3->monst = moKrakenT;
+      c3->mondir = c->c.spin(i);
+      c3->monmirror = c->monmirror ^ c->c.mirror(i);
       int i0 = (i+c->c.spin(c->mondir)-c->mondir+96+c->type/2) % c2->type;
       c3->hitpoints = hpcount[i0];
       acells.push_back(make_pair(c2->move(i0), c3));
@@ -3064,7 +3074,6 @@ EX namespace kraken {
       }
     commitAnimations(LAYER_BIG);
     sleep(c);
-    onpath(c, 0);
     return;
     }
   
@@ -3499,6 +3508,7 @@ auto ccm = addHook(hooks_clearmemory, 0, [] () {
     }) +
   addHook(hooks_removecells, 0, [] () {
     for(cell *c: removed_cells) clearing::score.erase(c);
+    for(auto& am: adj_memo) am.clear();
     eliminate_if(heat::offscreen_heat, is_cell_removed);
     eliminate_if(heat::offscreen_fire, is_cell_removed);
     eliminate_if(princess::infos, [] (princess::info*& i) { 
@@ -3678,7 +3688,7 @@ EX namespace halloween {
 
     halloween::dragoncells[0] = NULL;
 
-    if(sphere && geometry == gNormal) {
+    if(sphere && geometry == gSphere) {
       for(cell *c: lst) {
         if(GOLDBERG) {
           int fv = c->master->fiftyval;

@@ -114,7 +114,7 @@ void model::load_obj(model_data& md) {
           goto next_object;
           }
         else if(s == "v") {        
-          hyperpoint h = C0;
+          hyperpoint h = C03;
           scan(fs, h[0], h[1], h[2]); // assume all
           h[0] /= 100;
           h[1] /= 100;
@@ -314,7 +314,7 @@ void add_model_settings() {
 auto cf = addHook(hooks_configfile, 100, [] {
   param_f(prec, "obj_prec")
   ->editable(1, 100, 1, "3D model precision", "higher-precision models take more time to load and to render.", 'p')
-  ->set_sets([] { dialog::numberdark = dialog::DONT_SHOW; })
+  ->set_sets([] { cmode = sm::NOSCR; })
   ; 
   param_b(shift_to_ctr, "shift_to_ctr");
   });

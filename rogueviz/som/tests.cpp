@@ -97,7 +97,7 @@ void create_data() {
     where.push_back(c);
     sample s;
     embeddings::get_coordinates(s.val, c, c0);
-    data.push_back(move(s));
+    data.push_back(std::move(s));
     }
   samples = isize(data);
   test_orig.size = samples;
@@ -148,12 +148,14 @@ void create_subdata(int qty) {
   edge_data = false;
   }
 
+bool colorless = false;
+
 void create_edgedata() {
   if(edge_data) return;
   edge_data = true;
   create_data();
 
-  for(int i=0; i<samples; i++) {
+  if(!colorless) for(int i=0; i<samples; i++) {
     if(is_special[i])    
       vdata[i].cp.color1 = gradient(0xC0C000FF, 0xC00000FF, 0, ctrdist[i], ctrdist_max);
     else
@@ -776,7 +778,7 @@ void shot_settings() {
     pconf.alpha = 1;
     pconf.scale = pconf.scale / 2 / maxs / cd->radius;
     pconf.scale /= 1.2;
-    if(bounded) pconf.scale = WDIM == 3 ? 0.2 : 0.07;
+    if(closed_manifold) pconf.scale = WDIM == 3 ? 0.2 : 0.07;
     }
   
   if(GDIM == 3) pmodel = mdPerspective;
@@ -800,7 +802,7 @@ bool more = true;
 
 void create_index() {
 
-  system(("mkdir " + som_test_dir).c_str());
+  hr::ignore(system(("mkdir " + som_test_dir).c_str()));
 
   fhstream f(som_test_dir + "index-" + its(current_scale) + ".html", "wt");
 
@@ -886,7 +888,7 @@ void create_index() {
     Out("gpy", gp::univ_param().second);
     Out("orientable", nonorientable ? 0 : 1);
     Out("symmetric", (flags & m_symmetric) ? 1 : 0);
-    Out("closed", bounded ? 1 : 0);
+    Out("closed", closed_manifold ? 1 : 0);
     Out("quotient", quotient ? 1 : 0);
     Out("dim", WDIM);
     Out("valence", S3);
@@ -958,7 +960,7 @@ void all_pairs(bool one) {
 
   string dir = som_test_dir + "pairs" + cg();
 
-  system(("mkdir -p " + dir + "/img").c_str());  
+  hr::ignore(system(("mkdir -p " + dir + "/img").c_str()));
 
   int sid = 0;
   for(auto s1: shapelist) {
@@ -1093,7 +1095,7 @@ void all_pairs(bool one) {
       }
     }
 
-  system("touch done");  
+  hr::ignore(system("touch done"));
   }
 
 bool verify_distlists = false;
@@ -1349,10 +1351,11 @@ auto khook = arg::add3("-kst-keys", [] { rv_hook(hooks_handleKey, 150, kst_key);
     param_i(ks_nonadj, "ks_nonadj", 0);
     param_i(max_distance, "ks_max");
     })
+  + arg::add3("-kst-colorless", [] { colorless = true; })
   + addHook(hooks_markers, 100, [] () {
     int N = isize(net);
     bool multidraw = quotient;
-    bool use_brm = bounded && isize(currentmap->allcells()) <= brm_limit;
+    bool use_brm = closed_manifold && isize(currentmap->allcells()) <= brm_limit;
     vid.linewidth *= 3;
     for(auto e: voronoi_edges)
       if(e.first < N && e.second < N)

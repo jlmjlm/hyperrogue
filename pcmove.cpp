@@ -248,6 +248,7 @@ bool pcmove::movepcto() {
   mip.t = NULL;
   switchplaces = false;
   warning_shown = false;
+  suicidal = false;
 
   if(d == MD_USE_ORB) 
     return targetRangedOrb(multi::whereto[multi::cpid].tgt, roMultiGo);
@@ -435,6 +436,7 @@ struct changes_t {
     forCellEx(c1, cwt.at) ccell(c1);
     value_keep(kills);
     value_keep(items);
+    value_keep(orbused);
     value_keep(hrngen);
     checking = ch;
     }
@@ -807,7 +809,7 @@ void pcmove::tell_why_cannot_attack() {
 bool pcmove::after_escape() {
   cell*& c2 = mi.t;
   
-  bool push_behind = c2->wall == waBigStatue || (among(c2->wall, waCTree, waSmallTree, waBigTree, waShrub, waVinePlant) && markOrb(itOrbWoods));
+  bool push_behind = c2->wall == waBigStatue || (among(c2->wall, waCTree, waSmallTree, waBigTree, waShrub, waVinePlant) && !c2->monst && markOrb(itOrbWoods));
   
   if(thruVine(c2, cwt.at) && markOrb(itOrbWoods)) push_behind = true;
   
@@ -1290,7 +1292,8 @@ EX bool warningprotection(const string& s) {
   if(items[itWarning]) return false;
   warning_shown = true;
   pushScreen([s] () {
-    gamescreen(1);
+    cmode = sm::DARKEN;
+    gamescreen();
     dialog::addBreak(250);
     dialog::init(XLAT("WARNING"), 0xFF0000, 150, 100);
     dialog::addBreak(500);
@@ -1495,6 +1498,8 @@ EX bool swordAttack(cell *mt, eMonster who, cell *c, int bb) {
     }
   if(c->wall == waExplosiveBarrel)
     explodeBarrel(c);
+  if(!peace::on && isPlayerOn(c) && whichPlayerOn(c) != multi::cpid && !markOrb(itOrbEmpathy)) killThePlayer(moPlayer, whichPlayerOn(mt), 0);
+  if(!peace::on && mt == c && !markOrb(itOrbEmpathy)) killThePlayer(moPlayer, multi::cpid, 0);
   if(!peace::on && canAttack(mt, who, c, m, AF_SWORD)) {
     changes.ccell(c);
     markOrb(bb ? itOrbSword2: itOrbSword);
@@ -1548,7 +1553,7 @@ EX void sideAttackAt(cell *mf, int dir, cell *mt, eMonster who, eItem orb, cell 
     if(who != moPlayer) markOrb(itOrbEmpathy);
     int kk = 0;
     if(orb == itOrbPlague) kk = tkills();
-    if(attackMonster(mt, AF_NORMAL | AF_SIDE | AF_MSG, who) || isAnyIvy(m)) {
+    if(attackMonster(mt, AF_NORMAL | f | AF_MSG, who) || isAnyIvy(m)) {
       if(orb == itOrbPlague && kk < tkills())
         plague_kills++;
       if(mt->monst != m) spread_plague(mf, mt, dir, who);

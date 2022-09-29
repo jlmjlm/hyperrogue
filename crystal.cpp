@@ -269,7 +269,7 @@ struct crystal_structure {
     next.resize(4, {2,3,1,0});
     next_to_prev();
     while(dir < S7) {
-      crystal_structure csx = move(*this);
+      crystal_structure csx = std::move(*this);
       add_dimension_to(csx);
       }
     if(dir > S7) remove_half_dimension();
@@ -723,7 +723,7 @@ EX color_t colorize(cell *c, char whichCanvas) {
   if(cryst) co = m->get_coord(c), dim = m->cs.dim;
   #if MAXMDIM >= 4
   else if(geometry == gSpace344) {
-    co = told(reg3::decode_coord(c->master->fieldval)), dim = 4;
+    co = told(reg3::decode_coord(reg3::minimize_quotient_maps ? 1 : 2, c->master->fieldval)), dim = 4;
     for(int a=0; a<4; a++) if(co[a] > 4) co[a] -= 8;
     }
   else if(geometry == gSeifertCover) {
@@ -813,7 +813,7 @@ EX bool crystal_cell(cell *c, shiftmatrix V) {
     queuestr(V, 0.3, its(d), 0xFFFFFF, 1);
     }
 
-  if(view_coordinates && WDIM == 2 && cheater) {
+  if(view_coordinates && WDIM == 2 && (cheater || tour::on)) {
     
     auto m = crystal_map();
     
@@ -1443,7 +1443,8 @@ string make_help() {
   }
 
 EX void crystal_knight_help() {  
-  gamescreen(1);    
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init();
   
   dialog::addHelp(XLAT(
@@ -1467,7 +1468,7 @@ EX void crystal_knight_help() {
 
 EX void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);  
+  gamescreen();
   dialog::init(XLAT("dimensional crystal"));
   for(int i=5; i<=14; i++) {
     string s;

@@ -142,6 +142,8 @@ struct subcellshape {
   void compute_common();
   };
 
+enum class ePipeEnd {sharp, ball};
+
 /** basic geometry parameters */
 struct geometry_information {
 
@@ -189,7 +191,6 @@ struct geometry_information {
   
   vector<transmatrix> ultra_mirrors;  
 
-  vector<pair<string, string> > rels;
   int xp_order, r_order, rx_order;
 
   transmatrix full_X, full_R, full_P;
@@ -522,17 +523,20 @@ hpcshape
 
   /** contains the texture point coordinates for 3D models */
   basic_textureinfo models_texture;
-  
-  geometry_information() { last = NULL; }
+
+  geometry_information() { last = NULL; use_count = 0; }
   
   void require_basics() { if(state & 1) return; state |= 1; prepare_basics(); }
   void require_shapes() { if(state & 2) return; state |= 2; prepare_shapes(); }
   void require_usershapes() { if(usershape_state == usershape_changes) return; usershape_state = usershape_changes; prepare_usershapes(); }
   int timestamp;
   
-  hpcshape& generate_pipe(ld length, ld width);
+  hpcshape& generate_pipe(ld length, ld width, ePipeEnd endtype = ePipeEnd::sharp);
   
   map<string, unique_ptr<gi_extension>> ext;
+
+  /** prevent from being destroyed */
+  int use_count;
   };
 #endif
 
@@ -579,6 +583,8 @@ void geometry_information::prepare_basics() {
   ld s3, beta;
   
   heptshape = nullptr;
+
+  xp_order = 0;
 
   if(arcm::in() && !prod) 
     ginf[gArchimedean].cclass = gcHyperbolic;
@@ -1172,6 +1178,8 @@ EX string cgi_string() {
 
   if(arb::in()) V("AP", its(arb::apeirogon_simplified_display));
 
+  if(arb::in()) V("F", its(arb::extended_football));
+
   if(cryst) V("CRYSTAL", its(ginf[gCrystal].sides) + its(ginf[gCrystal].vertex));
   
   if(bt::in() || GDIM == 3) V("WQ", its(vid.texture_step));
@@ -1236,9 +1244,11 @@ EX void check_cgi() {
   if(arcm::alt_cgip) arcm::alt_cgip->timestamp = ntimestamp;
   #endif
   
-  if(isize(cgis) > 4 && IFINTRA(intra::data.empty(), true)) {
+  int limit = 4;
+  for(auto& t: cgis) if(t.second.use_count) limit++;
+  if(isize(cgis) > limit) {
     vector<pair<int, string>> timestamps;
-    for(auto& t: cgis) timestamps.emplace_back(-t.second.timestamp, t.first);
+    for(auto& t: cgis) if(!t.second.use_count) timestamps.emplace_back(-t.second.timestamp, t.first);
     sort(timestamps.begin(), timestamps.end());
     while(isize(timestamps) > 4) {
       DEBB(DF_GEOM, ("erasing geometry ", timestamps.back().second));

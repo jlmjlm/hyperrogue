@@ -71,6 +71,8 @@ static const flagtype SIDESCREEN = 64;
 static const flagtype USE_SLIDE_NAME = 128;
 /** \brief do not display any help line */
 static const flagtype NOTITLE = 256;
+/** \brief always display the text, even if going back or texts are disabled */
+static const flagtype ALWAYS_TEXT = 256;
 #endif
 
 EX vector<reaction_t> restorers;
@@ -108,16 +110,20 @@ EX void slide_action(presmode mode, char key, string text, reaction_t act) {
     help_extensions.push_back(help_extension{key, text, act});
   }
 
+EX void enable_canvas_backup(char canv) {
+  slide_backup(patterns::whichCanvas, canv);
+  slide_backup(firstland, laCanvas);
+  slide_backup(specialland, laCanvas);
+  slide_backup(land_structure);
+  slide_backup(randomPatternsMode);
+  enable_canvas();
+  }
+
 /** \brief an auxiliary function to enable a visualization in the Canvas land */
 EX void setCanvas(presmode mode, char canv) {
   if(mode == pmStart) {
     gamestack::push();
-    slide_backup(patterns::whichCanvas, canv);
-    slide_backup(firstland, laCanvas);
-    slide_backup(specialland, laCanvas);
-    slide_backup(land_structure);
-    slide_backup(randomPatternsMode);
-    enable_canvas();
+    enable_canvas_backup(canv);
     start_game();
     resetview();
     }
@@ -192,15 +198,14 @@ string get_subname(const string& s, const string& folder) {
 
 /** \brief display the help text for the current slide if texts enabled */
 EX void slidehelp() {
-  if(texts && slides[currentslide].help[0]) {
-    string slidename = get_slidename(slides[currentslide].name);
-    gotoHelp(
-      help = 
-        helptitle(XLAT(slidename), 0xFF8000) + 
-        XLAT(slides[currentslide].help)
-      );
-    presentation(pmHelpEx);
-    }
+  if(!slides[currentslide].help[0]) return;
+  string slidename = get_slidename(slides[currentslide].name);
+  gotoHelp(
+    help =
+      helptitle(XLAT(slidename), 0xFF8000) +
+      XLAT(slides[currentslide].help)
+    );
+  presentation(pmHelpEx);
   }
 
 /** \brief return from a subgame launched while in presentation */
@@ -223,7 +228,7 @@ EX bool next_slide() {
   slide_restore_all();
   currentslide++;
   presentation(pmStart);
-  slidehelp();
+  if(texts) slidehelp();
   return true;
   }
 
@@ -244,7 +249,7 @@ bool handleKeyTour(int sym, int uni) {
     currentslide--;
     presentation(pmStart);
     popScreenAll();
-    if(inhelp) slidehelp();
+    if(inhelp || (flags & ALWAYS_TEXT)) slidehelp();
     return true;
     }
   int legal = slides[currentslide].flags & 7;
@@ -499,7 +504,7 @@ EX namespace ss {
         currentslide = i;
         popScreenAll();
         presentation(pmStart);
-        slidehelp();
+        if(texts) slidehelp();
         });
       }
     dialog::addBreak(50);
@@ -555,7 +560,7 @@ EX void start() {
     }
   restart_game(rg::tour);
   if(tour::on) {
-    slidehelp();
+    if(texts) slidehelp();
     presentation(pmStart);
     }
   }

@@ -480,8 +480,8 @@ void run_kuen() {
   int it = 0;
   for(auto p: rug::points) p->dexp_id = it++;
   
-  vector<rug::rugpoint*> mesh = move(rug::points);
-  vector<rug::triangle> old_triangles = move(rug::triangles);
+  vector<rug::rugpoint*> mesh = std::move(rug::points);
+  vector<rug::triangle> old_triangles = std::move(rug::triangles);
   
   rug::clear_model();
   
@@ -676,7 +676,7 @@ transmatrix coverage_matrix;
 
 EX void show_surfaces() {
   cmode = sm::SIDE;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("constant curvature surfaces"), iinf[itPalace].color, 150, 0);
   
   bool b = rug::rugged || coverage_style;

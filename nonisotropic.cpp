@@ -88,11 +88,11 @@ EX namespace sn {
     FILE *f = fopen(fname.c_str(), "rb");
     if(!f) f = fopen((rsrcdir + fname).c_str(), "rb");
     if(!f) { addMessage(XLAT("geodesic table missing")); pmodel = mdPerspective; return; }
-    ignore(fread(&PRECX, 4, 1, f));
-    ignore(fread(&PRECY, 4, 1, f));
-    ignore(fread(&PRECZ, 4, 1, f));
+    hr::ignore(fread(&PRECX, 4, 1, f));
+    hr::ignore(fread(&PRECY, 4, 1, f));
+    hr::ignore(fread(&PRECZ, 4, 1, f));
     tab.resize(PRECX * PRECY * PRECZ);
-    ignore(fread(&tab[0], sizeof(compressed_point) * PRECX * PRECY * PRECZ, 1, f));
+    hr::ignore(fread(&tab[0], sizeof(compressed_point) * PRECX * PRECY * PRECZ, 1, f));
     fclose(f);
     loaded = true;    
     }
@@ -1000,7 +1000,7 @@ EX void prepare_niltorus3() {
   
 EX void show_niltorus3() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(1);  
+  gamescreen();
   dialog::init(XLAT("Nil quotient spaces"));
   for(int a=0; a<3; a++) {
     string title = XLAT("%1 period", s0+char('X'+a));
@@ -1118,6 +1118,7 @@ EX namespace hybrid {
   EX geometry_information *pcgip;
   EX eGeometry actual_geometry;
   
+  #if HDR
   template<class T> auto in_actual(const T& t) -> decltype(t()) {
     dynamicval<eGeometry> g(geometry, actual_geometry);
     dynamicval<geometry_information*> gc(cgip, pcgip);
@@ -1125,6 +1126,9 @@ EX namespace hybrid {
     dynamicval<hrmap*> gup(pmap, NULL);
     return t();  
     }
+
+  #define PIA(x) hr::hybrid::in_actual([&] { return (x); })
+  #endif
   
   struct hrmap_hybrid : hrmap {
     
@@ -1360,8 +1364,8 @@ EX namespace hybrid {
   #if HDR
   template<class T> auto in_underlying_geometry(const T& f) -> decltype(f()) {
     if(!hybri) return f();
-    dynamicval<eGeometry> g(geometry, underlying);
     dynamicval<eGeometry> gag(actual_geometry, geometry);
+    dynamicval<eGeometry> g(geometry, underlying);
     dynamicval<int> gss(underlying_cgip->single_step, cgi.single_step);
     dynamicval<int> gsp(underlying_cgip->psl_steps, cgi.psl_steps);
     dynamicval<geometry_information*> gc(cgip, underlying_cgip);
@@ -1373,6 +1377,7 @@ EX namespace hybrid {
   #define PIU(x) hr::hybrid::in_underlying_geometry([&] { return (x); })
   #endif
 
+  // next: 0 = i-th corner, 1 = next corner, 2 = center of the wall
   EX hyperpoint get_corner(cell *c, int i, int next, ld z) {
     ld lev = cgi.plevel * z / 2;
     if(WDIM == 2) {
@@ -1392,12 +1397,20 @@ EX namespace hybrid {
       in_underlying_geometry([&] {
         hyperpoint h1 = get_corner_position(c, i);
         hyperpoint h2 = get_corner_position(c, i+1);
-        hyperpoint hm = mid(h1, h2);
+        hyperpoint hm;
+        if(next == 2) {
+          hm = h1;
+          he = 0;
+          }
+        else {
+          hyperpoint hm = mid(h1, h2);
+          he = hdist(hm, h2)/2;
+          if(next) he = -he;
+          }
         tf = hdist0(hm)/2;
-        he = hdist(hm, h2)/2;
         alpha = atan2(hm[1], hm[0]);
         });
-      return spin(alpha) * rots::uxpush(tf) * rots::uypush(next?he:-he) * rots::uzpush(lev) * C0;
+      return spin(alpha) * rots::uxpush(tf) * rots::uypush(he) * rots::uzpush(lev) * C0;
       #else
       throw hr_exception();
       #endif
@@ -1416,9 +1429,9 @@ EX namespace hybrid {
     vector<pair<int, cell*>> result;
     for(auto& v: cgi.walloffsets) if(v.first >= 0) result.push_back(v);
     sort(result.begin(), result.end());
-    // not a correct fix
-    result.emplace_back(result.back().first + result.back().second->type + (WDIM == 2 ? 2 : 0), nullptr);
-    // result.emplace_back(isize(cgi.wallstart), nullptr);
+    int last = 0;
+    for(auto& r: result) if(r.second) last = r.first + r.second->type  + (WDIM == 2 ? 2 : 0);
+    result.emplace_back(last, nullptr);
     return result;
     }
 
@@ -1653,7 +1666,7 @@ EX namespace product {
 
   EX void show_config() {
     cmode = sm::SIDE | sm::MAYDARK;
-    gamescreen(1);
+    gamescreen();
     dialog::init(XLAT("quotient product spaces"));
     dialog::addSelItem(XLAT("%1 period", "Z"), its(hybrid::csteps), 'z');
     dialog::add_action(hybrid::configure_period);
@@ -1690,8 +1703,10 @@ EX }
 
 EX namespace slr {
 
+  /** in what range are we rendering H2xR */
   EX ld range_xy = 2;
-  EX int steps = 15;
+  /** the number of steps for inverse_exp in the shader */
+  EX int shader_iterations = 15;
 
   EX transmatrix translate(hyperpoint h) {
     return matrix4(
@@ -2246,7 +2261,9 @@ EX namespace rots {
 
   EX hyperpoint formula_exp(hyperpoint vel) {
     bool sp = sphere;
-    ld K = sp ? 1 : -1;    
+    ld K = sp ? 1 : -1;
+
+    if(vel[0] == 0 && vel[1] == 0 && vel[2] == 0) return C0;
   
     ld len = hypot_d(3, vel);
   

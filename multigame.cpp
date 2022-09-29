@@ -26,25 +26,24 @@ struct gamedata {
     if(ssize & 7) ssize = (ssize | 7) + 1;
     if(mode == 0) {
       record.resize(index+ssize);
-      T& at = *(new (&record[index]) T());
-      at = move(x);
+      ::new (&record[index]) T(std::move(x));
       }
     else {
       T& at = (T&) record[index];
-      x = move(at);
+      x = std::move(at);
       at.~T();
       }
     index += ssize;
     }
   template<class T> void store_ptr(T& x) {
-    T* copy;
     if(mode == 0) {
-      copy = new T;
-      *copy = move(x);
+      T* copy = new T(std::move(x));
+      store(copy);
       }
-    store(copy);
-    if(mode != 0) {
-      x = move(*copy);
+    else {
+      T* copy = nullptr;
+      store(copy);
+      x = std::move(*copy);
       delete copy;
       }
     }
@@ -61,8 +60,14 @@ void gamedata_all(gamedata& gd) {
   gd.store(land_structure);
   gd.store(*current_display);
   gd.store(cgip);
+  if(gd.mode == 0) cgip->use_count++;
+  if(gd.mode != 0) cgip->use_count--;
   gd.store(hybrid::underlying);
   gd.store(hybrid::csteps);
+  if(hybri && hybrid::underlying_cgip) {
+    if(gd.mode == 0) hybrid::underlying_cgip->use_count++;
+    if(gd.mode != 0) hybrid::underlying_cgip->use_count--;
+    }
   gd.store(hybrid::underlying_cgip);
   gd.store_ptr(vid.projection_config);
   gd.store_ptr(vid.rug_config);
@@ -135,6 +140,8 @@ EX namespace dual {
   EX transmatrix player_orientation[2];
   
   hyperpoint which_dir;
+  
+  EX purehookset hooks_after_move;
   
   int remap_direction(int d, int cg) {
     if(WDIM == 2 || cg == currently_loaded) return d;
@@ -247,7 +254,7 @@ EX namespace dual {
       switch_to(1); forcedmovetype = fm; movepcto(0, subdir, false); forcedmovetype = fmSkip;
       switch_to(cg);
       reduceOrbPowers();
-      dpgen::check();  
+      callhooks(hooks_after_move);
       return true;
       }
     addMessage(XLAT("Impossible."));

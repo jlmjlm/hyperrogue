@@ -1866,8 +1866,7 @@ void hrmap_standard::draw_at(cell *at, const shiftmatrix& where) {
   }
 
 EX bool keep_vertical() {
-  if(CAP_ORIENTATION) return false;
-  if((WDIM == 2 || prod) && GDIM == 3 && vid.fixed_yz) return true;
+  if((WDIM == 2 || prod) && GDIM == 3 && vid.fixed_yz) return !CAP_ORIENTATION;
   if(downseek.qty) return true;
   return false;
   }
@@ -2727,33 +2726,33 @@ EX void draw_boundary(int w) {
 EX void change_shift(shiftpoint& h, ld by) {
   if(!by) return;
   h.shift += by;
-  if((mdinf[pmodel].flags & mf::uses_bandshift) || (sphere && pmodel == mdSpiral)) {
-    h.h = spin(pconf.model_orientation * degree) * h.h;
-    h.h = xpush(-by) * h.h;
-    h.h = spin(-pconf.model_orientation * degree) * h.h;
-    }
   if(sl2) {
     ld ca = cos(by), sa = sin(by);
     tie(h[2], h[3]) = make_pair(h[2] * ca - h[3] * sa, h[3] * ca + h[2] * sa);
     tie(h[0], h[1]) = make_pair(h[0] * ca - h[1] * sa, h[1] * ca + h[0] * sa);
+    }
+  else if((mdinf[pmodel].flags & mf::uses_bandshift) || (sphere && pmodel == mdSpiral)) {
+    h.h = spin(pconf.model_orientation * degree) * h.h;
+    h.h = xpush(-by) * h.h;
+    h.h = spin(-pconf.model_orientation * degree) * h.h;
     }
   }
 
 EX void change_shift(shiftmatrix& T, ld by) {
   if(!by) return;
   T.shift += by;
-  if((mdinf[pmodel].flags & mf::uses_bandshift) || (sphere && pmodel == mdSpiral)) {
-    T.T = spin(pconf.model_orientation * degree) * T.T;
-    T.T = xpush(-by) * T.T;
-    fixmatrix(T.T);
-    T.T = spin(-pconf.model_orientation * degree) * T.T;
-    }
   if(sl2) {
     ld ca = cos(by), sa = sin(by);
     for(int a=0; a<4; a++) {
       tie(T[2][a], T[3][a]) = make_pair(T[2][a] * ca - T[3][a] * sa, T[3][a] * ca + T[2][a] * sa);
       tie(T[0][a], T[1][a]) = make_pair(T[0][a] * ca - T[1][a] * sa, T[1][a] * ca + T[0][a] * sa);
       }
+    }
+  else if((mdinf[pmodel].flags & mf::uses_bandshift) || (sphere && pmodel == mdSpiral)) {
+    T.T = spin(pconf.model_orientation * degree) * T.T;
+    T.T = xpush(-by) * T.T;
+    fixmatrix(T.T);
+    T.T = spin(-pconf.model_orientation * degree) * T.T;
     }
   }
 
@@ -2775,8 +2774,27 @@ EX hyperpoint inverse_shift(const shiftmatrix& T1, const shiftpoint& T2) {
   return iso_inverse(T1.T) * unshift(T2, T1.shift);
   }
 
+EX void optimize_shift(shiftpoint& h) {
+  if(sl2) {
+    change_shift(h, atan2(h[2], h[3]));
+    }
+  }
+
 EX void optimize_shift(shiftmatrix& T) {
-  if(((mdinf[pmodel].flags & mf::uses_bandshift) && T[LDIM][LDIM] > 1e6) || (sphere && pmodel == mdSpiral)) {   
+
+  if(sl2) {
+    change_shift(T, atan2(T[2][3], T[3][3]));
+    if(hybrid::csteps) {
+      auto period = (M_PI * hybrid::csteps) / cgi.psl_steps;
+      while(T.shift > period*.4999)
+        T.shift -= period;
+      while(T.shift < -period*.5001)
+        T.shift += period;
+      }
+    return;
+    }
+
+  else if(((mdinf[pmodel].flags & mf::uses_bandshift) && T[LDIM][LDIM] > 30) || (sphere && pmodel == mdSpiral)) {
     T.T = spin(pconf.model_orientation * degree) * T.T;
     hyperpoint H = tC0(T.T);
     find_zlev(H);
@@ -2791,17 +2809,6 @@ EX void optimize_shift(shiftmatrix& T) {
     T.T = xpush(-x) * T.T;
     fixmatrix(T.T);
     T.T = spin(-pconf.model_orientation * degree) * T.T;
-    }
-
-  if(sl2) {
-    change_shift(T, atan2(T[2][3], T[3][3]));
-    if(hybrid::csteps) {
-      auto period = (M_PI * hybrid::csteps) / cgi.psl_steps;
-      while(T.shift > period*.4999)
-        T.shift -= period;
-      while(T.shift < -period*.5001)
-        T.shift += period;
-      }
     }
   }
 
@@ -3048,14 +3055,14 @@ EX hyperpoint lie_log(hyperpoint h) {
     }
   else if(sol && !nih) {
     h[3] = 0;
-    if(abs(h[2] > 1e-6)) {
+    if(abs(h[2]) > 1e-6) {
       h[0] *= -h[2] / (exp(-h[2]) - 1);
       h[1] *= h[2] / (exp(+h[2]) - 1);
       }
     }
   else if(sol && nih) {
     h[3] = 0;
-    if(abs(h[2] > 1e-6)) {
+    if(abs(h[2]) > 1e-6) {
       ld z = h[2] * log(2);
       h[0] *= -z / (exp(-z) - 1);
       z = h[2] * log(3);
@@ -3064,7 +3071,7 @@ EX hyperpoint lie_log(hyperpoint h) {
     }
   else if(nih) {
     h[3] = 1;
-    if(abs(h[2] > 1e-6)) {
+    if(abs(h[2]) > 1e-6) {
       ld z = h[2] * log(2);
       h[0] *= z / (exp(+z) - 1);
       z = h[2] * log(3);

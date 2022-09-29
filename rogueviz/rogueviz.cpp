@@ -261,88 +261,6 @@ int readLabel(fhstream& f) {
   return getid(s);
   }
 
-namespace anygraph {
-  double R, alpha, T;
-  vector<pair<double, double> > coords;
-  
-  edgetype *any;
-  
-  int N;
-               
-  void fixedges() {
-    for(int i=N; i<isize(vdata); i++) if(vdata[i].m) vdata[i].m->dead = true;
-    for(int i=0; i<isize(vdata); i++) vdata[i].edges.clear();
-    vdata.resize(N);
-    for(auto e: edgeinfos) {
-      e->orig = NULL;
-      addedge(e->i, e->j, e);
-      }
-    }
-  
-  void tst() {}
-
-  void read(string fn, bool subdiv, bool doRebase, bool doStore) {
-    init(RV_GRAPH);
-    any = add_edgetype("embedded edges");
-    fname = fn;
-    fhstream f(fn + "-coordinates.txt", "rt");
-    if(!f.f) {
-      printf("Missing file: %s-coordinates.txt\n", fname.c_str());
-      exit(1);
-      }
-    printf("Reading coordinates...\n");
-    string ignore;
-    if(!scan(f, ignore, ignore, ignore, ignore, N, anygraph::R, anygraph::alpha, anygraph::T)) {
-      printf("Error: incorrect format of the first line\n"); exit(1);
-      }
-    vdata.reserve(N);
-    while(true) {
-      string s = scan<string>(f);
-      println(hlog, "s: ", s.c_str());
-      if(s == "D11.11") tst();
-      if(s == "" || s == "#ROGUEVIZ_ENDOFDATA") break;
-      int id = getid(s);
-      vertexdata& vd(vdata[id]);
-      vd.name = s;
-      vd.cp = colorpair(dftcolor);
-      
-      double r, alpha;
-      if(!scan(f, r, alpha)) { printf("Error: incorrect format of r/alpha\n"); exit(1); }
-      coords.push_back(make_pair(r, alpha));
-  
-      transmatrix h = spin(alpha * degree) * xpush(r);
-      
-      createViz(id, currentmap->gamestart(), h);
-      }
-    
-    fhstream g(fn + "-links.txt", "rt");
-    if(!g.f) {
-      println(hlog, "Missing file: ", fname, "-links.txt");
-      exit(1);
-      }
-    println(hlog, "Reading links...");
-    int qlink = 0;
-    while(true) {
-      int i = readLabel(g), j = readLabel(g);
-      if(i == -1 || j == -1) break;
-      addedge(i, j, 1, subdiv, any);
-      qlink++;
-      }
-  
-    if(doRebase) {
-      printf("Rebasing...\n");
-      for(int i=0; i<isize(vdata); i++) {
-        if(i % 10000 == 0) printf("%d/%d\n", i, isize(vdata));
-        if(vdata[i].m) virtualRebase(vdata[i].m);
-        }
-      printf("Done.\n");
-      }
-    
-    if(doStore) storeall();
-    }
-  
-  }
-
 ld maxweight;
 
 bool edgecmp(edgeinfo *e1, edgeinfo *e2) {
@@ -461,9 +379,10 @@ void storevertex(vector<glvertex>& tab, const hyperpoint& h) {
 
 double min_line_step = .1;
 double min_line_splits = 0;
+double max_line_splits = 6;
 
 void storelineto(vector<glvertex>& tab, const hyperpoint& h1, const hyperpoint& h2, int s) {
-  if(intval(h1, h2) < min_line_step && s >= min_line_splits)
+  if(s >= max_line_splits || (intval(h1, h2) < min_line_step && s >= min_line_splits))
     storevertex(tab, h2);
   else {
     hyperpoint h3 = mid(h1, h2);
@@ -586,6 +505,8 @@ ld labelscale = .2; // .28 in SVG
 
 ld edgewidth = 1;
 
+bool highlight_target = true;
+
 bool drawVertex(const shiftmatrix &V, cell *c, shmup::monster *m) {
   if(m->dead) return true;
   if(m->type != moRogueviz) return false;
@@ -613,7 +534,7 @@ bool drawVertex(const shiftmatrix &V, cell *c, shmup::monster *m) {
     int oi = ei->i, oj = ei->j;
     bool hilite = false;
     if(vdata[oi].special && vdata[oj].special && specialmark) hilite = true;
-    else if(svg::in || inHighQual) hilite = false;
+    else if(svg::in || inHighQual || !highlight_target) hilite = false;
     else if(vd1.m == shmup::mousetarget) hilite = true;
     else if(vd2.m == shmup::mousetarget) hilite = true;
     else if(oi == lid || oj == lid) hilite = true;
@@ -745,7 +666,7 @@ bool drawVertex(const shiftmatrix &V, cell *c, shmup::monster *m) {
     }
   
   
-  if(showlabels) {
+  if(showlabels && !darken) {
     bool doshow = true;
     if((vizflags & RV_COMPRESS_LABELS) && i > 0 && !vd.virt) {
       vertexdata& vdp = vdata[vd.data];
@@ -783,7 +704,7 @@ bool rogueviz_hud() {
 
   int legit = qet + isize(legend);
   
-  if(legit == 0) return true;
+  if(legit == 0) return false;
   
   initquickqueue();
   
@@ -963,7 +884,6 @@ void close() {
   legend.clear();
   for(int i=0; i<isize(edgeinfos); i++) delete edgeinfos[i];
   edgeinfos.clear();
-  anygraph::coords.clear();
   callhooks(hooks_close);
   edgetypes.clear();
   do_cleanup();
@@ -980,15 +900,6 @@ int readArgs() {
     shift(); dftcolor = parse(args());
     }  
 
-// graph visualizer
-//------------------
-
-// this visualizes the data from: https://hpi.de/friedrich/research/hyperbolic
-
-  else if(argis("-graph")) {
-    PHASE(3); shift(); anygraph::read(args());
-    }
-  
 // graphical parameters
 //------------------
 
@@ -1062,7 +973,7 @@ int readArgs() {
 void configure_edge_display() {
   cmode = sm::SIDE | sm::MAYDARK | sm::DIALOG_STRICT_X;
   static int mode = 0;
-  gamescreen(0);  
+  gamescreen();
   dialog::init(XLAT("rogueviz edges"));
   for(int i=0; i<isize(edgetypes); i++) {
     auto t = edgetypes[i];
@@ -1122,7 +1033,7 @@ void search_marker() {
 
 void showVertexSearch() {
   cmode = sm::SIDE | sm::MAYDARK | sm::DIALOG_STRICT_X;
-  gamescreen(0); search_for = -1;
+  gamescreen(); search_for = -1;
 
   dialog::init(XLAT("vertex search"));
   dialog::v.clear();
@@ -1156,7 +1067,7 @@ void showVertexSearch() {
 void showMenu() {
   if(callhandlers(false, hooks_rvmenu_replace)) return;
   cmode = sm::SIDE | sm::MAYDARK | sm::DIALOG_STRICT_X;
-  gamescreen(0);  
+  gamescreen();
 
   dialog::init(XLAT("rogueviz configuration"));
 
@@ -1220,6 +1131,7 @@ auto hooks  =
     param_i(brm_limit, "brm_limit");
     param_f(edgewidth, "rvedgewidth");
     param_f(min_line_splits, "edgeminsplits");
+    param_f(max_line_splits, "edgemaxsplits");
     }) +
  0;
 

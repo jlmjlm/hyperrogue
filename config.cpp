@@ -646,12 +646,22 @@ EX void initConfig() {
   param_b(resizable, "resizable", true)
   -> editable("resizable window", 'r');
 
+  param_b(no_find_player, "no_find_player");
+  param_b(game_keys_scroll, "game_keys_scroll");
+  param_b(reg3::cubes_reg3, "cubes_reg3");
+  param_f(linepatterns::tree_starter, "tree_starter")
+  -> editable(0, 1, 0.05, "tree-drawing parameter", "How much of edges to draw for tree patterns (to show how the tree edges are oriented).", 't');
+
   param_b(arb::apeirogon_consistent_coloring, "apeirogon_consistent_coloring", true)
   -> editable("apeirogon_consistent_coloring", 'c');
   param_b(arb::apeirogon_hide_grid_edges, "apeirogon_hide_grid_edges", true)
   -> editable("apeirogon_hide_grid_edges", 'h');
   param_b(arb::apeirogon_simplified_display, "apeirogon_simplified_display", false)
   -> editable("simplified display of apeirogons", 'f');
+  param_b(arb::convert::minimize_on_convert, "tes_minimize_on_convert", false)
+  -> editable("consider all symmetries when converting", 'm');
+  param_b(arb::convert::reverse_order, "tes_reverse_order", false)
+  -> editable("tes reverse order on convert", 'r');
 
   param_b(display_yasc_codes, "yasc", false)
   -> editable("YASC codes", 'Y')
@@ -713,6 +723,14 @@ EX void initConfig() {
       {"by land", ""},
       {"by number", ""}
       }, "inventory/kill sorting", 'k');
+
+  param_b(less_in_landscape, "less_in_landscape", false)
+  ->editable("less items/kills in landscape", 'L')
+  -> set_sets([] { dialog::reaction_final = [] { println(hlog, "Reset"); vid.killreduction = 0; }; });
+
+  param_b(less_in_portrait, "less_in_portrait", false)
+  ->editable("less items/kills in portrait", 'P')
+  -> set_sets([] { dialog::reaction_final = [] { println(hlog, "Reset"); vid.killreduction = 0; }; });
   
   // basic graphics
   
@@ -733,6 +751,15 @@ EX void initConfig() {
   addsaver(vid.aurasmoothen, "aura smoothen", 5);
   param_enum(vid.graphglyph, "graphglyph", "graphical items/kills", 1)
   -> editable({{"letters", ""}, {"auto", ""}, {"images", ""}}, "inventory/kill mode", 'd');
+
+  param_i(menu_darkening, "menu_darkening", 2)
+  -> editable(0, 8, 1, "menu map darkening", "A larger number means darker game map in the background. Set to 8 to disable the background.", 'd')
+  -> set_sets([] { dialog::bound_low(0); dialog::bound_up(8); dialog::dialogflags |= sm::DARKEN; });
+  param_b(centered_menus, "centered_menus", false)
+  -> editable("centered menus in widescreen", 'c');
+
+  param_b(startanims::enabled, "startanim", true)
+  -> editable("start animations", 's');
 
   addsaver(vid.flasheffects, "flasheffects", 1);
 
@@ -798,7 +825,7 @@ EX void initConfig() {
 
   addsaver(vid.always3, "3D always", false);
   
-  addsaver(memory_saving_mode, "memory_saving_mode", (ISMOBILE || ISPANDORA || ISWEB) ? 1 : 0);
+  param_b(memory_saving_mode, "memory_saving_mode", (ISMOBILE || ISPANDORA || ISWEB) ? 1 : 0);
   param_i(reserve_limit, "memory_reserve", 128);
   addsaver(show_memory_warning, "show_memory_warning");
 
@@ -894,6 +921,7 @@ EX void initConfig() {
   #endif
   
   param_b(nohud, "no-hud", false);
+  param_b(nomap, "nomap", false);
   param_b(nofps, "no-fps", false);
   
   #if CAP_IRR
@@ -952,8 +980,8 @@ EX void initConfig() {
   addsaver(sn::solrange_xy, "solrange-xy");
   addsaver(sn::solrange_z, "solrange-z");
   #endif
-  addsaver(slr::steps, "slr-steps");
-  addsaver(slr::range_xy, "slr-range-xy");
+  param_i(slr::shader_iterations, "slr-steps");
+  param_f(slr::range_xy, "slr-range-xy");
 
   param_f(arcm::euclidean_edge_length, "arcm-euclid-length");
   
@@ -1351,7 +1379,8 @@ EX void edit_sightrange() {
   #if CAP_RUG
   USING_NATIVE_GEOMETRY_IN_RUG;
   #endif
-  gamescreen(0);
+  cmode = sm::SIDE;
+  gamescreen();
   dialog::init("sight range settings");
   add_edit(vid.use_smart_range);
   if(vid.use_smart_range)
@@ -1399,9 +1428,9 @@ EX void edit_sightrange() {
     dialog::add_action([] {
       dialog::editNumber(slr::range_xy, 0, 10, 0.5, 4, XLAT("max difference in X/Y coordinates"), "");
       });
-    dialog::addSelItem(XLAT("steps"), its(slr::steps), 'z');
+    dialog::addSelItem(XLAT("shader_iterations"), its(slr::shader_iterations), 'z');
     dialog::add_action([] {
-      dialog::editNumber(slr::steps, 0, 50, 1, 10, "", "");
+      dialog::editNumber(slr::shader_iterations, 0, 50, 1, 10, "", "");
       });
     }
   if(vid.use_smart_range && WDIM == 2) {
@@ -1472,7 +1501,7 @@ EX void menuitem_sightrange(char c IS('c')) {
 
 EX void sets_sfx_volume() {
 #if CAP_AUDIO
-  dialog::numberdark = dialog::DONT_SHOW;
+  dialog::dialogflags = sm::NOSCR;
   #if ISANDROID
   dialog::reaction = [] () {
     settingsChanged = true;
@@ -1485,7 +1514,7 @@ EX void sets_sfx_volume() {
 
 EX void sets_music_volume() {
 #if CAP_AUDIO
-  dialog::numberdark = dialog::DONT_SHOW;
+  dialog::dialogflags = sm::NOSCR;
   dialog::reaction = [] () {
     #if CAP_SDLAUDIO
     Mix_VolumeMusic(musicvolume);
@@ -1506,7 +1535,7 @@ EX void sets_music_volume() {
 
 EX void showSpecialEffects() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("extra graphical effects"));
 
   dialog::addBoolItem_action(XLAT("particles on attack"), (vid.particles), 'p');
@@ -1522,7 +1551,7 @@ EX void showSpecialEffects() {
 
 EX void show_vector_settings() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("vector settings"));
 
   dialog::addSelItem(XLAT("line width"), fts(vid.linewidth), 'w');
@@ -1571,7 +1600,7 @@ EX void show_vector_settings() {
 
 EX void showGraphConfig() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
 
   dialog::init(XLAT("graphics configuration"));
   
@@ -1751,7 +1780,8 @@ EX void edit_whatever(char type, int index) {
   }
 
 EX void configureOther() {
-  gamescreen(3);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
 
   dialog::init(XLAT("other settings"));
 
@@ -1781,6 +1811,8 @@ EX void configureOther() {
   dialog::addSelItem(XLAT("whatever"), fts(whatever[0]), 'j');
   dialog::add_action([] { edit_whatever('f', 0); });
 #endif
+
+  add_edit(savefile_selection);
   
   dialog::addBreak(50);
   dialog::addBack();
@@ -1789,7 +1821,8 @@ EX void configureOther() {
   }
 
 EX void configureInterface() {
-  gamescreen(3);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("interface"));
 
 #if CAP_TRANS
@@ -1819,6 +1852,8 @@ EX void configureInterface() {
   
   add_edit(glyphsortorder);
   add_edit(vid.graphglyph);
+  add_edit(less_in_landscape);
+  add_edit(less_in_portrait);
 
   add_edit(display_yasc_codes);
 
@@ -1834,6 +1869,10 @@ EX void configureInterface() {
       dialog::add_action([] { dialog::openColorDialog(crosshair_color); });
       };
     });
+
+  add_edit(menu_darkening);
+  add_edit(centered_menus);
+  add_edit(startanims::enabled);
    
   dialog::addBreak(50);
   dialog::addBack();
@@ -1843,7 +1882,8 @@ EX void configureInterface() {
 
 #if CAP_SDLJOY
 EX void showJoyConfig() {
-  gamescreen(4);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
 
   dialog::init(XLAT("joystick configuration"));
   
@@ -2014,7 +2054,7 @@ bool supported_ods() {
 
 EX void showStereo() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("stereo vision config"));
 
   add_edit(vid.stereo_mode);
@@ -2133,7 +2173,7 @@ EX void edit_levellines(char c) {
 
 EX void show3D() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("3D configuration"));
 
   if(GDIM == 2) {
@@ -2460,6 +2500,17 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
       });
   param_b(debug_tiles, "debug_tiles");
   addsaver(vid.gp_autoscale_heights, "3D Goldberg autoscaling", true);  
+  addsaver(scorefile, "savefile");
+  param_b(savefile_selection, "savefile_selection")
+  -> editable("select the score/save file on startup", 's')
+  -> set_reaction([] {
+    if(savefile_selection)
+      addMessage(XLAT("Save the config and restart to select another score/save file."));
+    else if(scorefile == "")
+      addMessage(XLAT("Save the config to always play without recording your progress."));
+    else
+      addMessage(XLAT("Save the config to always use %1.", scorefile));
+    });
   });
 
 EX void switchcolor(unsigned int& c, unsigned int* cs) {
@@ -2475,7 +2526,8 @@ EX void showCustomizeChar() {
   cc_footphase += hypot(mousex - lmousex, mousey - lmousey);
   lmousex = mousex; lmousey = mousey;
 
-  gamescreen(4);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("Customize character"));
   
   if(shmup::on || multi::players) multi::cpid = multi::cpid_edit % multi::players;
@@ -2556,13 +2608,15 @@ EX void refresh_canvas() {
     }
   }
 
+EX color_t addalpha(color_t c) { return (c << 8) | 0xFF; }
+
 EX void edit_color_table(colortable& ct, const reaction_t& r IS(reaction_t()), bool has_bit IS(false)) {
   cmode = sm::SIDE;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("colors & aura"));
   
   for(int i=0; i<isize(ct); i++) {
-    dialog::addColorItem(its(i), ct[i] << 8, 'a'+i);
+    dialog::addColorItem(its(i), addalpha(ct[i]), 'a'+i);
     if(WDIM == 3 && has_bit && !(ct[i] & 0x1000000)) dialog::lastItem().value = XLAT("(no wall)");
     dialog::add_action([i, &ct, r, has_bit] () { 
       if(WDIM == 3 && has_bit) {
@@ -2583,19 +2637,19 @@ EX void edit_color_table(colortable& ct, const reaction_t& r IS(reaction_t()), b
 EX void show_color_dialog() {
   cmode = sm::SIDE | sm::DIALOG_STRICT_X;
   getcstat = '-';
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("colors & aura"));
 
-  dialog::addColorItem(XLAT("background"), backcolor << 8, 'b');
+  dialog::addColorItem(XLAT("background"), addalpha(backcolor), 'b');
   dialog::add_action([] () { dialog::openColorDialog(backcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
   
   if(WDIM == 2 && GDIM == 3 && hyperbolic)
     dialog::addBoolItem_action(XLAT("cool fog effect"), context_fog, 'B');
 
-  dialog::addColorItem(XLAT("foreground"), forecolor << 8, 'f');
+  dialog::addColorItem(XLAT("foreground"), addalpha(forecolor), 'f');
   dialog::add_action([] () { dialog::openColorDialog(forecolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
 
-  dialog::addColorItem(XLAT("borders"), bordcolor << 8, 'o');
+  dialog::addColorItem(XLAT("borders"), addalpha(bordcolor), 'o');
   dialog::add_action([] () { dialog::openColorDialog(bordcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
 
   dialog::addColorItem(XLAT("projection boundary"), ringcolor, 'r');
@@ -2620,7 +2674,7 @@ EX void show_color_dialog() {
   dialog::addColorItem(XLAT("projection period"), periodcolor, 'p');
   dialog::add_action([] () { dialog::openColorDialog(periodcolor); dialog::dialogflags |= sm::SIDE; });
 
-  dialog::addColorItem(XLAT("dialogs"), dialog::dialogcolor << 8, 'd');
+  dialog::addColorItem(XLAT("dialogs"), addalpha(dialog::dialogcolor), 'd');
   dialog::add_action([] () { dialog::openColorDialog(dialog::dialogcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
 
   dialog::addBreak(50);
@@ -2727,13 +2781,14 @@ EX void resetConfigMenu() {
 
 #if CAP_TRANS
 EX void selectLanguageScreen() {
-  gamescreen(4);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init("select language"); // intentionally not translated
 
   int v = vid.language;  
   dynamicval<int> d(vid.language, -1);
   
-  for(int i=0; i<NUMLAN-1 || i == v; i++) {
+  for(int i=0; i<NUMLAN; i++) {
     vid.language = i;
     dialog::addSelItem(XLAT("EN"), its(100 * transcompleteness[i] / transcompleteness[0]) + "%", 'a'+i);
     }
@@ -2785,7 +2840,8 @@ EX void selectLanguageScreen() {
 #endif
 
 EX void configureMouse() {
-  gamescreen(1);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("mouse & touchscreen"));
 
   dialog::addBoolItem_action(XLAT("reverse pointer control"), (vid.revcontrol), 'r');
@@ -2865,7 +2921,8 @@ template<class T> void add_edit(T& val) {
 #endif
 
 EX void find_setting() {
-  gamescreen(1); 
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
 
   dialog::init(XLAT("find a setting"));
   if(dialog::infix != "") mouseovers = dialog::infix;
@@ -2899,7 +2956,8 @@ EX void find_setting() {
   }
 
 EX void edit_all_settings() {
-  gamescreen(1);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("recently changed settings"));
 
   for(auto &fs: params) fs.second->check_change();
@@ -2921,7 +2979,8 @@ void list_setting::show_edit_option(char key) {
   dialog::addSelItem(XLAT(menu_item_name), XLAT(opt), key);
   dialog::add_action_push([this] {
     add_to_changed(this);
-    gamescreen(2);
+    cmode = sm::SIDE | sm::MAYDARK;
+    gamescreen();
     dialog::init(XLAT(menu_item_name));
     dialog::addBreak(100);
     int q = isize(options);
@@ -2941,7 +3000,8 @@ void list_setting::show_edit_option(char key) {
   }
 
 EX void showSettings() {
-  gamescreen(1);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("settings"));
 
   dialog::addItem(XLAT("interface"), 'i');
@@ -3030,6 +3090,9 @@ EX int read_color_args() {
     }
   else if(argis("-fore")) {
     PHASEFROM(2); shift(); forecolor = argcolor(24);
+    }
+  else if(argis("-title")) {
+    PHASEFROM(2); shift(); titlecolor = argcolor(24);
     }
   else if(argis("-dialog")) {
     PHASEFROM(2); shift(); dialog::dialogcolor = argcolor(24);

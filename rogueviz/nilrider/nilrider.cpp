@@ -1,5 +1,5 @@
 #if NILRIDER
-#define CUSTOM_CAPTION "Nil Rider 0.1"
+#define CUSTOM_CAPTION "Nil Rider 1.0"
 #define MAXMDIM 4
 #define CAP_INV 0
 #define CAP_COMPLEX2 0
@@ -64,6 +64,21 @@ void frame() {
   }
 
 bool crash_sound = true;
+bool running;
+bool backing;
+
+/* land for music */
+
+eLand music_nilrider = eLand(400);
+eLand music_nilrider_back = eLand(401);
+eLand music_nilrider_paused = eLand(402);
+eLand music_nilrider_planning = eLand(403);
+eLand music_nilrider_nonrunning = eLand(404);
+
+void sync_music(eLand l) {
+  musicpos[music_nilrider] = zgmod(curlev->current.timer * 1000, musiclength[music_nilrider]);
+  musicpos[music_nilrider_back] = zgmod(-curlev->current.timer * 1000, musiclength[music_nilrider_back]);
+  }
 
 bool turn(int delta) {
   if(planning_mode && !view_replay) return false;
@@ -91,8 +106,8 @@ bool turn(int delta) {
 
   if(min_gfx_slope < -90*degree) min_gfx_slope = -90*degree;
   if(min_gfx_slope > +90*degree) min_gfx_slope = +90*degree;
-
-  bool backing = false;
+  
+  backing = false;
 
   if(a[16+6]) {
     if(!la[16+6]) reversals++;
@@ -122,6 +137,7 @@ bool turn(int delta) {
       curlev->history.push_back(curlev->current);
       curlev->current.be_consistent();
       bool b = curlev->current.tick(curlev);
+      running = b;
       if(!b) {
         curlev->history.pop_back();
         fail = true;
@@ -177,7 +193,7 @@ void run() {
     cmode |= sm::SHOWCURSOR;
   if(aimspeed_mouse_x == 0 && aimspeed_mouse_y == 0)
     cmode |= sm::SHOWCURSOR;
-  gamescreen(0);
+  gamescreen();
   if(planning_mode && !view_replay) {
     curlev->draw_planning_screen();
     if(!holdmouse) {
@@ -215,10 +231,12 @@ void run() {
 
   dialog::add_key_action(PSEUDOKEY_MENU, [] {
     if(curlev->current.timer) paused = true;
+    game_keys_scroll = true;
     pushScreen(main_menu);
     });
   if(pause_av) dialog::add_key_action(PSEUDOKEY_PAUSE, [] {
     paused = !paused;
+    game_keys_scroll = true;
     if(view_replay && !paused)
       simulation_start_tick = ticks - curlev->current.timer * tps;
     });
@@ -346,6 +364,12 @@ void settings() {
   dialog::add_action_push(nil_projection);
   dialog::addItem("configure keys", 'k');
   dialog::add_action_push(multi::get_key_configurer(1, move_names, "Nilrider keys"));
+
+  #if CAP_AUDIO
+  add_edit(effvolume);
+  add_edit(musicvolume);
+  #endif
+
   #if CAP_VR
   vrhr::enable_button();
   vrhr::reference_button();
@@ -355,6 +379,15 @@ void settings() {
   dialog::add_key_action('r', [] {
     pushScreen(showSettings);
     });
+
+  #if CAP_FILES && !ISWEB
+  dialog::addItem("save the current config", 's');
+  dialog::add_action([] {
+    dynamicval<eGeometry> g(geometry, gNormal);
+    saveConfig();
+    });
+  #endif
+
   dialog::addBreak(100);
   dialog::addBack();
   dialog::display();
@@ -415,6 +448,10 @@ void pop_and_push_replays() {
 #endif
 
 reaction_t on_quit = [] { exit(0); }; 
+
+void restart() {
+  clear_path(curlev);
+  }
 
 void main_menu() {
   clearMessages();
@@ -518,11 +555,28 @@ void nilrider_keys() {
   change_default_key('a', 16 + 1);
   change_default_key('w', 16 + 2);
   change_default_key('d', 16 + 3);
+  #if CAP_SDL2
+  change_default_key(SDL_SCANCODE_LCTRL, 16 + 4);
+  #else
   change_default_key(SDLK_LCTRL, 16 + 4);
+  #endif
   change_default_key('p', 16 + 5);
   change_default_key('b', 16 + 6);
   change_default_key('r', 16 + 7);
   change_default_key('v', 16 + 8);
+  }
+
+bool nilrider_music(eLand& l) {
+  if(planning_mode && !view_replay)
+    l = music_nilrider_planning;
+  else if(paused)
+    l = music_nilrider_paused;
+  else if(!running)
+    l = music_nilrider_nonrunning;
+  else if(backing)
+    l = music_nilrider_back;
+  else l = music_nilrider;
+  return false;
   }
 
 void initialize() {
@@ -542,9 +596,14 @@ void initialize() {
   param_enum(stepped_display, "stepped_display", "stepped_display", false)
     -> editable({{"smooth", "ride on a smooth surface"}, {"blocky", "makes slopes more visible -- actual physics are not affected"}}, "game mode", 's');
 
+  param_i(nilrider_tempo, "nilrider_tempo");
+  param_i(nilrider_shift, "nilrider_shift");
+
   rv_hook(hooks_frame, 100, frame);
   rv_hook(shmup::hooks_turn, 100, turn);
   rv_hook(hooks_resetGL, 100, cleanup_textures);
+  rv_hook(hooks_music, 100, nilrider_music);
+  rv_hook(hooks_sync_music, 100, sync_music);
   on = true;
   on_cleanup_or_next([] { on = false; });
   pushScreen(run);

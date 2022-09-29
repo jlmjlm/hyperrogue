@@ -77,6 +77,8 @@ struct shape {
   vector<int> vertex_period;
   /** list of angles at vertices in the tesfile convention */
   vector<vector<ld>> vertex_angles;
+  /** football types */
+  int football_type;
   };
 
 struct slider {
@@ -98,10 +100,14 @@ struct intslider {
 struct arbi_tiling {
 
   int order;
-  /* have_line and have_ph: line and ph flags have been marked for tiles */
-  bool have_line, have_ph;
+  /* line flags have been marked for tiles */
+  bool have_line;
+  /* pseudohept flags have been marked for tiles (1), or the tiling is football-colorable (2), or neither (0) */
+  int have_ph;
   /* is the tree structure given in the tes file */
   bool have_tree;
+  /* is the valence data reliable */
+  bool have_valence;
   /* use "star." if the tessellation includs star polygons */
   bool is_star;
   /* use "combinatorial." for combinatorial tessellations; vertex valences computed based on their angles. Currently only rulegen works for combinatorial tessellations */
@@ -128,6 +134,7 @@ struct arbi_tiling {
   vector<string> options;
 
   int min_valence, max_valence;
+  bool is_football_colorable;
 
   geometryinfo1& get_geometry();
   eGeometryClass get_class() { return get_geometry().kind; }
@@ -423,6 +430,7 @@ template<class T> void cycle(vector<T>& t) {
 
 /** \brief for tessellations which contain mirror rules, remove them by taking the orientable double cover */
 EX void unmirror(arbi_tiling& c) {
+  if(cgflags & qAFFINE) return;
   auto& mirror_rules = c.mirror_rules;
   mirror_rules = 0;
   for(auto& s: c.shapes)
@@ -450,9 +458,9 @@ EX void unmirror(arbi_tiling& c) {
     if(sh[i].apeirogonal) {
       cycle(sh[i].edges);
       cycle(sh[i].vertices);
-      println(hlog, "angles before = ", sh[i].angles);
+      if(debugflags & DF_GEOM) println(hlog, "angles before = ", sh[i].angles);
       cycle(sh[i].angles);
-      println(hlog, "angles now = ", sh[i].angles);
+      if(debugflags & DF_GEOM) println(hlog, "angles now = ", sh[i].angles);
       cycle(sh[i].connections);
       }
     }
@@ -521,6 +529,7 @@ EX void compute_vertex_valence(arb::arbi_tiling& ac) {
   
   if(cgflags & qAFFINE) return;
   if(ac.is_star) return;
+  ac.have_valence = true;
 
   for(auto& sh: ac.shapes) {
     int n = sh.size();
@@ -574,6 +583,172 @@ EX void compute_vertex_valence(arb::arbi_tiling& ac) {
       }      
   }
 
+EX bool extended_football = true;
+
+EX void check_football_colorability(arbi_tiling& c) {
+  if(cgflags & qAFFINE) return;
+  for(auto&sh: c.shapes) for(auto v: sh.vertex_valence)
+    if(v % 3) return;
+
+  for(int i=0; i<3; i++) {
+    for(auto&sh: c.shapes) sh.football_type = 3;
+
+    vector<int> aqueue;
+
+    c.shapes[0].football_type = i;
+    aqueue = {0};
+    bool bad = false;
+    for(int qi=0; qi<isize(aqueue); qi++) {
+      int sid = aqueue[qi];
+
+      auto& sh = c.shapes[sid];
+
+      for(int j=0; j<sh.size(); j++) {
+        auto &co = sh.connections[j];
+        auto t = sh.football_type;
+        if(c.have_ph && ((sh.flags & arcm::sfPH) != (t==2))) bad = true;
+        if(sh.apeirogonal && t < 2 && (isize(sh) & 1)) bad = true;
+
+        auto assign = [&] (int tt) {
+          auto& t1 = c.shapes[co.sid].football_type;
+          if(t1 == 3) {
+            t1 = tt;
+            aqueue.push_back(co.sid);
+            }
+          else {
+            if(t1 != tt) bad = true;
+            }
+          };
+
+        if(t < 2) {
+          if((j & 1) == t) assign(2); else assign((co.eid & 1) ? 0 : 1);
+          }
+        else {
+          assign((co.eid & 1) ? 1 : 0);
+          }
+        }
+      }
+    if(!bad) {
+      c.have_ph = 2;
+      for(auto& sh: c.shapes) if(sh.football_type == 2) sh.flags |= arcm::sfPH;
+      return;
+      }
+    }
+
+  if(extended_football && !c.have_tree) {
+    for(auto&sh: c.shapes)
+      sh.football_type = 0;
+
+    for(int i=0; i<3*isize(c.shapes); i++) {
+      for(auto&sh: c.shapes) {
+        int &res = sh.football_type;
+        int siz = sh.size();
+        if(sh.apeirogonal) siz -= 2;
+        else if(siz & 1) res |= 3;
+        if((sh.cycle_length & 1) && !sh.apeirogonal) {
+          if(res & 3) res |= 3;
+          }
+        if(sh.apeirogonal && (siz & 1)) {
+          if(res & 3) res |= 3;
+          }
+        if(sh.flags & arcm::sfPH) res |= 3;
+        for(int i=0; i<sh.size(); i++) {
+          auto co = sh.connections[i];
+          co.eid %= c.shapes[co.sid].cycle_length;
+          if(res & 1) {
+            if(i&1) {
+              if(co.eid & 1)
+                c.shapes[co.sid].football_type |= 1;
+              else
+                c.shapes[co.sid].football_type |= 2;
+              }
+            else
+              c.shapes[co.sid].football_type |= 4;
+            }
+          if(res & 2) {
+            if(!(i&1)) {
+              if(co.eid & 1)
+                c.shapes[co.sid].football_type |= 1;
+              else
+                c.shapes[co.sid].football_type |= 2;
+              }
+            else
+              c.shapes[co.sid].football_type |= 4;
+            }
+          if(res & 4) {
+            if(co.eid & 1)
+              c.shapes[co.sid].football_type |= 2;
+            else
+              c.shapes[co.sid].football_type |= 1;
+            }
+          }
+        }
+      }
+
+    c.is_football_colorable = true;
+    for(auto&sh: c.shapes)
+     if(sh.football_type == 7)
+       c.is_football_colorable = false;
+
+    if(c.is_football_colorable) {
+      vector<array<int, 3> > new_indices(isize(c.shapes), make_array(-1, -1, -1));
+      auto oldshapes = c.shapes;
+      c.shapes.clear();
+      for(int i=0; i<isize(oldshapes); i++)
+        for(int t=0; t<3; t++)
+          if(!(oldshapes[i].football_type & (1<<t))) {
+            if(t == 1 && (oldshapes[i].cycle_length & 1) && !oldshapes[i].apeirogonal) continue;
+            new_indices[i][t] = isize(c.shapes);
+            c.shapes.push_back(oldshapes[i]);
+            c.shapes.back().football_type = t;
+            if(t == 2) c.shapes.back().flags |= arcm::sfPH;
+            }
+
+      for(int i=0; i<isize(oldshapes); i++)
+        for(int t=0; t<3; t++) {
+          int ni = new_indices[i][t];
+          if(ni == -1) continue;
+          auto& sh = c.shapes[ni];
+          for(int j=0; j<isize(sh); j++) {
+            auto &co = sh.connections[j];
+            auto assign = [&] (int tt) {
+              auto ni1 = new_indices[co.sid][tt];
+              if(ni1 == -1 && tt == 1) {
+                ni1 = new_indices[co.sid][0];
+                co.eid += oldshapes[co.sid].cycle_length;
+                co.eid %= isize(oldshapes[co.sid]);
+                }
+              co.sid = ni1;
+              };
+
+            if(sh.apeirogonal && j >= isize(sh)-2) {
+              co.sid = ni;
+              if(t < 2 && (isize(sh) & 1)) co.sid = new_indices[i][t^1];
+              continue;
+              }
+
+            co.eid %= oldshapes[co.sid].cycle_length;
+            if(t < 2) {
+              if((j & 1) == t) assign(2); else assign((co.eid & 1) ? 0 : 1);
+              }
+            else {
+              assign((co.eid & 1) ? 1 : 0);
+              }
+            }
+
+          if((sh.cycle_length&1) && (t < 2) && !sh.apeirogonal) sh.cycle_length *= 2;
+          if(debugflags & DF_GEOM)
+            println(hlog, tie(i,t), " becomes ", ni, " with connections ", sh.connections, " and cycle length = ", sh.cycle_length);
+          }
+
+      c.have_ph = 2;
+      return;
+      }
+    }
+
+  for(auto&sh: c.shapes) sh.football_type = 3;
+  }
+
 EX void add_connection(arbi_tiling& c, int ai, int as, int bi, int bs, int m) {
   int as0 = as, bs0 = bs;
   auto& ash = c.shapes[ai];
@@ -599,8 +774,11 @@ EX void set_defaults(arb::arbi_tiling& c, bool keep_sliders, string fname) {
   c.range = 0;
   c.boundary_ratio = 1;
   c.floor_scale = .5;
-  c.have_ph = c.have_line = false;
+  c.have_ph = 0;
+  c.have_line = false;
+  c.is_football_colorable = false;
   c.have_tree = false;
+  c.have_valence = false;
   c.yendor_backsteps = 0;
   c.is_star = false;
   c.is_combinatorial = false;
@@ -916,6 +1094,8 @@ EX void load(const string& fname, bool load_as_slided IS(false), bool keep_slide
     }
   if(!c.have_tree) compute_vertex_valence(c);
 
+  check_football_colorability(c);
+
   if(c.have_tree) rulegen::verify_parsed_treestates(c);
   
   if(!load_as_slided) slided = current;
@@ -932,7 +1112,7 @@ string primes(int i) {
 
 void connection_debugger() {
   cmode = sm::SIDE | sm::DIALOG_STRICT_X;
-  gamescreen(0);
+  gamescreen();
   
   auto& last = debug_polys.back();
   
@@ -1097,7 +1277,7 @@ EX transmatrix get_adj(arbi_tiling& c, int t, int dl, int t1, int xdl) {
     println(hlog, "s1 = ", kz(spintox(rm*vr)), " s2 = ", kz(rspintox(xrm*xvr)));    
     println(hlog, tie(t, dl), " = ", kz(Res));    
     println(hlog, hdist(vl, Res * xvr), " # ", hdist(vr, Res * xvl));
-    exit(3);
+    throw hr_exception("error in arb::get_adj");
     }
         
   return Res;
@@ -1218,6 +1398,9 @@ struct hrmap_arbi : hrmap {
     for(auto& p2: altmap[alt]) if(id_of(p2.first) == co.sid && same_point_may_warn(tC0(p2.second), tC0(T))) {
       for(int oth=0; oth < p2.first->type; oth++) {
         if(same_point_may_warn(p2.second * xsh.vertices[oth], T * xsh.vertices[co.eid])) {
+          if(p2.first->move(oth)) {
+            throw hr_exception("already connected!");
+            }
           h->c.connect(d, p2.first, oth%p2.first->type, co.mirror);
           return p2.first;
           }
@@ -1269,6 +1452,7 @@ EX void run(string fname) {
   try {
      load(fname);
      ginf[gArbitrary].tiling_name = current.name;
+     tes = fname;
      }
    catch(hr_polygon_error& poly) {
      set_geometry(g);
@@ -1327,7 +1511,7 @@ EX void sliders_changed(bool need_restart, bool need_start) {
 
 EX void set_sliders() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(1);
+  gamescreen();
   dialog::init(XLAT("tessellation sliders"));
   dialog::addHelp(current.comment);
   char ch = 'A';
@@ -1432,8 +1616,10 @@ void be_identified(cellwalker cw1, cellwalker cw2) {
     }
   }
 
-EX void convert() {
-  start_game();
+EX bool reverse_order;
+EX bool minimize_on_convert;
+
+EX void convert_max() {
   identification.clear(); changes = 0;
 
   manual_celllister cl;
@@ -1483,7 +1669,82 @@ EX void convert() {
         }
       }
     }
+  }
+
+EX void convert_minimize(int N, vector<int>& old_shvids, map<int, int>& old_to_new) {
+  vector<pair<int, int>> address;
+  vector<int> next;
+  for(int i=0; i<N; i++) {
+    int q = identification[old_shvids[i]].modval;
+    int c = isize(address);
+    for(int j=0; j<q; j++) {
+      address.emplace_back(i, j);
+      next.emplace_back(j == q-1 ? c : c+j+1);
+      }
+    }
+
+  int K = isize(address);  
+  vector<array<ld, 3> > dists(K);
+  for(int i=0; i<K; i++) {
+    auto pi = address[i];
+    auto si = identification[old_shvids[pi.first]];
+    pi.second += si.shift;
+    array<hyperpoint, 3> pcorner;
+    array<ld, 3> pdists;
+
+    for(int j=0; j<3; j++)
+      pcorner[j] = currentmap->get_corner(si.sample, gmod(pi.second+j, si.sample->type));
+
+    for(int j=0; j<3; j++)
+      pdists[j] = hdist(pcorner[j], pcorner[(j+1)%3]);
+
+    dists[i] = pdists;
+    }
+
+  // this is O(K^3) and also possibly could get confused on convex/concave,
+  // but should be good enough, hopefully
   
+  vector<vector<int>> equal(K);
+  for(int i=0; i<K; i++) equal[i].resize(K, 0);
+  for(int i=0; i<K; i++)
+  for(int j=0; j<K; j++) {
+
+    equal[i][j] = true;
+    for(int s=0; s<3; s++)
+      equal[i][j] = equal[i][j] && abs(dists[i][s] - dists[j][s]) < 1e-6;
+    }
+  
+  int chg = 1;
+  while(chg) {
+    for(auto& eq: equal) println(hlog, eq);
+    chg = 0;
+    for(int i=0; i<K; i++)
+    for(int j=0; j<K; j++)
+      if(equal[i][j] && !equal[next[i]][next[j]]) {
+        equal[i][j] = false;
+        chg++;
+        }
+    }
+
+  for(int i=0; i<K; i++)
+  for(int j=0; j<K; j++) if(i!=j && equal[i][j]) {
+    auto pi = address[i];
+    auto si = identification[old_shvids[pi.first]];
+    cellwalker cwi(si.sample, si.shift + pi.second);
+
+    auto pj = address[j];
+    auto sj = identification[old_shvids[pj.first]];
+    cellwalker cwj(sj.sample, sj.shift + pj.second);
+
+    be_identified(cwi, cwj);
+    }
+  }
+
+EX void convert() {
+  start_game();
+  convert_max();
+  bool minimize = minimize_on_convert;
+  reidentify:
   vector<int> old_shvids;
   map<int, int> old_to_new;
   for(auto id: identification)
@@ -1492,6 +1753,20 @@ EX void convert() {
       old_shvids.push_back(id.first);
       }
   
+  int N = isize(old_shvids);
+  println(hlog, "N = ", N);
+  if(minimize) {
+    convert_minimize(N, old_shvids, old_to_new);
+    minimize = false;
+    goto reidentify;
+    }
+
+  if(reverse_order) {
+    reverse(old_shvids.begin(), old_shvids.end());
+    for(int i=0; i<isize(old_shvids); i++)
+      old_to_new[old_shvids[i]] = i;
+    }
+
   auto& ac = arb::current;
   ac.order++; 
   ac.comment = ac.filename = "converted from: " + full_geometry_name();
@@ -1499,7 +1774,6 @@ EX void convert() {
   ac.boundary_ratio = 1;
   ac.floor_scale = cgi.hexvdist / cgi.scalefactor;
   ac.range = cgi.base_distlimit;
-  int N = isize(old_shvids);
   ac.shapes.clear();
   ac.shapes.resize(N);
 
@@ -1514,7 +1788,12 @@ EX void convert() {
     int t = s->type;
     sh.vertices.clear();
     sh.connections.clear();
-    sh.repeat_value = id.modval;
+    sh.cycle_length = id.modval;
+    sh.repeat_value = t / id.modval;
+    sh.flags = hr::pseudohept(s) ? arcm::sfPH : 0;
+    #if CAP_ARCM
+    if(arcm::in() && arcm::linespattern(s)) { sh.flags |= arcm::sfLINE; ac.have_line = true; }
+    #endif
     for(int j=0; j<t; j++) {
       auto co = currentmap->get_corner(s, j);
       sh.vertices.push_back(co);
@@ -1555,6 +1834,9 @@ EX void convert() {
     }
   
   arb::compute_vertex_valence(ac);
+
+  ac.have_ph = geosupport_football() ? 1 : 0;
+  arb::check_football_colorability(ac);
   }
 
 EX bool in() {
@@ -1596,6 +1878,12 @@ int readArgs() {
       println(hlog, "failed to convert: ", e.what());
       }
     }
+  else if(argis("-arb-unmirror")) {
+    shift(); do_unmirror = argi();
+    }
+  else if(argis("-arb-football")) {
+    shift(); extended_football = argi();
+    }
   else if(argis("-arb-slider")) {
     PHASEFROM(2);
     shift();
@@ -1627,7 +1915,7 @@ auto hook = addHook(hooks_args, 100, readArgs);
 
 EX bool in() { return geometry == gArbitrary; }
 
-EX string tes = "tessellations/sample/marjorie-rice.tes";
+EX string tes = find_file("tessellations/sample/marjorie-rice.tes");
 
 EX bool linespattern(cell *c) {
   return current.shapes[id_of(c->master)].flags & arcm::sfLINE;
@@ -1642,8 +1930,10 @@ EX void choose() {
   dialog::openFileDialog(tes, XLAT("open a tiling"), ".tes", 
   [] () {
     run(tes);
+    #if CAP_COMMANDLINE
     if(!current.options.empty())
       dialog::push_confirm_dialog([] { arg::run_arguments(current.options); start_game(); }, "load the settings defined in this file?");
+    #endif
     return true;
     });
   }
@@ -1664,12 +1954,16 @@ EX pair<ld, ld> rep_ideal(ld e, ld u IS(1)) {
   return {len, 90 * degree - (gamma - beta)};
   }
 
-#if MAXMDIM >= 4
-auto hooksw = addHook(hooks_swapdim, 100, [] {
+EX void swap_vertices() {
   for(auto& p: {&current, &slided}) 
     for(auto& s: p->shapes)
       for(auto& v: s.vertices)
         swapmatrix(v);
+  }
+
+#if MAXMDIM >= 4
+auto hooksw = addHook(hooks_swapdim, 100, [] {
+  swap_vertices();
   for(auto& p: altmap) for(auto& pp: p.second) swapmatrix(pp.second);
   for(auto& p: arbi_matrix) swapmatrix(p.second.second);
   });

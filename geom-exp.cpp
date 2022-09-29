@@ -40,7 +40,8 @@ string euchelp =
 #if CAP_FIELD
 void showQuotientConfig() {
   using namespace fieldpattern;
-  gamescreen(2);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("field quotient"));
   fgeomextra& gxcur = fgeomextras[current_extra];
   for(int i=0; i<isize(fgeomextras); i++) {
@@ -102,7 +103,8 @@ void showQuotientConfig() {
     auto& cfp = currfp;
     auto triplets = cfp.find_triplets();
     pushScreen([triplets] {
-      gamescreen(2);
+      cmode = sm::SIDE | sm::MAYDARK;
+      gamescreen();
       dialog::init(XLAT("alternate manifolds"));
       int id = 0;
       for(auto t: triplets) {
@@ -153,7 +155,7 @@ string validclasses[4] = {" (X)", " (½)", "", " (!)"};
   
 EX void ge_land_selection() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);  
+  gamescreen();
 
   if(cheater) for(int i=0; i<landtypes; i++) landvisited[i] = true;
 
@@ -275,7 +277,7 @@ EX vector<geometry_filter*> available_filters = { &gf_hyperbolic, &gf_spherical,
 
 void ge_select_filter() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(2);  
+  gamescreen();
 
   dialog::init(XLAT("geometries"));
   
@@ -348,7 +350,7 @@ void set_or_configure_geometry(eGeometry g) {
 bool same_tiling(eGeometry g2) {
   if(g2 == gCrystal)
     return S3 == 4;
-  if(g2 == gFieldQuotient && hyperbolic && standard_tiling())
+  if(g2 == gFieldQuotient && (hyperbolic || (geometry == gCubeTiling && reg3::cubes_reg3)) && standard_tiling())
     return true;
   if(g2 == gFieldQuotient && geometry != gFieldQuotient) {
     int ce = 0;
@@ -365,7 +367,7 @@ bool same_tiling(eGeometry g2) {
 
 void ge_select_tiling() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);  
+  gamescreen();
 
   if(!current_filter) { popScreen(); return; }
   dialog::init();
@@ -447,7 +449,8 @@ EX string dim_name() {
 EX void showQuotientConfig3() {
 
   using namespace fieldpattern;
-  gamescreen(2);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("field quotient"));
   
   auto& ds = discoveries[cginf.tiling_name];
@@ -546,7 +549,7 @@ EX string geometry_name() {
 
 EX void select_quotient_screen() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
 
   dialog::init(XLAT("quotient spaces in ") + ginf[geometry].tiling_name);
   char key = 'a';
@@ -592,7 +595,7 @@ EX void select_quotient_screen() {
   }
 
 EX void select_quotient() {
-  if(euclid && !kite::in() && !arcm::in()) {
+  if(euclid && !kite::in() && !arcm::in() && !reg3::cubes_reg3) {
     euc::prepare_torus3();
     pushScreen(euc::show_torus3);
     }
@@ -647,7 +650,7 @@ void action_change_variation() {
   else if(arcm::in()) arcm::next_variation();
   #endif
   #if MAXMDIM >= 4
-  else if(reg3::in()) reg3::configure_variation();
+  else if(reg3::in() || geometry == gCubeTiling) reg3::configure_variation();
   #endif
   else if(euc::in(2,4) || !CAP_GP) dialog::do_if_confirmed([] {
     set_variation(PURE ? eVariation::bitruncated : eVariation::pure);
@@ -932,7 +935,7 @@ EX void showEuclideanMenu() {
   // for(int i=2; i<lt; i++) landvisited[i] = true;
 
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
 
   dialog::init(XLAT("experiment with geometry"));
 
@@ -1012,7 +1015,7 @@ EX void showEuclideanMenu() {
   else if(nil) {
     menuitem_nilwidth('v');
     }
-  else if((WDIM == 3 || kite::in() || arb::in()) && !reg3::in()) dialog::addBreak(100);
+  else if((WDIM == 3 || kite::in() || arb::in()) && !reg3::in() && geometry != gCubeTiling) dialog::addBreak(100);
   else 
     menuitem_change_variation('v');
 
@@ -1126,7 +1129,7 @@ EX void showEuclideanMenu() {
 
   dialog::addSelItem(XLAT("size of the world"), gd.size_str, '3');
   
-  if(WDIM == 2 || reg3::in_rule()) dialog::add_action([] {
+  if(WDIM == 2 || reg3::exact_rules()) dialog::add_action([] {
     if(!viewdists) { enable_viewdists(); pushScreen(viewdist_configure_dialog); }
     else if(viewdists) viewdists = false;
     });

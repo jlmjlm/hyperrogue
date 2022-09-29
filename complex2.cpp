@@ -148,7 +148,7 @@ EX namespace brownian {
   
   EX void apply_futures(cell *c) {
     if(futures.count(c)) {
-      auto m = move(futures[c]);
+      auto m = std::move(futures[c]);
       futures.erase(c);
       for(auto p: m)
         recurse(p.first, p.second);
@@ -526,7 +526,7 @@ EX void count_status() {
   for(cell *c: currentmap->allcells()) if(among(c->wall, waMineMine, waMineUnknown) && mine::marked_mine(c)) kills[moTameBomberbird]++;
   if(last && !kills[moBomberbird]) {
     mine::victory_time = getgametime();
-    pushScreen(showMission);
+    showMissionScreen();
     }
   }
 
@@ -1460,6 +1460,10 @@ EX namespace dice {
   EX bool on(cell *c) { return false; }
   EX bool swap_forbidden(cell *a, cell *b) { return false; }
   EX void chaos_swap(cellwalker wa, cellwalker wb) {}
+EX }
+
+EX namespace mine {
+  EX bool in_minesweeper() { return false; }
 EX }
 #endif
 }

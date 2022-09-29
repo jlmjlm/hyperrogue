@@ -608,7 +608,8 @@ slide dmv_slides[] = {
       empty_screen(mode);
       show_picture(mode, "rogueviz/nil/penrose-triangle.png");
       add_stat(mode, [] {
-        gamescreen(2);
+        cmode |= sm::DARKEN;
+        gamescreen();
         dialog::init();
         dialog::addBreak(400);
         dialog::addTitle("playing with impossibility", dialog::dialogcolor, 150);
@@ -818,7 +819,6 @@ slide dmv_slides[] = {
       ply_slide(mode, gCubeTiling, mdPerspective, false);
       if(!ply::staircase.available()) return;
       if(mode == pmStart) {
-        tour::slide_backup(smooth_scrolling, true);
         tour::slide_backup(sightranges[geometry], 200);
         tour::slide_backup(vid.cells_drawn_limit, 200);
         tour::slide_backup(camera_speed, 5);
@@ -830,6 +830,7 @@ slide dmv_slides[] = {
 
         // tour::slide_backup(vid.fov, 120);
         }
+      non_game_slide_scroll(mode);
       if(mode == pmKey) {
         println(hlog, ggmatrix(currentmap->gamestart()));
         println(hlog, View);
@@ -900,11 +901,11 @@ slide dmv_slides[] = {
         dialog::display();
         return true;
         });
-      no_other_hud(mode);
+      non_game_slide_scroll(mode);
       }
     },
 
-  {"Compasses in Nil", 123, LEGAL::ANY,
+  {"Compasses in Nil", 123, LEGAL::ANY | QUICKGEO,
     "However, it turns out that there actually exists a non-Euclidean geometry, "
     "known as the Nil geometry, where constructions such as Penrose staircases and "
     "triangles naturally appear!\n\n"
@@ -922,12 +923,10 @@ slide dmv_slides[] = {
         set_geometry(gNil);
         start_game();
         rogueviz::rv_hook(hooks_drawcell, 100, rogueviz::nilcompass::draw_compass);
-        tour::slide_backup(smooth_scrolling, true);
-        tour::slide_backup(mapeditor::drawplayer, false);
         View = Id;
         shift_view(ztangent(.5));
-        playermoved = false;
         }
+      non_game_slide_scroll(mode);
       if(mode == pmStart || mode == pmKey)
         rogueviz::nilcompass::zeroticks = ticks;
       }
@@ -953,7 +952,7 @@ slide dmv_slides[] = {
       }
     },
 
-  {"Cartesian coordinates", 999, LEGAL::NONE, 
+  {"Cartesian coordinates", 999, LEGAL::NONE | QUICKGEO, 
     "The puzzle shows an important fact: every point on Earth has defined directions "
     "(North, East, South, West), and in most life situations, we can assume that these "
     "directions work the same as in the Cartesian system of coordinates."
@@ -964,7 +963,7 @@ slide dmv_slides[] = {
       no_other_hud(mode);
       }
     },
-  {"Nil coordinates", 999, LEGAL::NONE, 
+  {"Nil coordinates", 999, LEGAL::NONE | QUICKGEO,
     "However, because Earth is curved (non-Euclidean), these directions actually "
     "work different! If you are closer to the pole, moving East or West changes "
     "your longitude much more quickly.\n\n"
@@ -982,7 +981,7 @@ slide dmv_slides[] = {
       no_other_hud(mode);
       }
     },
-  {"Nil coordinates (area)", 999, LEGAL::NONE, 
+  {"Nil coordinates (area)", 999, LEGAL::NONE | QUICKGEO,
     "The formulas look strange at a first glance, but the idea is actually simple: "
     "the change in the 'z' coordinate is the area of a triangle, as shown in the picture. "
     "The change is positive if we go counterclockwise, and negative if we go clockwise.\n\n"
@@ -993,7 +992,7 @@ slide dmv_slides[] = {
       no_other_hud(mode);
       }
     },
-  {"Nil coordinates (loop)", 999, LEGAL::NONE,
+  {"Nil coordinates (loop)", 999, LEGAL::NONE | QUICKGEO,
     "If we make a tour in Nil moving only in the directions N, W, S, E, such that "
     "the analogous tour in Euclidean space would return us to the starting point, "
     "then the tour in Nil would return us directly above or below the starting point, "
@@ -1012,6 +1011,7 @@ slide dmv_slides[] = {
     ,
     [] (presmode mode) {
       brick_slide(0, mode, gCubeTiling, mdHorocyclic, 0);
+      non_game_slide_scroll(mode);
       }
     },
   {"Simple Penrose stairs in Nil", 999, LEGAL::NONE | QUICKGEO, 
@@ -1023,6 +1023,7 @@ slide dmv_slides[] = {
     [] (presmode mode) {
       brick_slide(0, mode, gNil, mdHorocyclic, 0);
       if(mode == pmKey) bricks::animation = !bricks::animation;
+      non_game_slide_scroll(mode);
       }
     },
   {"Simple Penrose stairs in Nil (FPP)", 999, LEGAL::NONE | QUICKGEO, 
@@ -1136,6 +1137,7 @@ slide dmv_slides[] = {
           }
         return false;
         });
+      non_game_slide_scroll(mode);
       // pmodel = (pmodel == mdGeodesic ? mdPerspective : mdGeodesic);
       }
     },
@@ -1146,6 +1148,7 @@ slide dmv_slides[] = {
       brick_slide(1, mode, gNil, mdHorocyclic, 1);
       // if(mode == pmKey) DRAW 
       // pmodel = (pmodel == mdGeodesic ? mdPerspective : mdGeodesic);
+      non_game_slide_scroll(mode);
       }
     },
   {"Penrose triangle (FPP)", 999, LEGAL::NONE | QUICKGEO, 
@@ -1188,6 +1191,7 @@ slide dmv_slides[] = {
     ,
     [] (presmode mode) {
       impossible_ring_slide(mode);
+      non_game_slide_scroll(mode);
       }
     },
   {"impossible ring in Nil", 18, LEGAL::NONE | QUICKGEO, 
@@ -1204,15 +1208,13 @@ slide dmv_slides[] = {
     if(mode == pmStart) {
       stop_game();
       set_geometry(gNil);
-      tour::slide_backup(mapeditor::drawplayer, false);
       rogueviz::cylon::enable();
-      tour::slide_backup(smooth_scrolling, true);
       tour::on_restore(nilv::set_flags);
       tour::slide_backup(nilv::nilperiod, make_array(3, 3, 3));
       nilv::set_flags();
       start_game();
-      playermoved = false;
       }
+    non_game_slide_scroll(mode);
     }},
 
   {"3D model (geodesic)", 999, LEGAL::NONE | QUICKGEO, 
@@ -1237,6 +1239,7 @@ slide dmv_slides[] = {
     ,
     [] (presmode mode) {
       brick_slide(2, mode, gCubeTiling, mdHorocyclic, 0);
+      non_game_slide_scroll(mode);
       }
     },
   {"two Penrose triangles (Nil)", 999, LEGAL::NONE | QUICKGEO, 
@@ -1247,6 +1250,7 @@ slide dmv_slides[] = {
     "triangles with two different orientations.",
     [] (presmode mode) {
       brick_slide(2, mode, gNil, mdHorocyclic, 0);
+      non_game_slide_scroll(mode);
       }
     },
 
@@ -1262,15 +1266,13 @@ slide dmv_slides[] = {
         set_geometry(gNil);
         check_cgi();
         cgi.require_shapes();
-        tour::slide_backup(mapeditor::drawplayer, false);
-        tour::slide_backup(smooth_scrolling, true);
         start_game();
         rogueviz::balls::initialize(1);
         rogueviz::balls::balls.resize(3);
         pmodel = mdEquidistant;
-        playermoved = false;
         View = cspin(1, 2, M_PI/2);
         }
+      non_game_slide_scroll(mode);
       }
     },
 

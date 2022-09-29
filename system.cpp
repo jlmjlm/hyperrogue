@@ -173,10 +173,6 @@ EX void initgame() {
     firstland = safetyland;
     }
 
-  #if CAP_RACING  
-  if(racing::on) racing::apply_seed();
-  #endif
-  
   if(!safety) {
     firstland = specialland;
     ineligible_starting_land = !landUnlocked(specialland);
@@ -380,7 +376,6 @@ EX void initgame() {
     truelotus = 0;
     asteroids_generated = 0;
     asteroid_orbs_generated = 0;
-    dpgen::in = false;
     survivalist = true;
     #if CAP_CRYSTAL
     crystal::used_compass_inside = false;
@@ -819,11 +814,11 @@ EX void applyBoxes() {
   addinv(itOrbMirror);
   addinv(itGreenStone);
   list_invorb();
-  applyBoxBool(inv::on, "inventory"); // 306
   #if CAP_INV
+  applyBoxBool(inv::on, "inventory"); // 306
   applyBoxNum(inv::rseed, "@inv-rseed");
   #else
-  { int u; applyBoxNum(u); }
+  { int u; applyBoxNum(u); applyBoxNum(u); }
   #endif
 
   // 10.1:
@@ -954,7 +949,9 @@ modecode_t fill_modecode() {
   dynamicval<eVariation> sp5(variation, (eVariation) save.box[186]);
   dynamicval<int> sp7(gp::param.first, save.box[342]);
   dynamicval<int> sp8(gp::param.second, save.box[343]);
+  #if CAP_INV
   dynamicval<bool> spinv(inv::on, save.box[306]);
+  #endif
 
   if(save.box[238]) geometry = gSphere;
   if(save.box[239]) geometry = gElliptic;
@@ -1006,9 +1003,10 @@ EX }
 long long saveposition = -1;
 
 EX void remove_emergency_save() {
+  if(scorefile == "") return;
 #if !ISWINDOWS
   if(saveposition >= 0) { 
-    if(truncate(scorefile, saveposition)) {}
+    if(truncate(scorefile.c_str(), saveposition)) {}
     saveposition = -1;
     }
 #endif
@@ -1020,15 +1018,16 @@ EX void saveStats(bool emergency IS(false)) {
   DEBBI(DF_INIT, ("saveStats [", scorefile, "]"));
 
   if(autocheat) return;
+  if(scorefile == "") return;
   #if CAP_TOUR
   if(tour::on) return;
   #endif
   if(randomPatternsMode) return;
   if(daily::on) return;
   if(peace::on) return;
-  if(dpgen::in) return;
   if(experimental) return;
-  if(!gold()) return;
+
+  if(!gold() && !racing::on) return;
   
   remove_emergency_save();
   
@@ -1036,7 +1035,7 @@ EX void saveStats(bool emergency IS(false)) {
 
   xcode = modecode();
   
-  FILE *f = fopen(scorefile, "at");
+  FILE *f = fopen(scorefile.c_str(), "at");
   
   if(!f) {
     // printf("Could not open the score file '%s'!\n", scorefile);
@@ -1083,6 +1082,20 @@ EX void saveStats(bool emergency IS(false)) {
     fclose(f);
     return;
     }
+
+  #if CAP_RACING
+  if(racing::on) {
+    auto& bs = racing::best_scores_to_save;
+    if(racing::official_race && !cheater && bs.count(specialland)) {
+      fprintf(f, "RACING %s %d %d date: %s\n", VER,
+        int(specialland), bs[specialland],
+        buf);
+      bs.erase(specialland);
+      }
+    fclose(f);
+    return;
+    }
+  #endif
 
   fprintf(f, "HyperRogue: game statistics (version " VER ")\n");
   if(cheater)
@@ -1147,12 +1160,13 @@ bool tamper = false;
 // load the save
 EX void loadsave() {
   if(autocheat) return;
+  if(scorefile == "") return;
 #if CAP_TOUR
   if(tour::on) return;
 #endif
   DEBBI(DF_INIT, ("loadSave"));
 
-  FILE *f = fopen(scorefile, "rt");
+  FILE *f = fopen(scorefile.c_str(), "rt");
   havesave = f;
   if(!f) return;
   bool ok = false;
@@ -1250,6 +1264,20 @@ EX void loadsave() {
         }
       }
 
+  #if CAP_RACING
+  if(buf[0] == 'R' && buf[1] == 'A' && buf[2] == 'C') {
+    char buf1[80], ver[10];
+    int land, score;
+    sscanf(buf, "%70s%9s%d%d", buf1, ver, &land, &score);
+    /* score may equal 0 because of earlier bugs */
+    if(score) {
+      auto& res = racing::best_scores[eLand(land)];
+      if(score < res || res == 0) res = score;
+      }
+    println(hlog, "loaded the score for ", dnameof(eLand(land)), " of ", score);
+    }
+  #endif
+
     }
   fclose(f);
   if(ok && sc.box[65 + 4 + itOrbSafety - itOrbLightning]) 
@@ -1275,12 +1303,14 @@ EX void load_last_save() {
 
   loadBox();
 //  printf("boxid = %d\n", boxid);
+  #if CAP_COMPLEX2
   if(items[itHolyGrail]) {
     items[itHolyGrail]--;
     camelot::knighted = newRoundTableRadius();
     items[itHolyGrail]++;
     }
   else camelot::knighted = 0;
+  #endif
   safety = true;
   if(items[itSavedPrincess] < 0) items[itSavedPrincess] = 0;
   addMessage(XLAT("Game loaded."));
@@ -1605,6 +1635,13 @@ EX void start_game() {
 // popAllScreens + popAllGames + stop_game + switch_game_mode + start_game
 EX void restart_game(char switchWhat IS(rg::nothing)) {
   popScreenAll();  
+  #if CAP_RACING
+  if(switchWhat == rg::nothing && racing::on) {
+    racing::restore_goals();
+    racing::reset_race();
+    return;
+    }
+  #endif
   stop_game();
   switch_game_mode(switchWhat);
   start_game();
@@ -1629,6 +1666,33 @@ EX eLand firstland0;
 
 EX purehookset hooks_initialize;
 
+EX bool savefile_selection = false;
+
+EX void select_savefile() {
+  if(!savefile_selection) return;
+  start_game();
+  bool canceled = true;
+  if(scorefile == "") scorefile = "hyperrogue.log";
+  pushScreen([] { quitmainloop = true; });
+  dialog::openFileDialog(scorefile, XLAT("choose your score/save file"), ".log", [&] {
+    println(hlog, "hook called");
+    canceled = false;
+    quitmainloop = true;
+    return true;
+    });
+  clearMessages();
+  mainloop();
+  quitmainloop = false;
+  stop_game();
+  popScreenAll();
+  if(canceled) scorefile = "";
+  }
+
+EX void progress_warning() {
+  if(scorefile == "" && savefile_selection)
+    addMessage(XLAT("Your progress will not be saved."));
+  }
+
 EX void initAll() {
   callhooks(hooks_initialize);
   init_floorcolors();
@@ -1646,7 +1710,9 @@ EX void initAll() {
   
   // initlanguage();
   initialize_all();
+  
 #if CAP_SAVE
+  select_savefile();
   loadsave();
   if(IRREGULAR) irr::auto_creator();
 #endif

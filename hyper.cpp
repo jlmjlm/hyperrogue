@@ -40,6 +40,7 @@
 #include "archimedean.cpp"
 #include "arbitrile.cpp"
 #include "rulegen.cpp"
+#include "rulegen3.cpp"
 #include "euclid.cpp"
 #include "sphere.cpp"
 #include "fake.cpp"
@@ -121,7 +122,6 @@
 #include "bigstuff.cpp"
 #include "multigame.cpp"
 #include "inforder.cpp"
-#include "dpgen.cpp"
 #include "vr.cpp"
 #include "intra.cpp"
 

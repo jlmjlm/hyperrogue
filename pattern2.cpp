@@ -268,15 +268,15 @@ EX int fiftyval049(cell *c) {
     for(int i=0; i<3; i++)
       if(polara50(ar[i]->fiftyval) == pa && polarb50(ar[i]->fiftyval) == pb)
         a[qa++] = fiftyval049(ar[i]);
-    // 0-1-2
-    sort(a, a+qa);
+    // somehow sort(a, a+qa) produces a warning in gcc 12.1.0, so we sort manually
     if(qa == 1) return 43+a[0]-1;
+    // sort the two elements
+    if(a[0] > a[1]) swap(a[0], a[1]);
     if(qa == 2 && a[1] == a[0]+7) return 36+a[0]-1;
     if(qa == 2 && a[1] != a[0]+7) return 29+a[0]-1;
-    // 3: zgodnie
-    // 1: zgodnie
-    // 0: przeciwnie
-    // 2: przeciwnie
+    // sort the three elements
+    if(a[1] > a[2]) swap(a[1], a[2]);
+    if(a[0] > a[1]) swap(a[0], a[1]);
     // 168: 
     if(a[1] == 1 && a[2] == 7) 
       return 15 + 6; // (polarb50(c) ? 0 : 6);
@@ -1969,7 +1969,7 @@ EX namespace patterns {
 
   void showPrePatternP(bool instant) {
     cmode = sm::SIDE | sm::MAYDARK;
-    gamescreen(0);
+    gamescreen();
 
     dialog::init("predesigned patterns");
     dialog::addItem(WDIM == 3 ? XLAT("empty") : XLAT("single color"), 'g');
@@ -2178,7 +2178,7 @@ EX namespace patterns {
     cmode = sm::SIDE | sm::MAYDARK;
     {
     dynamicval<bool> dc(displaycodes, whichPattern);
-    gamescreen(0);
+    gamescreen();
     }
     dialog::init();
 
@@ -2466,7 +2466,7 @@ EX namespace patterns {
     cmode = sm::SIDE | sm::MAYDARK;
     {
     dynamicval<bool> dc(displaycodes, true);
-    gamescreen(0);
+    gamescreen();
     }
     dialog::init();
     for(int i=0; i<isize(cpatterns); i++) {
@@ -2565,7 +2565,7 @@ EX namespace patterns {
   EX }
 
 EX bool is_master(cell *c) { 
-  if(euclid) return pseudohept(c);
+  if(euc::in(2)) return pseudohept(c);
   else return c->master->c7 == c;
   }
 
@@ -2585,8 +2585,10 @@ EX namespace linepatterns {
   #endif
   
   bool always_available() { return true; }
-  bool cheating() { return cheater || autocheat || tour::on; }
   bool stdhyp_only() { return stdhyperbolic; }
+  bool needs_valence_3() { return valence() == 3 && geosupport_football(); }
+  bool horo_only() { return horo_ok() && mod_allowed(); }
+  bool if_pseudohept() { return  geosupport_football(); }
 
   color_t lessalpha(color_t col, int m) {
     part(col, 0) /= m;
@@ -2638,26 +2640,35 @@ EX namespace linepatterns {
   linepattern patDual("dual grid", 0xFFFFFF00, always_available,
     ALLCELLS(
       forCellIdEx(c2, i, c) if(way(c,i)) {
+        if((patTriTree.color & 0xFF) || (PURE && (patTree.color & 0xFF))) {
+          cell *parent = ts::right_parent(c, curr_dist);
+          if(c2 == parent) continue;
+          cell *parent2 = ts::right_parent(c2, curr_dist);
+          if(c == parent2) continue;
+          }
+        if((patTriRings.color & 0xFF)) {
+          if(curr_dist(c2) == curr_dist(c)) continue;
+          }
         gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
         }
       )
     );
   
-  linepattern patHepta("heptagonal grid", 0x0000C000, always_available,
+  linepattern patHepta("Gray Raider moves", 0xC0C0C000, if_pseudohept,
     ALLCELLS(
       forCellIdEx(c2, i, c) if(way(c,i)) if(pseudohept(c) == pseudohept(c2)) 
         gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
       )
     );
   
-  linepattern patRhomb("rhombic tesselation", 0x0000C000, always_available,
+  linepattern patRhomb("Green Raider moves", 0x00FF0000, if_pseudohept,
     ALLCELLS(
       forCellIdEx(c2, i, c) if(way(c,i)) if(pseudohept(c) != pseudohept(c2)) 
         gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
       )
     );
   
-  linepattern patTrihepta("triheptagonal tesselation", 0x0000C000, always_available,
+  linepattern patTrihepta("triheptagonal tessellation", 0x0000C000, needs_valence_3,
     ALLCELLS(
       if(pseudohept(c)) for(int t=0; t<c->type; t++)
       gridline(V, get_warp_corner(c, t%c->type),
@@ -2666,7 +2677,7 @@ EX namespace linepatterns {
       )
     );
   
-  linepattern patNormal("normal tesselation", 0x0000C000, always_available, 
+  linepattern patNormal("normal tessellation", 0x0000C000, always_available, 
     ALLCELLS(
       for(int t=0; t<c->type; t++)
         if(c->move(t) && way(c,t))
@@ -2685,7 +2696,7 @@ EX namespace linepatterns {
        )
     );
 
-  linepattern patBigRings("big triangles: rings", 0x00606000, cheating,
+  linepattern patBigRings("big triangles: rings", 0x00606000, [] { return standard_tiling() && S3 == 3 && mod_allowed(); },
     ALLCELLS(
       if(is_master(c) && !euclid) for(int i=0; i<S7; i++) 
         if(c->master->move(i) && way(c->master, i) && c->master->move(i)->dm4 == c->master->dm4)
@@ -2693,24 +2704,26 @@ EX namespace linepatterns {
       )
     );
 
-  EX linepattern patTree = linepattern("underlying tree", 0x00d0d000, cheating,
+  EX ld tree_starter = 0.25;
+
+  EX linepattern patTree = linepattern("underlying tree", 0x00d0d000, [] { return trees_known() && mod_allowed(); },
     ALLCELLS(
       if(is_master(c)) {
         int dir = updir(c->master);
         if(dir == -1) continue;
         hyperpoint end = currentmap->master_relative(c, true) * currentmap->adj(c->master, dir) * C0;
-        hyperpoint start = mid(C0, mid(C0, mid(C0, end)));
+        hyperpoint start = normalize(C0 + tree_starter * (end - C0));
         gridlinef(V, start, V, end, col, 2 + vid.linequality);
         }
       )
     );
-  linepattern patAltTree("circle/horocycle tree", 0xd000d000, cheating, 
+  linepattern patAltTree("circle/horocycle tree", 0xd000d000, horo_only,
     ALLCELLS(
       if(is_master(c)) {
         int dir = updir_alt(c->master);
         if(dir == -1) continue;
         hyperpoint end = currentmap->master_relative(c, true) * currentmap->adj(c->master, dir) * C0;
-        hyperpoint start = mid(C0, mid(C0, mid(C0, end)));
+        hyperpoint start = normalize(C0 + tree_starter * (end - C0));
         gridlinef(V, start, V, end, col, 2 + vid.linequality);
         }
       )
@@ -2838,7 +2851,7 @@ EX namespace linepatterns {
           }
       )
     );
-  linepattern patHorocycles("horocycles", 0xd060d000, cheating, 
+  linepattern patHorocycles("horocycles", 0xd060d000, horo_only,
     ALLCELLS(
       if(c->master->alt) {
         int d = celldistAlt(c);
@@ -2849,27 +2862,31 @@ EX namespace linepatterns {
         }
       )
     );
-  linepattern patTriRings("triangle grid: rings", 0xFFFFFF00, always_available, 
+  EX linepattern patTriRings = linepattern("lines of equal distance", 0xFFFFFF00, trees_known,
     ALLCELLS(
-      forCellIdEx(c2, i, c) {
-        if(S3 == 4) c2 = (cellwalker(c, i) + wstep + 1).cpeek();
-        if(c2 > c) if(curr_dist(c) == curr_dist(c2)) 
-          gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
+      if(valence() == 3) {
+        forCellIdEx(c2, i, c) {
+          if(c2 > c) if(curr_dist(c) == curr_dist(c2))
+            gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
+          }
+        }
+      else {
+        dynamicval<int> dmar(mine_adjacency_rule, 1);
+        int d = curr_dist(c);
+        for(auto p: adj_minefield_cells_full(c))
+          if(p.c < c && d == curr_dist(p.c))
+            gridlinef(V, C0, V, tC0(p.T), col, 2 + vid.linequality);
         }
       )
     );
-  linepattern patTriTree("triangle grid: tree edges", 0xFFFFFF00, always_available,
+  EX linepattern patTriTree = linepattern("tessellation tree", 0xFFFFFF00, trees_known,
     ALLCELLS(
       cell *parent = ts::right_parent(c, curr_dist);
-      if(gmatrix.count(parent)) 
-        gridlinef(V, C0, V * currentmap->adj(c, neighborId(c, parent)), C0, col, 2 + vid.linequality);
-      )
-    );
-  linepattern patTriOther("triangle grid: other edges", 0xFFFFFF00, always_available, 
-    ALLCELLS(
-      cell *parent = ts::right_parent(c, curr_dist);
-      forCellIdEx(c2, i, c) if(curr_dist(c2) < curr_dist(c) && c2 != parent)
-        gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
+      if(gmatrix.count(parent)) {
+        hyperpoint end = tC0(currentmap->adj(c, neighborId(c, parent)));
+        hyperpoint start = normalize(C0 + tree_starter * (end - C0));
+        gridlinef(V, start, V, end, col, 2 + vid.linequality);
+        }
       )
     );
 
@@ -2946,7 +2963,7 @@ EX namespace linepatterns {
     );
   
   #if HDR
-  extern linepattern patTriTree, patTriRings, patTriOther;
+  extern linepattern patTriTree, patTriRings, patDual;
   #endif
   
   EX vector<linepattern*> patterns = { 
@@ -2954,7 +2971,7 @@ EX namespace linepatterns {
     
     &patTree, &patAltTree, &patZebraTriangles, &patZebraLines,
     &patVine, &patPalacelike, &patPalace, &patPower, &patHorocycles,
-    &patTriRings, &patTriTree, &patTriOther,
+    &patTriRings, &patTriTree,
     &patGoldbergTree, &patIrregularMaster, &patGoldbergSep, &patHeawood, &patArcm,
     &patCircles, &patRadii, &patMeridians, &patParallels, &patSublines, &patUltra
     };
@@ -2986,7 +3003,7 @@ EX namespace linepatterns {
   
   EX void showMenu() {
     cmode = sm::SIDE | sm::MAYDARK;
-    gamescreen(0);
+    gamescreen();
 
     dialog::init(XLAT("line patterns"));
 
@@ -3023,6 +3040,8 @@ EX namespace linepatterns {
     dialog::add_action([] () { 
       dialog::editNumber(width, 0, 10, 0.1, 1, XLAT("line width"), "");
       });
+
+    add_edit(tree_starter);
 
     dialog::addBoolItem_action("edit widths individually", indiv, 'I');
 

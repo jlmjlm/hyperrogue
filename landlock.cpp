@@ -271,6 +271,9 @@ EX bool incompatible1(eLand l1, eLand l2) {
   if(l1 == laPrairie && l2 == laCrossroads4) return true;
   if(l1 == laWet && l2 == laDesert) return true;
   if(l1 == laFrog && l2 == laMotion) return true;
+  if(l1 == laBull && l2 == laTerracotta) return true;
+  if(l1 == laReptile && l2 == laTerracotta) return true;
+  if(l1 == laBull && l2 == laDeadCaves) return true;
   if(isElemental(l1) && isElemental(l2)) return true;
   return false;
   }
@@ -536,8 +539,8 @@ EX eLand getNewLand(eLand old) {
     if(!ls::std_chaos()) tab[cnt++] = laPrairie;
     if(old == laPrairie) LIKELY tab[cnt++] = laBull;
     if(old == laBull && !ls::any_chaos()) LIKELY tab[cnt++] = laPrairie;
-    if(ls::std_chaos() && geometry) tab[cnt++] = laDual;
-    if(ls::std_chaos() && geosupport_threecolor()) tab[cnt++] = laSnakeNest;
+    tab[cnt++] = laDual;
+    tab[cnt++] = laSnakeNest;
     }
   
   if(landUnlocked(laTrollheim)) {

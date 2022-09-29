@@ -81,6 +81,8 @@ struct goal {
   goalchecker check;
   };
 
+using surface_fun = std::function<ld(hyperpoint h)>;
+
 struct level {
   string name;
   char hotkey;
@@ -90,7 +92,7 @@ struct level {
   vector<string> map_tiles;
   ld startx, starty;
   ld scale;
-  std::function<ld(hyperpoint h)> surface;
+  surface_fun surface;
   
   bool initialized;
   
@@ -218,4 +220,8 @@ extern bool planning_mode;
 inline int reduce_quality = 0;
 
 void save();
+
+extern bool on;
+extern void restart();
+extern bool stepped_display;
 }
