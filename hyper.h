@@ -427,6 +427,7 @@ struct videopar {
 
   ld ispeed;
   bool flasheffects;
+  int orbmode;
   };
 
 extern videopar vid;
