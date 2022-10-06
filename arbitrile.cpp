@@ -45,6 +45,8 @@ constexpr ld INFINITE_BOTH = -3;
 struct shape {
   /** index in the arbi_tiling::shapes */
   int id;
+  /** index in the original file */
+  int orig_id;
   /** flags such as sfLINE and sfPH */
   int flags;
   /** list of vertices in the usual convention */
@@ -69,6 +71,8 @@ struct shape {
   bool apeirogonal;
   /** connections repeat `repeat_value` times */
   int repeat_value;
+  /** 0 if the no mirror symmetries are declared; otherwise, edge i is the mirror of edge gmod(symmetric_value-i, size()). Make sure symmetric_value != 0, e.g., by adding size() */
+  int symmetric_value;
   /** if a tile/edge combination may be connected to edges j1 and j2 of this, j1-j2 must be divisible by cycle_length */
   int cycle_length;
   /** list of valences of vertices in the tesfile convention */
@@ -79,6 +83,8 @@ struct shape {
   vector<vector<ld>> vertex_angles;
   /** football types */
   int football_type;
+  /** is it a mirrored version of an original tile */
+  bool is_mirrored;
   };
 
 struct slider {
@@ -135,6 +141,8 @@ struct arbi_tiling {
 
   int min_valence, max_valence;
   bool is_football_colorable;
+  bool was_unmirrored;
+  bool was_split_for_football;
 
   geometryinfo1& get_geometry();
   eGeometryClass get_class() { return get_geometry().kind; }
@@ -342,16 +350,27 @@ EX void load_tile(exp_parser& ep, arbi_tiling& c, bool unit) {
   c.shapes.emplace_back();
   auto& cc = c.shapes.back();
   cc.id = isize(c.shapes) - 1;
+  cc.orig_id = cc.id;
+  cc.is_mirrored = false;
+  cc.symmetric_value = 0;
   cc.flags = 0;
   cc.repeat_value = 1;
+  bool is_symmetric = false;
   while(ep.next() != ')') {
     cld dist = 1;
     ep.skip_white();
+    if(ep.eat("|")) {
+      cc.symmetric_value = ep.iparse();
+      is_symmetric = true;
+      ep.force_eat(")");
+      break;
+      }
     if(ep.eat("*")) {
       ld frep = ep.rparse(0);
       if(isinf(frep)) {
         cc.apeirogonal = true;
         set_flag(ginf[gArbitrary].flags, qIDEAL, true);
+        if(ep.eat(",") && ep.eat("|")) is_symmetric = true, cc.symmetric_value = ep.iparse();
         ep.force_eat(")");
         break;
         }
@@ -371,6 +390,11 @@ EX void load_tile(exp_parser& ep, arbi_tiling& c, bool unit) {
         cc.ideal_markers.push_back(cc.ideal_markers[j]);
         }
       ep.skip_white();
+      if(ep.eat(",")) {
+        ep.force_eat("|");
+        cc.symmetric_value = ep.iparse();
+        is_symmetric = true;
+        }
       if(ep.eat(")")) {
         if(repeat_from == 0) cc.repeat_value = rep;
         break;
@@ -412,6 +436,7 @@ EX void load_tile(exp_parser& ep, arbi_tiling& c, bool unit) {
     throw;
     }
   int n = cc.size();
+  if(is_symmetric) cc.symmetric_value += n;
   cc.connections.resize(n);
   for(int i=0; i<isize(cc.connections); i++)
     cc.connections[i] = connection_t{cc.id, i, false};
@@ -440,11 +465,18 @@ EX void unmirror(arbi_tiling& c) {
   if(!mirror_rules) return;
   auto& sh = c.shapes;
   int s = isize(sh);
+  vector<int> mirrored_id(s, -1);
   for(int i=0; i<s; i++)
-    sh.push_back(sh[i]);
-  for(int i=0; i<2*s; i++)
+    if(!sh[i].symmetric_value) {
+      mirrored_id[i] = isize(sh);
+      sh.push_back(sh[i]);
+      }
+  int ss = isize(sh);
+  for(int i=0; i<ss; i++) {
     sh[i].id = i;
-  for(int i=s; i<s+s; i++) {
+    if(i >= s) sh[i].is_mirrored = true;
+    }
+  for(int i=s; i<ss; i++) {
     for(auto& v: sh[i].vertices) 
       v[1] = -v[1];
     reverse(sh[i].edges.begin(), sh[i].edges.end());
@@ -465,12 +497,15 @@ EX void unmirror(arbi_tiling& c) {
       }
     }
 
-  if(true) for(int i=0; i<s+s; i++) {
+  if(true) for(int i=0; i<ss; i++) {
     for(auto& co: sh[i].connections) {
       bool mirr = co.mirror ^ (i >= s);
       co.mirror = false;
-      if(mirr) {
-        co.sid += s;
+      if(mirr && mirrored_id[co.sid] == -1) {
+        co.eid = gmod(sh[co.sid].symmetric_value - co.eid, isize(sh[co.sid].angles));
+        }
+      else if(mirr) {
+        co.sid = mirrored_id[co.sid];
         co.eid = isize(sh[co.sid].angles) - 1 - co.eid;
         if(sh[co.sid].apeirogonal)
           co.eid = gmod(co.eid - 2, isize(sh[co.sid].angles));
@@ -686,6 +721,7 @@ EX void check_football_colorability(arbi_tiling& c) {
       }
 
     c.is_football_colorable = true;
+    c.was_split_for_football = true;
     for(auto&sh: c.shapes)
      if(sh.football_type == 7)
        c.is_football_colorable = false;
@@ -709,6 +745,7 @@ EX void check_football_colorability(arbi_tiling& c) {
           int ni = new_indices[i][t];
           if(ni == -1) continue;
           auto& sh = c.shapes[ni];
+          sh.id = ni;
           for(int j=0; j<isize(sh); j++) {
             auto &co = sh.connections[j];
             auto assign = [&] (int tt) {
@@ -749,7 +786,7 @@ EX void check_football_colorability(arbi_tiling& c) {
   for(auto&sh: c.shapes) sh.football_type = 3;
   }
 
-EX void add_connection(arbi_tiling& c, int ai, int as, int bi, int bs, int m) {
+EX void add_connection_sub(arbi_tiling& c, int ai, int as, int bi, int bs, int m) {
   int as0 = as, bs0 = bs;
   auto& ash = c.shapes[ai];
   auto& bsh = c.shapes[bi];
@@ -763,6 +800,25 @@ EX void add_connection(arbi_tiling& c, int ai, int as, int bi, int bs, int m) {
     bs = gmod(bs + bsh.size() / bsh.repeat_value, bsh.size());
     }
   while(bs != bs0);
+  }
+
+EX void add_connection(arbi_tiling& c, int ai, int as, int bi, int bs, int m) {
+  auto& ash = c.shapes[ai];
+  auto& bsh = c.shapes[bi];
+  add_connection_sub(c, ai, as, bi, bs, m);
+  int as1, bs1;
+  if(ash.symmetric_value) {
+    as1 = gmod(ash.symmetric_value - as, ash.size());
+    println(hlog, tie(ai, as), " also is ", tie(ai, as1), " since symmetric is ", ash.symmetric_value, "/", ash.size(), " A");
+    add_connection_sub(c, ai, as1, bi, bs, !m);
+    }
+  if(bsh.symmetric_value) {
+    bs1 = gmod(bsh.symmetric_value - bs, bsh.size());
+    println(hlog, tie(bi, bs), " also is ", tie(bi, bs1), " since symmetric is ", bsh.symmetric_value, "/", bsh.size(), " B");
+    add_connection_sub(c, ai, as, bi, bs1, !m);
+    }
+  if(ash.symmetric_value && bsh.symmetric_value)
+    add_connection_sub(c, ai, as1, bi, bs1, m);
   }
 
 EX void set_defaults(arb::arbi_tiling& c, bool keep_sliders, string fname) {
@@ -782,6 +838,8 @@ EX void set_defaults(arb::arbi_tiling& c, bool keep_sliders, string fname) {
   c.yendor_backsteps = 0;
   c.is_star = false;
   c.is_combinatorial = false;
+  c.was_unmirrored = false;
+  c.was_split_for_football = false;
   c.shapes.clear();
   if(!keep_sliders) {
     c.sliders.clear();

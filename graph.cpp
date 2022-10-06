@@ -761,10 +761,12 @@ EX shiftmatrix face_the_player(const shiftmatrix V) {
   }
 
 EX hpcshape& orbshape(eOrbshape s) {
+  if(vid.orbmode == 0) return cgi.shRing;
   switch(s) {
      case osLove: return cgi.shLoveRing;
      case osRanged: return cgi.shTargetRing;
-     case osOffensive: case osDirectional: return cgi.shSawRing;
+     case osOffensive: return cgi.shSawRing;
+     case osDirectional: return vid.orbmode == 2 ? cgi.shSawRing : cgi.shSpearRing;
      case osFriend: return cgi.shPeaceRing;
      case osUtility: return cgi.shGearRing;
      case osPowerUtility: return cgi.shPowerGearRing;
@@ -1056,11 +1058,15 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
     icol = orb_auxiliary_color(it);
     color_t col = darkena(icol, 0, int(0x80 + 0x70 * sinptick(300)));
 
-    if(it == itOrbFish)
+    if(it == itOrbFish && vid.orbmode == 2)
       queuepolyat(Vit * spinptick(1500, 0), cgi.shFishTail, col, PPR::ITEM_BELOW);
     
     if(xch == 'c')
       queuepolyat(Vit * spinptick(500, 0), cgi.shMoonDisk, darkena(0x801080, 0, hidden ? 0x20 : 0xC0), prio);
+    else if(vid.orbmode < 2) {
+      icol1 = orb_inner_color(it);
+      queuepolyat(Vit, cgi.shDisk, darkena(icol1, 0, inice ? 0x80 : hidden ? 0x20 : 0xC0), prio);
+      }
     else {
       icol1 = orb_inner_color(it);      
       auto dark = darkena(icol1, 0, inice ? 0x80 : hidden ? 0x20 : (it == itOrbBeauty) ? 0xA0 : 0xC0);
@@ -1120,9 +1126,9 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
         queuepolyat(Vit1*Mirror, cgi.shSmallDragonEyes, 0x60, prio);
         }
       else if (it == itOrbDomination) {
-        queuepolyat(Vit1, cgi.shSmallWormHead, dark, prio);
-        queuepolyat(Vit1, cgi.shSmallWormEyes, 0x60, prio);
-        queuepolyat(Vit1*Mirror, cgi.shSmallWormEyes, 0x60, prio);
+        queuepolyat(Vit1*MirrorX, cgi.shSmallWormHead, dark, prio);
+        queuepolyat(Vit1*MirrorX, cgi.shSmallWormEyes, 0x60, prio);
+        queuepolyat(Vit1*MirrorX*Mirror, cgi.shSmallWormEyes, 0x60, prio);
         }
       else if (it == itOrbMorph || it == itOrbChaos || it == itOrbPlague) {
         queuepolyat(Vit, cgi.shDisk, dark1, prio);
@@ -1180,7 +1186,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
                      jump ? &cgi.shDiskSegment :
                         NULL;
         queuepolyat(Vit, cgi.shDisk, dark, prio);
-        bool reversed = (shape == &cgi.shTreeIcon || shape == &cgi.shHumanoid);
+        bool reversed = (shape == &cgi.shTreeIcon || shape == &cgi.shHumanoid || it == itOrbSword2);
         bool left90 = (shape == &cgi.shLeafIcon || shape == &cgi.shLightningBolt);
         if (shape)
           queuepolyat(reversed ? Vit1 * MirrorX : left90 ? Vit1 * spin(-90*degree) : Vit1, *shape, (it == itOrbInvis || it == itOrbTeleport) ? 0x20 : 0x80, prio);

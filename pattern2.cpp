@@ -1544,6 +1544,13 @@ EX map<char, colortable> colortables = {
     0xF08040, 0xF04080, 0x40F080,
     0x4080F0, 0x8040F0, 0x80F040,
     0xFFD500 }},
+  {'M', { // mirrored versions of 'A'
+    0xF04080, 0x40F080, 0x3030D0,
+    0xA0A060, 0xA000F0, 0x00A060,
+    0xC0C0F0, 0x404070, 0x8080C0,
+    0xF08080, 0xF040C0, 0x40F0C0,
+    0x3060D0, 0x6030D0, 0x80F080,
+    0xFFD580 }},
   {'B', {
     // trying to get colors as in Wikipedia [ https://en.wikipedia.org/wiki/Euclidean_tilings_by_convex_regular_polygons#k-uniform_tilings ]
     0, 0, 0xFFFFFF, 0xFFFF00, 
@@ -1784,9 +1791,22 @@ EX namespace patterns {
       #endif
       case 'A':
         #if CAP_ARCM
-        if(arcm::in()) return colortables['A'][arcm::current.tilegroup[arcm::id_of(c->master)]];
+        if(arcm::in()) {
+          int id = arcm::id_of(c->master);
+          int tid = arcm::current.tilegroup[id];
+          int tid2 = arcm::current.tilegroup[id^1];
+          bool mirrored = (id&1) && (tid != tid2);
+          if(tid2 >= 0) tid = min(tid, tid2);
+          return colortables[mirrored ? 'M' : 'A'][tid];
+          }
         #endif
-        if(arb::in()) return colortables['A'][shvid(c) + c->master->emeraldval * isize(arb::current.shapes)];
+        if(arb::in()) {
+          int id = shvid(c);
+          auto& sh = arb::current.shapes[id];
+          int oid = sh.orig_id;
+          bool mirrored = c->master->emeraldval || sh.is_mirrored;
+          return colortables[mirrored ? 'M' : 'A'][oid];
+          }
         return colortables['A'][shvid(c)];
       case 'B':
         if(arb::is_apeirogonal(c)) return apeirogonal_color;
@@ -2058,6 +2078,7 @@ EX namespace patterns {
       }
 
     dialog::addBoolItem(XLAT("display full floors"), (whichShape == '9'), '9');
+    add_edit(global_boundary_ratio);
     dialog::addSelItem(XLAT("floor type"), XLATN(winf[canvas_default_wall].name), 'i');
 
     dialog::addItem(XLAT("line patterns"), 'L');

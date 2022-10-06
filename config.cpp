@@ -724,6 +724,13 @@ EX void initConfig() {
       {"by number", ""}
       }, "inventory/kill sorting", 'k');
 
+  param_enum(vid.orbmode, "orb_mode", "orb display mode", 2)
+    ->editable({
+      {"plain", ""},
+      {"types", ""},
+      {"icons", ""},
+      }, "orb display mode", 'o');
+
   param_b(less_in_landscape, "less_in_landscape", false)
   ->editable("less items/kills in landscape", 'L')
   -> set_sets([] { dialog::reaction_final = [] { println(hlog, "Reset"); vid.killreduction = 0; }; });
@@ -1856,6 +1863,7 @@ EX void configureInterface() {
   add_edit(less_in_portrait);
 
   add_edit(display_yasc_codes);
+  add_edit(vid.orbmode);
 
   dialog::addSelItem(XLAT("draw crosshair"), crosshair_size > 0 ? fts(crosshair_size) : ONOFF(false), 'x');
   dialog::add_action([] () { 
@@ -2498,7 +2506,15 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     ->set_reaction([] {
       if(vid.highdetail > vid.middetail) vid.highdetail = vid.middetail;
       });
-  param_b(debug_tiles, "debug_tiles");
+  param_i(debug_tiles, "debug_tiles")->editable(0, 2, 1, 
+    "display tile debug values",
+    "Display cell type IDs, as well as vertex and edge identifiers.\n\n"
+    "Setting 1 uses the internal shape IDs, while setting 2 in tes files uses "
+    "the original IDs in case if extra tile types were added to "
+    "separate mirror images or different football types.", 'd');
+  param_f(global_boundary_ratio, "global_boundary_ratio")
+  ->editable(0, 5, 0.1, "Width of cell boundaries",
+    "How wide should the cell boundaries be.", 'b');
   addsaver(vid.gp_autoscale_heights, "3D Goldberg autoscaling", true);  
   addsaver(scorefile, "savefile");
   param_b(savefile_selection, "savefile_selection")
