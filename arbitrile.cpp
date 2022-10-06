@@ -538,13 +538,22 @@ EX void compute_vertex_valence(arb::arbi_tiling& ac) {
           println(hlog, "ik = ", tie(i,k), " co=", co, "co1=", co1, " cl=", sh.cycle_length);
           throw hr_parse_exception("connection error #2 in compute_vertex_valence");
           }
+        if(co.mirror && ac.shapes[co.sid].symmetric_value) {
+          co.eid = gmod(ac.shapes[co.sid].symmetric_value - co.eid, ac.shapes[co.sid].cycle_length);
+          co.mirror = !co.mirror;
+          }
         reduce_gcd(ac.shapes[co.sid].cycle_length, co.eid - co1.eid);
         }
 
       for(int k=0; k<n; k++) {
         auto co = sh.connections[k];
+        auto co0 = co;
         co = ac.shapes[co.sid].connections[co.eid];
         if(co.sid != i) throw hr_parse_exception("connection error in compute_vertex_valence");
+        if((co.mirror ^ co0.mirror) && ac.shapes[co.sid].symmetric_value) {
+          co.eid = gmod(ac.shapes[co.sid].symmetric_value - co.eid, ac.shapes[co.sid].cycle_length);
+          co.mirror = !co.mirror;
+          }
         reduce_gcd(sh.cycle_length, k-co.eid);
         }
       if(debugflags & DF_GEOM) 
@@ -562,6 +571,9 @@ EX void compute_vertex_valence(arb::arbi_tiling& ac) {
     tcl = new_tcl;
     }
   
+  if(!ac.was_unmirrored) for(auto& sh: ac.shapes) if(sh.symmetric_value) return;
+  for(auto& sh: ac.shapes) for(auto& co: sh.connections) if(co.mirror) return;
+
   if(cgflags & qAFFINE) return;
   if(ac.is_star) return;
   ac.have_valence = true;
@@ -809,12 +821,10 @@ EX void add_connection(arbi_tiling& c, int ai, int as, int bi, int bs, int m) {
   int as1, bs1;
   if(ash.symmetric_value) {
     as1 = gmod(ash.symmetric_value - as, ash.size());
-    println(hlog, tie(ai, as), " also is ", tie(ai, as1), " since symmetric is ", ash.symmetric_value, "/", ash.size(), " A");
     add_connection_sub(c, ai, as1, bi, bs, !m);
     }
   if(bsh.symmetric_value) {
     bs1 = gmod(bsh.symmetric_value - bs, bsh.size());
-    println(hlog, tie(bi, bs), " also is ", tie(bi, bs1), " since symmetric is ", bsh.symmetric_value, "/", bsh.size(), " B");
     add_connection_sub(c, ai, as, bi, bs1, !m);
     }
   if(ash.symmetric_value && bsh.symmetric_value)
@@ -1455,11 +1465,20 @@ struct hrmap_arbi : hrmap {
 
     for(auto& p2: altmap[alt]) if(id_of(p2.first) == co.sid && same_point_may_warn(tC0(p2.second), tC0(T))) {
       for(int oth=0; oth < p2.first->type; oth++) {
-        if(same_point_may_warn(p2.second * xsh.vertices[oth], T * xsh.vertices[co.eid])) {
+        int oth1 = gmod(oth+1, p2.first->type);
+        int eid1 = gmod(co.eid+1, p2.first->type);
+        if(same_point_may_warn(p2.second * xsh.vertices[oth], T * xsh.vertices[co.eid]) && same_point_may_warn(p2.second * xsh.vertices[oth1], T * xsh.vertices[eid1])) {
           if(p2.first->move(oth)) {
             throw hr_exception("already connected!");
             }
           h->c.connect(d, p2.first, oth%p2.first->type, co.mirror);
+          return p2.first;
+          }
+        if(same_point_may_warn(p2.second * xsh.vertices[oth], T * xsh.vertices[eid1]) && same_point_may_warn(p2.second * xsh.vertices[oth1], T * xsh.vertices[co.eid])) {
+          if(p2.first->move(oth)) {
+            throw hr_exception("already connected!");
+            }
+          h->c.connect(d, p2.first, oth%p2.first->type, co.mirror^1);
           return p2.first;
           }
         }

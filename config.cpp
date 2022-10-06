@@ -2646,6 +2646,20 @@ EX void edit_color_table(colortable& ct, const reaction_t& r IS(reaction_t()), b
       });
     }
 
+  dialog::addItem("add a color", 'A');
+  dialog::add_action([&ct, r] {
+    ct.push_back(rand() & 0x1FFFFFF);
+    r();
+    });
+
+  if(isize(ct) > 2) {
+    dialog::addItem("delete a color", 'D');
+    dialog::add_action([&ct, r] {
+      ct.pop_back();
+      r();
+      });
+    }
+
   dialog::addBack();
   dialog::display();
   }
@@ -2697,6 +2711,11 @@ EX void show_color_dialog() {
   if(specialland == laCanvas && colortables.count(patterns::whichCanvas)) {
     dialog::addItem(XLAT("pattern colors"), 'P');
     dialog::add_action_push([] { edit_color_table(colortables[patterns::whichCanvas], refresh_canvas, true); });
+
+    if(patterns::whichCanvas == 'R') {
+      dialog::addItem(XLAT("unreversed colors"), 'U');
+      dialog::add_action_push([] { edit_color_table(colortables['A'], refresh_canvas, true); });
+      }
     }
  
   if(cwt.at->land == laMinefield) {
