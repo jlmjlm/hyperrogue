@@ -1380,8 +1380,10 @@ EX void drawPlayer(eMonster m, cell *where, const shiftmatrix& V, color_t col, d
         queuepoly(VBODY * VBS * Mirror, cgi.shBullHorn, items[itOrbDiscord] ? watercolor(0) : 0xFF000040);
         }
   
-      if(items[itOrbSide1] && !shmup::on)
-        queuepoly(VBODY * VBS * spin(-M_PI/24), cs.charid >= 2 ? cgi.shSabre : cgi.shPSword, fc(314, cs.swordcolor, 3)); // 3 not colored
+      if(items[itOrbSide1] && !shmup::on) {
+        shiftmatrix VMIRWPN = cs.lefthanded ? VBODY * VBS : VBODY * VBS * Mirror;
+        queuepoly(VMIRWPN * spin(-M_PI/24), cs.charid >= 2 ? cgi.shSabre : cgi.shPSword, fc(314, cs.swordcolor, 3)); // 3 not colored
+        }
       
       shiftmatrix VWPN = cs.lefthanded ? VBODY * VBS * Mirror : VBODY * VBS;
       
@@ -1507,8 +1509,10 @@ void drawMimic(eMonster m, cell *where, const shiftmatrix& V, color_t col, doubl
       bool emp = items[itOrbEmpathy] && m != moShadow;
       if(items[itOrbThorns] && emp)
         queuepoly(VBODY * VBS, cgi.shHedgehogBladePlayer, darkena(col, 0, 0x40));
-      if(items[itOrbSide1] && !shmup::on)
-        queuepoly(VBODY * VBS * spin(-M_PI/24), cs.charid >= 2 ? cgi.shSabre : cgi.shPSword, darkena(col, 0, 0x40));      
+      if(items[itOrbSide1] && !shmup::on) {
+        shiftmatrix VMIRWPN = cs.lefthanded ? VBODY * VBS : VBODY * VBS * Mirror;
+        queuepoly(VMIRWPN * spin(-M_PI/24), cs.charid >= 2 ? cgi.shSabre : cgi.shPSword, darkena(col, 0, 0x40));
+        }
       if(items[itOrbSide3] && emp)
         queuepoly(VBODY * VBS, (cs.charid&1) ? cgi.shFerocityF : cgi.shFerocityM, darkena(col, 0, 0x40));
 
