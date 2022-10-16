@@ -39,6 +39,7 @@ static const int POLY_FAT = (1<<26);            // fatten this model in WRL expo
 static const int POLY_SHADE_TEXTURE = (1<<27);  // texture has 'z' coordinate for shading
 static const int POLY_ONE_LEVEL = (1<<28);      // only one level of the universal cover in SL(2,R)
 static const int POLY_APEIROGONAL = (1<<29);    // only vertices indexed up to she are drawn as the boundary
+static const int POLY_NO_FOG = (1<<30);         // disable fog for this
 
 /** \brief A graphical element that can be drawn. Objects are not drawn immediately but rather queued.
  *
@@ -482,6 +483,8 @@ bool behind3(shiftpoint h) {
     return lp_apply(inverse_exp(h))[2] < 0;
   if(pmodel == mdLiePerspective)
     return lp_apply(lie_log(unshift(h)))[2] < 0;
+  if(pmodel == mdRelPerspective)
+    return lp_apply(rel_log(h))[2] < 0;
   return h[2] < 0;
   }
 
@@ -679,6 +682,7 @@ void dqi_poly::gldraw() {
     else
       glhr::be_textured();
     if(flags & POLY_SHADE_TEXTURE) current_display->next_shader_flags |= GF_TEXTURE_SHADED;
+    if(flags & POLY_NO_FOG) current_display->next_shader_flags |= GF_NO_FOG;
     glBindTexture(GL_TEXTURE_2D, tinf->texture_id);
     if(isize(tinf->colors))
       glhr::vertices_texture_color(v, tinf->tvertices, tinf->colors, offset, offset_texture);
@@ -688,6 +692,7 @@ void dqi_poly::gldraw() {
     }
   else { 
     glhr::be_nontextured();
+    if(flags & POLY_NO_FOG) current_display->next_shader_flags |= GF_NO_FOG;
     glhr::vertices(v);
     }
   
@@ -2622,6 +2627,10 @@ void queuepolyb(const shiftmatrix& V, const hpcshape& h, color_t col, int b) {
 
 EX void curvepoint(const hyperpoint& H1) {
   curvedata.push_back(glhr::pointtogl(H1));
+  }
+
+EX void curvepoint_first() {
+  curvedata.push_back(curvedata[curvestart]);
   }
 
 EX dqi_poly& queuecurve(const shiftmatrix& V, color_t linecol, color_t fillcol, PPR prio) {

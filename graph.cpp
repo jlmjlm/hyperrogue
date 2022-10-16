@@ -4248,8 +4248,8 @@ EX subcellshape& generate_subcellshape_if_needed(cell *c, int id) {
         l.push_back(hybrid::get_corner(c1, i, 0, z));
       else {
         l.push_back(ctr);
-        l.push_back(hybrid::get_corner(c1, i, 0, z));
-        l.push_back(hybrid::get_corner(c1, i+1, 1, z));
+        l.push_back(hybrid::get_corner(c1, i+1, 0, z));
+        l.push_back(hybrid::get_corner(c1, i, 1, z));
         l.push_back(ctr);
         l.push_back(hybrid::get_corner(c1, i, 1, z));
         l.push_back(hybrid::get_corner(c1, i, 0, z));
@@ -5025,6 +5025,9 @@ EX ld wall_radar(cell *c, transmatrix T, transmatrix LPe, ld max) {
   return fixed_yshift;
   }
 
+/** if this is set to ON, just transform non-isotropic spaces according to View, and apply NLP to view */
+EX bool nonisotropic_weird_transforms;
+
 EX void make_actual_view() {
   sphereflip = Id;
   if(sphereflipped()) sphereflip[LDIM][LDIM] = -1;
@@ -5040,7 +5043,7 @@ EX void make_actual_view() {
       }
     camera_level = asin_auto(tC0(view_inverse(actual_view_transform * View))[2]);
     }
-  if(nonisotropic) {
+  if(nonisotropic && !nonisotropic_weird_transforms) {
     transmatrix T = actual_view_transform * View;
     transmatrix T2 = eupush( tC0(view_inverse(T)) );
     NLP = T * T2;

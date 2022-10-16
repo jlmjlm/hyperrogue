@@ -828,6 +828,7 @@ static const flagtype qCAT             = Flag(28);
 
 // note: dnext assumes that x&7 equals 7
 static const int SEE_ALL = 50;
+// note: check_football_colorability in arbitrile.cpp assumes OINF is divisible by 3
 static const int OINF = 123;
 
 extern eGeometry geometry;
@@ -1006,9 +1007,9 @@ enum eModel : int {
   mdHorocyclic, mdQuadrant, mdAxial, mdAntiAxial,
   // 32..38
   mdWerner, mdAitoff, mdHammer, mdLoximuthal, mdMiller, mdGallStereographic, mdWinkelTripel,
-  // 39..
-  mdPoorMan, mdPanini, mdRetroCraig, mdRetroLittrow, mdRetroHammer, mdThreePoint, mdLiePerspective, mdLieOrthogonal,
-  // 47..
+  // 39..48
+  mdPoorMan, mdPanini, mdRetroCraig, mdRetroLittrow, mdRetroHammer, mdThreePoint, mdLiePerspective, mdLieOrthogonal, mdRelPerspective, mdRelOrthogonal,
+  // 49..
   mdGUARD, mdPixel, mdHyperboloidFlat, mdPolynomial, mdManual
   };
 #endif
@@ -1068,6 +1069,8 @@ EX vector<modelinfo> mdinf = {
   {X3("three-point equidistant"), mf::euc_boring, DEFAULTS},
   {X3("Lie perspective"), mf::euc_boring, DEFAULTS},
   {X3("Lie orthogonal"), mf::euc_boring, DEFAULTS},
+  {X3("relativistic perspective"), mf::euc_boring, DEFAULTS},
+  {X3("relativistic orthogonal"), mf::euc_boring, DEFAULTS},
   {X3("guard"), mf::technical, DEFAULTS},
   {X3("pixel"), mf::technical, DEFAULTS},
   {X3("hypflat"), mf::technical, DEFAULTS},

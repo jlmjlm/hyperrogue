@@ -18,8 +18,9 @@ constexpr flagtype GF_VARCOLOR = 2;
 constexpr flagtype GF_LIGHTFOG = 4;
 constexpr flagtype GF_LEVELS   = 8;
 constexpr flagtype GF_TEXTURE_SHADED  = 16;
+constexpr flagtype GF_NO_FOG   = 32;
 
-constexpr flagtype GF_which    = 31;
+constexpr flagtype GF_which    = 63;
 
 constexpr flagtype SF_PERS3        = 256;
 constexpr flagtype SF_BAND         = 512;
@@ -107,6 +108,49 @@ EX string shader_lie_log() {
   else {
     return "vec4 lie_log(vec4 v) { return v; }\n";
     }
+  }
+
+EX string shader_rel_log() {
+  if(sl2) return
+  "uniform mediump float uIndexSL;\n"
+  "vec4 rel_log(vec4 h) {\n"
+    "float shift = uIndexSL + atan2(h[2], h[3]); \n"
+    "float ca = cos(uIndexSL); float sa = -sin(uIndexSL);\n"
+    "vec4 h1 = h;\n"
+    "h[2] = h1[2] * ca - h1[3] * sa; h[3] = h1[3] * ca + h1[2] * sa;\n"
+    "h[0] = h1[0] * ca - h1[1] * sa; h[1] = h1[1] * ca + h1[0] * sa;\n"
+    "h1 = h;"
+
+    "if(h1[3] <= 1. && h1[3] >= -1.) {\n"
+    "float r = sqrt(h1[2]*h1[2] - h1[0]*h1[0] - h1[1]*h1[1]);\n"
+    "float z = asin_clamp(r);\n"
+    "if(h1[3] < 0.) z = PI - z;\n"
+    "z += floor(shift / 2. / PI + .5) * 2. * PI;\n"
+    "float scale = z/r;\n"
+    "h1 = h1 * scale; h1[3] = 1.;\n"
+    "} else if(shift > PI || shift < -PI || h1[3] < -1.) { return vec4(0,0,0,1); } else {\n"
+
+    "float r = sqrt(h1[0]*h1[0] + h1[1]*h1[1] - h1[2]*h1[2]);\n"
+    "float z = asinh(r);\n"
+    "float scale = z/r;\n"
+    "h1 = h1 * scale; h1[3] = 1.;\n"
+    "}\n"
+
+    "return h1;\n"
+    "}\n";
+
+  if(hyperbolic && GDIM == 3) return
+    "vec4 rel_log(vec4 h) {\n"
+    "  float choice = h[3] * h[3] - h[0] * h[0] - h[1] * h[1];\n"
+    "  float z, r;\n"
+    "  if(choice > 0.) { r = sqrt(choice); z = asinh(r); }\n"
+    "  else { r = sqrt(-choice); z = asin_clamp(r); if(h[2] < 0.) z = PI - z; }\n"
+    "  h = h * z / r; h[2] = h[3]; h[3] = 1.;\n"
+    "  return h;\n"
+    "  }\n";
+
+  println(hlog, "geometry is: ", geometry);
+  throw hr_exception("shader_rel_log in wrong geometry");
   }
 
 shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
@@ -269,6 +313,12 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     distfun = "length(t.xyz)";
     vsh += shader_lie_log();
     }
+  else if(pmodel == mdRelPerspective) {
+    shader_flags |= SF_PERS3 | SF_DIRECT;
+    coordinator += "t = rel_log(t);\n";
+    distfun = "length(t.xyz)";
+    vsh += shader_rel_log();
+    }
   else if(pmodel == mdGeodesic) {
     shader_flags |= SF_PERS3 | SF_DIRECT;
     coordinator += "t = inverse_exp(t);\n";
@@ -348,6 +398,14 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     }
   else if(pmodel == mdPerspective) {
     shader_flags |= SF_PERS3 | SF_DIRECT;
+    if(sl2) {
+      vsh += "uniform mediump float uIndexSL;\n";
+      coordinator +=
+        "float ca = cos(uIndexSL); float sa = -sin(uIndexSL);\n"
+        "vec4 h1 = t;\n"
+        "t[2] = h1[2] * ca - h1[3] * sa; t[3] = 1.;\n"
+        "t[0] = h1[0] * ca - h1[1] * sa; t[1] = h1[1] * ca + h1[0] * sa;\n";
+      }
     #if CAP_VR
     if(vrhr::rendering() && hyperbolic && vrhr::eyes != vrhr::eEyes::truesim) {
       azi_hyperbolic = true;
@@ -393,7 +451,10 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
   if(!skip_t) {
     vmain += "mediump vec4 t = uMV * aPosition;\n";
     vmain += coordinator;
-    if(GDIM == 3 && WDIM == 2 && hyperbolic && context_fog && pmodel == mdPerspective) {
+    if(shader_flags & GF_NO_FOG) {
+      vmain += "// no fog used\n";
+      }
+    else if(GDIM == 3 && WDIM == 2 && hyperbolic && context_fog && pmodel == mdPerspective) {
       vsh += 
         "uniform mediump mat4 uRadarTransform;\n"
         "uniform mediump sampler2D tAirMap;\n"

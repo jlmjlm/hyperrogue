@@ -39,6 +39,7 @@ namespace rogueviz { std::vector<hr::reaction_t> cleanup; }
 #include "menu.cpp"
 #include "ds-game.cpp"
 #include "ds-texture.cpp"
+#include "views.cpp"
 
 namespace hr {
 
@@ -68,6 +69,13 @@ void set_default_keys() {
   }
 
 void restart() {
+
+  if(in_spacetime()) {
+    switch_spacetime();
+    restart();
+    switch_spacetime();
+    return;
+    }
 
   hybrid::in_actual([&] {
     vctr = new_vctr = starting_point;
@@ -101,7 +109,9 @@ void run_ads_game() {
   rogueviz::rv_hook(hooks_frame, 100, view_ads_game);
   rogueviz::rv_hook(hooks_prestats, 100, display_rsrc);
   rogueviz::rv_hook(hooks_handleKey, 0, handleKey);
+  rogueviz::rv_hook(hooks_drawcell, 0, ads_draw_cell);
   rogueviz::rv_hook(shmup::hooks_turn, 0, ads_turn);
+  rogueviz::rv_hook(anims::hooks_anim, 100, replay_animation);
   
   cgi.use_count++;
   hybrid::in_underlying_geometry([] {
@@ -127,9 +137,15 @@ void set_config() {
 
   nohelp = true;
   nomenukey = true;
-  nomap = true;
   no_find_player = true;
   showstartmenu = false;
+  mapeditor::drawplayer = false;
+  vid.drawmousecircle = false;
+  draw_centerover = false;
+  vid.axes3 = false;
+  enable_canvas();
+  patterns::whichCanvas = 'r';
+  patterns::rwalls = 0;
   }
 
 void run_ads_game_std() {
@@ -229,6 +245,14 @@ auto shot_hooks =
     -> editable(4, 512, 8, "y precision of Earth-de Sitter", "", 'y');
     param_i(talpha, "ds_talpha")
     -> editable(0, 255, 16, "dS texture intensity", "", 't');
+
+    param_f(spacetime_step, "ads_spacetime_step")
+    -> editable(0, 1, 0.05, "step size in the spacetime display", "", 's');
+
+    param_i(spacetime_qty, "ads_spacetime_qty")
+    -> editable(0, 100, 5, "step quantity in the spacetime display", "", 'q');
+
+    addsaver(ghost_color, "color:ghost");
 
     rsrc_config();
     });

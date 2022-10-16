@@ -124,4 +124,23 @@ void reset_textures();
 void ds_restart();
 void run_ads_game_std();
 void run_ds_game();
+
+/** in the replay mode */
+bool in_replay;
+void switch_replay();
+void switch_pause();
+void replay_animation();
+
+bool in_spacetime();
+void switch_spacetime();
+void switch_spacetime_to(bool);
+bool ads_draw_cell(cell *c, const shiftmatrix& V);
+extern transmatrix Duality;
+extern int use_duality;
+
+ld spacetime_step = 0.1;
+int spacetime_qty = 30;
+
+color_t ghost_color = 0x800080FF;
+
 }}
