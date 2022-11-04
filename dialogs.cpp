@@ -17,7 +17,7 @@ EX namespace dialog {
 
   static const int DONT_SHOW = 16;
 
-  enum tDialogItem {diTitle, diItem, diBreak, diHelp, diInfo, diIntSlider, diSlider, diBigItem, diKeyboard, diCustom, diColorItem};
+  enum tDialogItem {diTitle, diItem, diBreak, diHelp, diInfo, diIntSlider, diSlider, diBigItem, diKeyboard, diCustom, diColorItem, diListStart, diListEnd};
 
   struct item {
     tDialogItem type;
@@ -150,11 +150,16 @@ EX namespace dialog {
   EX void add_action_push_clear(const reaction_t& action) { add_action([action] { clearMessages(); pushScreen(action); }); }
 
   EX void handler(int sym, int uni) {
+    if(cmode & sm::PANNING) handlePanning(sym, uni);
     dialog::handleNavigation(sym, uni);
     if(doexiton(sym, uni)) popScreen();
     }
 
+  EX int list_size_min, list_size_max, list_fake_key;
+
   EX void init() {
+    list_size_min = list_size_max = 0;
+    list_fake_key = 10000;
     items.clear();
     key_actions.clear(); 
     keyhandler = dialog::handler;
@@ -167,6 +172,8 @@ EX namespace dialog {
     if(k == SDLK_F10) return "F10";
     if(k == SDLK_F9) return "F9";
     if(k == SDLK_F1) return "F1";
+    if(k == SDLK_F4) return "F4";
+    if(k >= 10000 && k < 10500) return "";
     if(k == SDLK_HOME) return "Home";
     if(k == SDLK_BACKSPACE) return "Backspace";
     if(k == SDLK_RETURN) return "Enter";
@@ -306,6 +313,24 @@ EX namespace dialog {
     return items.size()-1;
     }
   
+  EX void start_list(int size_min, int size_max, int key_start IS(0)) {
+    item it;
+    it.type = diListStart;
+    it.key = key_start;
+    it.scale = 0;
+    it.param = size_min;
+    list_size_min = size_min;
+    list_size_max = size_max;
+    items.push_back(it);
+    }
+
+  EX void end_list() {
+    item it;
+    it.type = diListEnd;
+    it.scale = 0;
+    items.push_back(it);
+    }
+
   EX void addTitle(string body, color_t color, int scale) {
     item it;
     it.type = diTitle;
@@ -358,31 +383,51 @@ EX namespace dialog {
     return y;
     }
 
-  EX int tothei, dialogwidth, dfsize, dfspace, leftwidth, rightwidth, innerwidth, itemx, keyx, valuex, top;
-  
+  EX int tothei, dialogwidth, dfsize, dfspace, odfspace, leftwidth, rightwidth, innerwidth, itemx, keyx, valuex, top, list_starts_at, list_ends_at, list_full_size, list_actual_size, list_skip, fwidth;
+
   EX string highlight_text;
+  EX int highlight_key;
+
+  EX bool is_highlight(item& I) { return I.body == highlight_text && I.key == highlight_key; }
+  EX void set_highlight(item& I) { highlight_text = I.body; highlight_key = I.key; }
   
   EX void measure() {
     tothei = 0;
     dialogwidth = 0;
     innerwidth = 0;
     int N = items.size();
+    list_starts_at = list_ends_at = list_actual_size = 0;
+
+    bool autoval = cmode & sm::AUTO_VALUES;
+    rightwidth = 0;
+    if(!autoval) rightwidth = textwidth(dfsize, "MMMMMMMM") + dfsize/2;
+
     for(int i=0; i<N; i++) {
-      if(items[i].type == diHelp)
+      if(items[i].type == diListStart)
+        list_starts_at = tothei;
+      else if(items[i].type == diListEnd) {
+        list_full_size = tothei - list_starts_at;
+        list_actual_size = min(odfspace * list_size_max / 100, max(odfspace * list_size_min / 100, list_full_size));
+        if(list_full_size < list_actual_size) list_full_size = list_actual_size;
+        tothei = list_ends_at = list_starts_at + list_actual_size;
+        }
+      else if(items[i].type == diHelp)
         tothei += displayLong(items[i].body, dfsize * items[i].scale / 100, 0, true);
       else {
         tothei += dfspace * items[i].scale / 100;
         if(among(items[i].type, diItem, diColorItem))
           innerwidth = max(innerwidth, textwidth(dfsize * items[i].scale / 100, items[i].body));
+        if(among(items[i].type, diItem))
+          rightwidth = max(rightwidth, textwidth(dfsize * items[i].scale / 100, items[i].value) + dfsize);
         if(items[i].type == diTitle || items[i].type == diInfo || items[i].type == diBigItem)
           dialogwidth = max(dialogwidth, textwidth(dfsize * items[i].scale / 100, items[i].body) * 10/9);
         }
       }
     
     leftwidth = ISMOBILE ? 0 : textwidth(dfsize, "MMMMM") + dfsize/2;
-    rightwidth = textwidth(dfsize, "MMMMMMMM") + dfsize/2;
     
-    int fwidth = innerwidth + leftwidth + rightwidth;
+    fwidth = innerwidth + leftwidth + rightwidth;
+    if(list_actual_size) fwidth += dfsize;
     dialogwidth = max(dialogwidth, fwidth);
     itemx  = dcenter - fwidth / 2 + leftwidth;
     keyx   = dcenter - fwidth / 2 + leftwidth - dfsize/2;
@@ -400,6 +445,41 @@ EX namespace dialog {
     if(a < 3) a = 3;
     if(a > 36) a = 36;
     return a;
+    }
+
+  EX void draw_list_slider(int x, int yt) {
+    int a = uishape();
+
+    flat_model_enabler fme;
+    initquickqueue();
+    ld pix = 1 / (2 * cgi.hcrossf / cgi.crossf);
+    shiftmatrix V = shiftless(atscreenpos(0, 0, pix));
+
+    color_t col = 0xFFFFFFFF;
+
+    ld siz = dfsize / 2;
+    ld si = siz / 2;
+
+    int yb = yt + list_actual_size;
+
+    curvepoint(hyperpoint(x-si, yt, 1, 1));
+    for(int i=0; i<=a/2; i++)
+      curvepoint(hyperpoint(x - si * cos(i*2*M_PI/a), yb + si * sin(i*2*M_PI/a), 1, 1));
+    for(int i=(a+1)/2; i<=a; i++)
+      curvepoint(hyperpoint(x - si * cos(i*2*M_PI/a), yt + si * sin(i*2*M_PI/a), 1, 1));
+    queuecurve(V, col, 0x80, PPR::LINE);
+
+    int yt1 = yt + (list_actual_size * list_skip) / list_full_size;
+    int yb1 = yt + (list_actual_size * (list_skip + list_actual_size)) / list_full_size;
+
+    curvepoint(hyperpoint(x-siz, yt1, 1, 1));
+    for(int i=0; i<=a/2; i++)
+      curvepoint(hyperpoint(x - siz * cos(i*2*M_PI/a), yb1 + siz * sin(i*2*M_PI/a), 1, 1));
+    for(int i=(a+1)/2; i<=a; i++)
+      curvepoint(hyperpoint(x - siz * cos(i*2*M_PI/a), yt1 + siz * sin(i*2*M_PI/a), 1, 1));
+    queuecurve(V, col, 0x80, PPR::LINE);
+
+    quickqueue();
     }
 
   EX void draw_slider(int sl, int sr, int y, item& I) {
@@ -475,6 +555,7 @@ EX namespace dialog {
     dfsize *= 3;
     #endif
     dfspace = dfsize * 5/4;
+    odfspace = dfspace;
     
     dcenter = vid.xres/2;
     dwidth = vid.xres;
@@ -490,17 +571,26 @@ EX namespace dialog {
       int adfsize = int(dfsize * sqrt((vid.yres - 5. * vid.fsize) / tothei));
       if(adfsize < dfsize-1) dfsize = adfsize + 1;
       else dfsize--;
-      dfspace = dfsize * 5/4;
+      odfspace = dfspace = dfsize * 5/4;
       measure();
       }
     while(dialogwidth > dwidth) {
       int adfsize = int(dfsize * sqrt(vid.xres * 1. / dialogwidth));
       if(adfsize < dfsize-1) dfsize = adfsize + 1;
-      else dfsize--; // keep dfspace
+      else dfsize--;
+      // usually we want to keep dfspace, but with NARROW_LINES, just odfspace
+      if(cmode & sm::NARROW_LINES)
+        dfspace = (dfsize + 3) * 5 / 4;
       measure();
       }
     
     tothei = (vid.yres - tothei) / 2;
+    int list_left = list_actual_size;
+    int list_next_key;
+    if(!list_actual_size) {
+      if(list_skip) println(hlog, "list_skip reset");
+      list_skip = 0;
+      }
     
     if(current_display->sidescreen && darken < menu_darkening) {
       int steps = menu_darkening - darken;
@@ -550,6 +640,10 @@ EX namespace dialog {
       #endif
       }
 
+    bool inlist = false;
+    int need_to_skip = 0;
+    int list_more_skip = list_skip;
+
     for(int i=0; i<N; i++) {
       item& I = items[i];
 
@@ -557,9 +651,58 @@ EX namespace dialog {
         tothei = displayLong(items[i].body, dfsize * items[i].scale / 100, tothei, false);
         continue;
         }
-        
+
+      int size = dfspace * I.scale / 100;
+      dynamicval<int> dkb(I.key);
+      bool to_highlight = is_highlight(I);
+
+      if(I.type == diListStart) {
+        list_left = list_actual_size;
+        inlist = true;
+        list_next_key = I.key;
+        list_starts_at = tothei;
+        continue;
+        }
+
+      if(I.type == diListEnd) {
+        tothei += list_left;
+        inlist = false;
+        list_ends_at = tothei;
+        draw_list_slider(dcenter + fwidth / 2 - dfsize/2, list_starts_at);
+        if(mousex >= dcenter + fwidth /2 - dfsize && mousey >= list_starts_at && mousey < list_ends_at)          
+          getcstat = PSEUDOKEY_LIST_SLIDER;
+        if(list_left > 0) {
+          list_skip -= list_left;
+          list_skip -= list_more_skip;
+          if(list_skip < 0) list_skip = 0;
+          }
+        continue;
+        }
+
+      if(inlist && list_more_skip > 0) {
+        if(to_highlight) {
+          list_skip -= list_more_skip;
+          list_more_skip = 0;
+          }
+        else {
+          list_more_skip -= size;
+          if(list_more_skip < 0) { tothei -= list_more_skip; list_left += list_more_skip; list_more_skip = 0; }
+          continue;
+          }
+        }
+
+      if(inlist) {
+        if(list_left < size) {
+          tothei += list_left; size -= list_left; need_to_skip += size; list_left = 0;
+          if(to_highlight) list_skip += need_to_skip;
+          continue;
+          }
+        else list_left -= size;
+        if(list_next_key) { key_actions[list_next_key] = key_actions[I.key]; I.key = list_next_key++;  }
+        }
+
       top = tothei;
-      tothei += dfspace * I.scale / 100;
+      tothei += size;
       int mid = (top + tothei) / 2;
       I.position = mid;
       if(I.type == diTitle || I.type == diInfo) {
@@ -578,10 +721,12 @@ EX namespace dialog {
           I.color = I.colorc;
 #else
         if(xthis && mousemoved) {
-          highlight_text = I.body;
+          set_highlight(I);
+          highlight_key = dkb.backup;
           mousemoved = false;
+          to_highlight = true;
           }
-        if(highlight_text == I.body) {
+        if(to_highlight) {
           I.color = (xthis&&mousepressed&&actonrelease) ? I.colorc : I.colors;
           }
 #endif        
@@ -684,55 +829,80 @@ EX namespace dialog {
     }
   
   EX void handleNavigation(int &sym, int &uni) {
+    if(sym == PSEUDOKEY_LIST_SLIDER) invslider = true;
+    if(invslider) {
+      uni = sym = 0;
+      int max = list_full_size - list_actual_size;
+      list_skip = (max * (mousey - list_starts_at)) / list_actual_size;
+      if(list_skip < 0) list_skip = 0;
+      if(list_skip > max) list_skip = max;
+      highlight_text = "//missing";
+      return;
+      }
     if(uni == '\n' || uni == '\r' || DIRECTIONKEY == SDLK_KP5) {
       for(int i=0; i<isize(items); i++) 
         if(isitem(items[i]))
-          if(items[i].body == highlight_text) {
+          if(is_highlight(items[i])) {
             uni = sym = items[i].key;
             handle_actions(sym, uni);
             return;
             }
       }
+    if(sym == PSEUDOKEY_WHEELUP && list_actual_size) {
+      sym = 0;
+      list_skip -= 30;
+      highlight_text = "//missing";
+      }
+    if(sym == PSEUDOKEY_WHEELDOWN && list_actual_size) {
+      sym = 0;
+      list_skip += 30;
+      highlight_text = "//missing";
+      }
     if(DKEY == SDLK_PAGEDOWN) {
       uni = sym = 0;
       for(int i=0; i<isize(items); i++)
-        if(isitem(items[i]))
-          highlight_text = items[i].body;
+        if(isitem(items[i])) {
+          set_highlight(items[i]);
+          }
       }
     if(DKEY == SDLK_PAGEUP) {
       uni = sym = 0;
       for(int i=0; i<isize(items); i++) 
         if(isitem(items[i])) {
-          highlight_text = items[i].body;
+          set_highlight(items[i]);
           break;
           }
       }    
     if(DKEY == SDLK_UP) {
       uni = sym = 0;
-      string last = "";
+      dialog::item *last = nullptr;
       for(int i=0; i<isize(items); i++) 
-        if(isitem(items[i]))
-          last = items[i].body;
+        if(isitem(items[i])) {
+          last = &(items[i]);
+          }
       for(int i=0; i<isize(items); i++)
         if(isitem(items[i])) {
-          if(items[i].body == highlight_text) {
-            highlight_text = last; return;
+          if(is_highlight(items[i])) {
+            set_highlight(*last);
+            return;
             }
-          else last = items[i].body;
+          else {
+           last = &(items[i]);
+           }
           }
-      highlight_text = last;
+      set_highlight(*last);
       }
     if(DKEY == SDLK_DOWN) {
       uni = sym = 0;
       int state = 0;
       for(int i=0; i<isize(items); i++)
         if(isitem(items[i])) {
-          if(state) { highlight_text = items[i].body; return; }
-          else if(items[i].body == highlight_text) state = 1;
+          if(state) { set_highlight(items[i]); return; }
+          else if(is_highlight(items[i])) state = 1;
           }
       for(int i=0; i<isize(items); i++)
         if(isitem(items[i])) {
-          highlight_text = items[i].body;
+          set_highlight(items[i]);
           break;
           }
       }
@@ -1222,31 +1392,25 @@ EX namespace dialog {
   void handleKeyFile(int sym, int uni);
 
   EX void drawFileDialog() {
-    displayfr(vid.xres/2, 30 + vid.fsize, 2, vid.fsize, 
-      filecaption, forecolor, 8);
-      
-    string& cfile = *cfileptr;
+    cmode = sm::NUMBER | dialogflags;
+    gamescreen();
+    init(filecaption);
 
-    displayfr(vid.xres/2, 34 + vid.fsize * 2, 2, vid.fsize, 
-      cfile, 0xFFFF00, 8);
-    
-    displayColorButton(vid.xres*1/4, 38+vid.fsize * 3, 
-      XLAT("F4 = extension"), SDLK_F4, 8, 0, editext ? 0xFF00FF : 0xFFFF00, editext ? 0x800080 : 0x808000);
-    displayButton(vid.xres*2/4, 38+vid.fsize * 3, 
-      XLAT("Enter = choose"), SDLK_RETURN, 8);
-    displayButton(vid.xres*3/4, 38+vid.fsize * 3, 
-      XLAT("Esc = cancel"), SDLK_ESCAPE, 8);
+    string cfile = *cfileptr;
+    dialog::addItem(cfile, 0);
+
+    dialog::addBreak(100);
 
     v.clear();
-    
+
     DIR           *d;
     struct dirent *dir;
-    
+
     string where = ".";
     for(int i=0; i<isize(cfile); i++)
       if(cfile[i] == '/' || cfile[i] == '\\')
         where = cfile.substr(0, i+1);
-    
+
     d = opendir(where.c_str());
     if (d) {
       while ((dir = readdir(d)) != NULL) {
@@ -1261,21 +1425,51 @@ EX namespace dialog {
       }
     sort(v.begin(), v.end(), filecmp);
 
-    int q = v.size();
-    int percolumn = (vid.yres-38) / (vid.fsize+5) - 4;
-    int columns = 1 + (q-1) / percolumn;
-      
-    for(int i=0; i<q; i++) {
-      int x = 16 + (vid.xres * (i/percolumn)) / columns;
-      int y = 42 + vid.fsize * 4 + (vid.fsize+5) * (i % percolumn);
-        
-      displayColorButton(x, y, v[i].first, 1000 + i, 0, 0, v[i].second, 0xFFFF00);
+    dialog::start_list(1500, 1500);
+    for(auto& vv: v) {
+      dialog::addItem(vv.first, list_fake_key++);
+      dialog::lastItem().color = vv.second;
+      string vf = vv.first;
+      bool dir = vv.second == CDIR;
+      dialog::add_action([vf, dir] {
+        string& s(*cfileptr);
+        string where = "", what = s, whereparent = "../";
+        for(int i=0; i<isize(s); i++)
+          if(s[i] == '/') {
+            if(i >= 2 && s.substr(i-2,3) == "../")
+              whereparent = s.substr(0, i+1) + "../";
+            else
+              whereparent = where;
+            where = s.substr(0, i+1), what = s.substr(i+1);
+            }
+        string str1;
+        if(vf == "../")
+          str1 = whereparent + what;
+        else if(dir)
+          str1 = where + vf + what;
+        else
+          str1 = where + vf;
+        if(s == str1) {
+          popScreen();
+          if(!file_action()) pushScreen(drawFileDialog);
+          }
+        s = str1;
+        });
       }
+    dialog::end_list();
+
+    dialog::addBreak(100);
+
+    dialog::addBoolItem_action("extension", editext, SDLK_F4);
+    dialog::addItem("choose", SDLK_RETURN);
+    dialog::addItem("cancel", SDLK_ESCAPE);
+    dialog::display();
 
     keyhandler = handleKeyFile;
     }
   
   EX void handleKeyFile(int sym, int uni) {
+    handleNavigation(sym, uni);
     string& s(*cfileptr);
     int i = isize(s) - (editext?0:4);
     
@@ -1287,33 +1481,13 @@ EX namespace dialog {
       popScreen();
       if(!file_action()) pushScreen(drawFileDialog);
       }
-    else if(sym == SDLK_F4) {
-      editext = !editext;
-      }
     else if(sym == SDLK_BACKSPACE && i) {
       s.erase(i-1, 1);
+      highlight_text = "//missing";
       }
     else if(uni >= 32 && uni < 127) {
       s.insert(i, s0 + char(uni));
-      }
-    else if(uni >= 1000 && uni <= 1000+isize(v)) {
-      string where = "", what = s, whereparent = "../";
-      for(int i=0; i<isize(s); i++)
-        if(s[i] == '/') {
-          if(i >= 2 && s.substr(i-2,3) == "../")
-            whereparent = s.substr(0, i+1) + "../";
-          else
-            whereparent = where;
-          where = s.substr(0, i+1), what = s.substr(i+1);
-          }
-      int i = uni - 1000;
-      if(v[i].first == "../") {
-        s = whereparent + what;
-        }
-      else if(v[i].second == CDIR)
-        s = where + v[i].first + what;
-      else
-        s = where + v[i].first;
+      highlight_text = "//missing";
       }
     return;
     }
@@ -1469,12 +1643,12 @@ EX namespace dialog {
     dialog::display();
     }
 
-  EX void addBoolItem_action(const string& s, bool& b, char c) { 
+  EX void addBoolItem_action(const string& s, bool& b, int c) { 
     dialog::addBoolItem(s, b, c);
     dialog::add_action([&b] { b = !b; });
     }
 
-  EX void addBoolItem_action_neg(const string& s, bool& b, char c) { 
+  EX void addBoolItem_action_neg(const string& s, bool& b, int c) { 
     dialog::addBoolItem(s, !b, c);
     dialog::add_action([&b] { b = !b; });
     }

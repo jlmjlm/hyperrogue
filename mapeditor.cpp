@@ -10,9 +10,13 @@ namespace hr {
 
 EX namespace mapeditor {
 
+  /* changes when the map is changed */
+  EX int map_version;
+
   EX bool drawing_tool;
   EX bool intexture;
   EX bool snapping;
+  EX bool building_mode = true;
 
   #if HDR
   enum eShapegroup { sgPlayer, sgMonster, sgItem, sgFloor, sgWall };
@@ -1238,6 +1242,7 @@ EX namespace mapeditor {
 
 #if CAP_EDIT
   int paintwhat = 0;
+  int paintwhat_alt_wall = 0;
   int painttype = 0;
   int paintstatueid = 0;
   int radius = 0;
@@ -1374,6 +1379,10 @@ EX namespace mapeditor {
 
   EX void showMapEditor() {
     cmode = sm::MAP | sm::PANNING;
+    if(building_mode) {
+      if(anyshiftclick) cmode |= sm::EDIT_INSIDE_WALLS;
+      else cmode |= sm::EDIT_BEFORE_WALLS;
+      }
     gamescreen();
   
     int fs = editor_fsize();
@@ -1387,7 +1396,14 @@ EX namespace mapeditor {
     
     getcstat = '-';
 
-    displayfr(8, 8 + fs, 2, vid.fsize, paintwhat_str, forecolor, 0);
+    if(anyshiftclick) {
+      displayfr(8, 8 + fs, 2, vid.fsize,
+        (painttype == 6 && (GDIM == 3)) ? "wall" :
+        painttype == 3 ? XLATN(winf[paintwhat_alt_wall].name) : "clear",
+        forecolor, 0);
+      }
+    else
+      displayfr(8, 8 + fs, 2, vid.fsize, paintwhat_str, forecolor, 0);
     displayfr(8, 8+fs*2, 2, vid.fsize, XLAT("use at your own risk!"), 0x800000, 0);
 
     displayButton(8, 8+fs*4, XLAT("0-9 = radius (%1)", its(radius)), ('0' + (radius+1)%10), 0);
@@ -1402,6 +1418,10 @@ EX namespace mapeditor {
       displayButton(8, 8+fs*12, XLAT("f = flip %1", ONOFF(copysource.mirrored)), 'u', 0);
     displayButton(8, 8+fs*13, XLAT("r = regular"), 'r', 0);
     displayButton(8, 8+fs*14, XLAT("p = paint"), 'p', 0);
+    if(painttype == 3)
+      displayButton(8, 8+fs*15, XLAT("z = set Shift+click"), 'z', 0);
+    if(WDIM == 3)
+      displayButton(8, 8+fs*16, XLAT("B = build on walls ") + ONOFF(building_mode), 'B', 0);
 
     displayFunctionKeys();
     displayButton(8, vid.yres-8-fs*4, XLAT("F8 = settings"), SDLK_F8, 0);
@@ -1443,6 +1463,7 @@ EX namespace mapeditor {
     saveUndo(c);
     switch(painttype) {
       case 0: {
+        if(anyshiftclick) { c->monst = moNone; mirror::destroyKilled(); break; }
         eMonster last = c->monst;
         c->monst = eMonster(paintwhat);
         c->hitpoints = 3;
@@ -1473,6 +1494,7 @@ EX namespace mapeditor {
         break;
         }
       case 1: {
+        if(anyshiftclick) { c->item = itNone; break; }
         eItem last = c->item;
         c->item = eItem(paintwhat);
         if(c->item == itBabyTortoise)
@@ -1480,6 +1502,7 @@ EX namespace mapeditor {
         break;
         }
       case 2: {
+        if(anyshiftclick) { c->land = laNone; c->wall = waNone; map_version++; break; }
         eLand last = c->land;
         c->land = eLand(paintwhat);
         if(isIcyLand(c) && isIcyLand(last))
@@ -1496,7 +1519,8 @@ EX namespace mapeditor {
         }
       case 3: {
         eWall last = c->wall;
-        c->wall = eWall(paintwhat);
+        c->wall = eWall(anyshiftclick ? paintwhat_alt_wall : paintwhat);
+        map_version++;
         
         if(last != c->wall) {
           if(hasTimeout(c))
@@ -1519,6 +1543,7 @@ EX namespace mapeditor {
         break;
         }
       case 5:
+        map_version++;
         c->land = laNone;
         c->wall = waNone;
         c->item = itNone;
@@ -1527,11 +1552,13 @@ EX namespace mapeditor {
         // c->tmp = -1;
         break;
       case 6:
+        map_version++;
         c->land = laCanvas;
-        c->wall = GDIM == 3 ? waWaxWall : waNone;
+        c->wall = ((GDIM == 3) ^ anyshiftclick) ? waWaxWall : waNone;
         c->landparam = paintwhat >> 8;
         break;
       case 4: {
+        map_version++;
         cell *copywhat = where.second.at;
         c->wall = copywhat->wall;
         c->item = copywhat->item;
@@ -1673,10 +1700,12 @@ EX namespace mapeditor {
     }
   
   void showList() {
+    string caption;
     dialog::v.clear();
     if(painttype == 4) painttype = 0;
     switch(painttype) {
       case 0: 
+        caption = "monsters";
         for(int i=0; i<motypes; i++) {
           eMonster m = eMonster(i);
           if(
@@ -1691,12 +1720,15 @@ EX namespace mapeditor {
           }
         break;
       case 1:
+        caption = "items";
         for(int i=0; i<ittypes; i++) dialog::vpush(i, iinf[i].name);
         break;
       case 2:
+        caption = "lands";
         for(int i=0; i<landtypes; i++) dialog::vpush(i, linf[i].name);
         break;
       case 3:
+        caption = "walls";
         for(int i=0; i<walltypes; i++) if(i != waChasmD) dialog::vpush(i, winf[i].name);
         break;
       }
@@ -1704,26 +1736,18 @@ EX namespace mapeditor {
     
     if(dialog::infix != "") mouseovers = dialog::infix;
     
-    int q = dialog::v.size();
-    int percolumn = vid.yres / (vid.fsize+5) - 4;
-    int columns = 1 + (q-1) / percolumn;
+    cmode = 0;
+    gamescreen();
+    dialog::init(caption);
+    if(dialog::infix != "") mouseovers = dialog::infix;
+    dialog::addBreak(50);
+    dialog::start_list(900, 900, '1');
     
-    for(int i=0; i<q; i++) {
-      int x = 16 + (vid.xres * (i/percolumn)) / columns;
-      int y = (vid.fsize+5) * (i % percolumn) + vid.fsize*2;
-      
-      int actkey = 1000 + i;
-      string vv = dialog::v[i].first;
-      if(i < 9) { vv += ": "; vv += ('1' + i); }
-      
-      displayButton(x, y, vv, actkey, 0);
-      }
-    keyhandler = [] (int sym, int uni) {
-      if(uni >= '1' && uni <= '9') uni = 1000 + uni - '1';
-      if(sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == '-' || sym == SDLK_KP_MINUS) uni = 1000;
-      for(int z=0; z<isize(dialog::v); z++) if(1000 + z == uni) {
-        paintwhat = dialog::v[z].second;
-        paintwhat_str = dialog::v[z].first;
+    for(auto& vi: dialog::v) {
+      dialog::addItem(vi.first, dialog::list_fake_key++);
+      dialog::add_action([&vi] {
+        paintwhat = vi.second;
+        paintwhat_str = vi.first;
 
         mousepressed = false;
         popScreen();
@@ -1732,9 +1756,18 @@ EX namespace mapeditor {
           dialog::editNumber(paintstatueid, 0, 127, 1, 1, XLAT1("editable statue"), 
             XLAT("These statues are designed to have their graphics edited in the Vector Graphics Editor. Each number has its own, separate graphics.")
             );
-        return;
-        }
-      if(dialog::editInfix(uni)) ;
+        });
+      }
+
+    dialog::end_list();
+    dialog::addBreak(50);
+    dialog::addInfo(XLAT("press letters to search"));
+    dialog::addBack();
+    dialog::display();
+
+    keyhandler = [] (int sym, int uni) {
+      dialog::handleNavigation(sym, uni);
+      if(dialog::editInfix(uni)) dialog::list_skip = 0;
       else if(doexiton(sym, uni)) popScreen();
       };    
     }
@@ -1746,7 +1779,8 @@ EX namespace mapeditor {
     if(uni == '-' && !holdmouse) undoLock();
     if(uni == '-' && mouseover) {
       allInPattern(mouseover_cw(false));
-      holdmouse = true;
+      if(!(GDIM == 3 && building_mode))
+        holdmouse = true;
       }
     
     if(mouseover) for(int i=0; i<mouseover->type; i++) createMov(mouseover, i);
@@ -1758,6 +1792,8 @@ EX namespace mapeditor {
     else if(uni == 'i') pushScreen(showList), painttype = 1, dialog::infix = "";
     else if(uni == 'l') pushScreen(showList), painttype = 2, dialog::infix = "";
     else if(uni == 'w') pushScreen(showList), painttype = 3, dialog::infix = "";
+    else if(uni == 'z' && painttype == 3) paintwhat_alt_wall = paintwhat;
+    else if(uni == 'B') building_mode = !building_mode;
     else if(uni == 'r') pushScreen(patterns::showPattern);
     else if(uni == 't' && mouseover) {
       playermoved = true;
@@ -3218,7 +3254,20 @@ EX namespace mapeditor {
     dialog::addBoolItem(XLAT("god mode"), autocheat, 'G');
     dialog::add_action([] () { autocheat = true; });
     dialog::addInfo(XLAT("(unlock all, allow cheats, normal character display, cannot be turned off!)"));
+
+    add_edit(game_keys_scroll);
+    dialog::addInfo(XLAT("hint: shift+A to enter the map editor"));
     
+    if(WDIM == 3 && !intra::in) {
+      dialog::addBoolItem(XLAT("become a portal map"), intra::in, 'm');
+      dialog::add_action_push(intra::become_menu);
+      }
+
+    if(WDIM == 3 && intra::in) {
+      dialog::addItem(XLAT("manage portals"), 'm');
+      dialog::add_action_push(intra::show_portals);
+      }
+
     dialog::addItem(XLAT("change the pattern/color of new Canvas cells"), 'c');
     dialog::add_action_push(patterns::showPrePatternNoninstant);
 

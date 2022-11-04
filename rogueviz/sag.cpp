@@ -9,6 +9,7 @@
 
 #include "dhrg/dhrg.h"
 #include <thread>
+#include "leastsquare.cpp"
 
 namespace rogueviz {
 
@@ -21,6 +22,9 @@ namespace sag {
   bool turn(int delta);
   
   int sagpar = 0;
+
+  bool angular = false;
+  bool report_tempi = false;
 
   int best_cost = 1000000000;
 
@@ -44,7 +48,7 @@ namespace sag {
   vector<cell*> sagcells;
 
   /** table of distances between SAG cells */
-  vector<vector<int>> sagdist;
+  vector<vector<unsigned short>> sagdist;
 
   /** what node is on sagcells[i] */
   vector<int> sagnode;
@@ -65,6 +69,9 @@ namespace sag {
   
   /** precision of geometric distances */
   int gdist_prec;
+
+  /** max edge for dijkstra */
+  int dijkstra_maxedge;
   
   /** the maximum value in sagdist +1 */
   int max_sag_dist;
@@ -72,13 +79,21 @@ namespace sag {
   vector<edgeinfo> sagedges;  
   vector<vector<int>> edges_yes, edges_no;
 
-  int logistic_cost; /* 0 = disable, 1 = enable */
+  enum eSagMethod { smClosest, smLogistic, smMatch };
+  eSagMethod method;
+
+  bool loglik_repeat;
+
+  /* parameters for smMatch */
+  ld match_a = 1, match_b = 0;
+
+  /* parameters for smLogistic */
   dhrg::logistic lgsag(1, 1);
   
   vector<ld> loglik_tab_y, loglik_tab_n;
 
   int ipturn = 100;
-  int numiter = 0;
+  long long numiter = 0;
   
   int hightemp = 10;
   int lowtemp = -15;
@@ -88,7 +103,7 @@ namespace sag {
   dhrg::logistic lgemb(1, 1);
   vector<hyperpoint> placement;  
 
-  void optimize_sag_loglik();
+  string distance_file;
 
   void compute_dists() {
     int N = isize(sagcells);
@@ -100,39 +115,77 @@ namespace sag {
       for(cell *c1: adj_minefield_cells(sagcells[i]))
         if(ids.count(c1)) neighbors[i].push_back(ids[c1]);
 
-    const ld ERROR = -17.3;
-    transmatrix unknown = Id; unknown[0][0] = ERROR;
+    const ld ERRORV = -17.3;
+    transmatrix unknown = Id; unknown[0][0] = ERRORV;
     cell_matrix.clear();
     cell_matrix.resize(N, unknown);
     vector<int> visited;
 
     auto visit = [&] (int id, const transmatrix& T) {
-      if(cell_matrix[id][0][0] != ERROR) return;
+      if(cell_matrix[id][0][0] != ERRORV) return;
       cell_matrix[id] = T;
       visited.push_back(id);
       };
-      
+
     visit(0, Id);
     for(int i=0; i<isize(visited); i++) {
-      cell *c0 = sagcells[i];
-      const transmatrix& T0 = cell_matrix[i];
+      cell *c0 = sagcells[visited[i]];
+      const transmatrix& T0 = cell_matrix[visited[i]];
       for(int d=0; d<c0->type; d++)
         if(ids.count(c0->move(d)))
           visit(ids[c0->move(d)], T0 * currentmap->adj(c0, d));
       }
     
-    if(gdist_prec) {
+    sagdist.clear();
+    sagdist.resize(N);
+    for(int i=0; i<N; i++) sagdist[i].resize(N, N);
+
+    if(distance_file != "") {
+      fhstream f(distance_file, "rt");
+      f.read(sagdist);
+      }
+    else if(gdist_prec && dijkstra_maxedge) {
+      vector<vector<pair<int, ld>>> dijkstra_edges(N);
+      for(int i=0; i<N; i++) {
+        celllister cl(sagcells[i], dijkstra_maxedge, 50000, nullptr);
+        for(auto c1: cl.lst) if(ids.count(c1)) if(c1 != sagcells[i])
+          dijkstra_edges[i].emplace_back(ids[c1], pdist(tC0(cell_matrix[i]), tC0(cell_matrix[ids[c1]])));
+        if(i == 0) println(hlog, i, " has ", isize(dijkstra_edges[i]), " edges");
+        }
+      parallelize(N, [&] (int a, int b) {
+      vector<ld> distances(N);
+      for(int i=a; i<b; i++) {
+        if(i % 500 == 0) println(hlog, "computing dijkstra for ", i , "/", N);
+        for(int j=0; j<N; j++) distances[j] = HUGE_VAL;
+        std::priority_queue<pair<ld, int>> pq;
+        auto visit = [&] (int i, ld dist) {
+          if(distances[i] <= dist) return;
+          distances[i] = dist;
+          pq.emplace(-dist, i);
+          };
+        visit(i, 0);
+        while(!pq.empty()) {
+          ld d = -pq.top().first;
+          int at = pq.top().second;
+          pq.pop();
+          for(auto e: dijkstra_edges[at]) visit(e.first, d + e.second);
+          }
+        for(int j=0; j<N; j++) sagdist[i][j] = distances[j] * gdist_prec + .5;
+        }
+      return 0;
+      }
+      );
+      }
+
+    else if(gdist_prec) {
       for(int i=0; i<N; i++)
       for(int j=0; j<N; j++)
         sagdist[i][j] = (pdist(tC0(cell_matrix[i]), tC0(cell_matrix[j])) + .5) * gdist_prec;
       }
     
     else {
-      sagdist.clear();
-      sagdist.resize(N);
       for(int i=0; i<N; i++) {
         auto &sdi = sagdist[i];
-        sdi.resize(N, N);
         vector<int> q;
         auto visit = [&] (int j, int dist) { if(sdi[j] < N) return; sdi[j] = dist; q.push_back(j); };
         visit(i, 0);
@@ -141,7 +194,7 @@ namespace sag {
       }
     
     max_sag_dist = 0;
-    for(auto& d: sagdist) for(auto& x: d) max_sag_dist = max(max_sag_dist, x);
+    for(auto& d: sagdist) for(auto& x: d) max_sag_dist = max<int>(max_sag_dist, x);
     max_sag_dist++;
     }
 
@@ -178,6 +231,7 @@ namespace sag {
     for(int i=0; i<N; i++) ids[sagcells[i]] = i;
     }
 
+  /* separate hubs -- only for smClosest */
   ld hub_penalty;
   string hub_filename;
   vector<int> hubval;
@@ -186,7 +240,7 @@ namespace sag {
     if(vid < 0) return 0;
     double cost = 0;
     
-    if(logistic_cost) {
+    if(method == smLogistic) {
       auto &s = sagdist[sid];
       for(auto j: edges_yes[vid])
         cost += loglik_tab_y[s[sagid[j]]];
@@ -195,6 +249,21 @@ namespace sag {
       return -cost;
       }
     
+    if(method == smMatch) {
+      vertexdata& vd = vdata[vid];
+      for(int j=0; j<isize(vd.edges); j++) {
+        edgeinfo *ei = vd.edges[j].second;
+        int t2 = vd.edges[j].first;
+        if(sagid[t2] != -1) {
+          ld cdist = sagdist[sid][sagid[t2]];
+          ld expect = match_a / ei->weight2 + match_b;
+          ld dist = cdist - expect;
+          cost += dist * dist;
+          }
+        }
+      return cost;
+      }
+
     vertexdata& vd = vdata[vid];
     for(int j=0; j<isize(vd.edges); j++) {
       edgeinfo *ei = vd.edges[j].second;
@@ -356,7 +425,7 @@ namespace sag {
       
       if(t2 - tl > 980) {
         tl = t2;
-        println(hlog, format("it %8d temp %6.4f [1/e at %13.6f] cost = %f ", 
+        println(hlog, format("it %12Ld temp %6.4f [1/e at %13.6f] cost = %f ",
           numiter, double(sag::temperature), (double) exp(sag::temperature),
           double(sag::cost)));
         }
@@ -368,7 +437,7 @@ namespace sag {
     reassign();
     }
 
-  void dofullsa_iterations(int saiter) {
+  void dofullsa_iterations(long long saiter) {
     sagmode = sagSA;
 
     decltype(SDL_GetTicks()) t1 = -999999;
@@ -383,7 +452,7 @@ namespace sag {
         auto t2 = SDL_GetTicks();
         if(t2 - t1 > 1000) {
           t1 = t2;
-          println(hlog, format("it %8d temp %6.4f [1/e at %13.6f] cost = %f ",
+          println(hlog, format("it %12Ld temp %6.4f [1/e at %13.6f] cost = %f ",
             numiter, double(sag::temperature), (double) exp(sag::temperature),
             double(sag::cost)));
           }
@@ -407,7 +476,7 @@ namespace sag {
     if(t < 50) ipturn *= 2;
     else if(t > 200) ipturn /= 2;
     else ipturn = ipturn * 100 / t;
-    print(hlog, format("it %8d temp %6.4f [2:%8.6f,10:%8.6f,50:%8.6f] cost = %f\n", 
+    print(hlog, format("it %12Ld temp %6.4f [2:%8.6f,10:%8.6f,50:%8.6f] cost = %f\n",
       numiter, double(sag::temperature), 
       (double) exp(-2 * exp(-sag::temperature)),
       (double) exp(-10 * exp(-sag::temperature)),
@@ -433,7 +502,22 @@ namespace sag {
       }
     }
 
-  void optimize_sag_loglik() {
+  void compute_auto_rt() {
+    ld sum0 = 0, sum1 = 0, sum2 = 0;
+
+    for(auto& tab: sagdist) for(auto i: tab) {
+      sum0 ++;
+      sum1 += i;
+      sum2 += i*i;
+      }
+
+    lgsag.R = sum1 / sum0;
+    lgsag.T = sqrt((sum2 - sum1*sum1/sum0) / sum0);
+    println(hlog, "automatically set R = ", lgsag.R, " and ", lgsag.T, " max_sag_dist = ", max_sag_dist);
+    if(method == smLogistic) compute_loglik_tab();
+    }
+
+  void optimize_sag_loglik_logistic() {
     vector<int> indist(max_sag_dist, 0);
     
     const int mul = 1;
@@ -485,11 +569,34 @@ namespace sag {
     dhrg::fast_loglik_cont(lgsag, logisticf, nullptr, 1, 1e-5);
     println(hlog, "loglikelihood logistic = ", logisticf(lgsag), " R= ", lgsag.R, " T= ", lgsag.T);    
     
-    if(logistic_cost) {
+    if(method == smLogistic) {
       compute_loglik_tab();
       prepare_graph();       
       println(hlog, "cost = ", cost);
       }
+    }
+
+  void optimize_sag_loglik_match() {
+    lsq::leastsquare_solver<2> lsqs;
+
+    for(auto& ei: sagedges) {
+      ld y = sagdist[sagid[ei.i]][sagid[ei.j]];
+      ld x = 1. / ei.weight;
+      lsqs.add_data({{x, 1}}, y);
+      }
+
+    array<ld, 2> solution = lsqs.solve();
+    match_a = solution[0];
+    match_b = solution[1];
+
+    println(hlog, "got a = ", match_a, " b = ", match_b);
+    if(method == smMatch)
+      prepare_graph();
+    }
+
+  void optimize_sag_loglik_auto() {
+    if(method == smLogistic) optimize_sag_loglik_logistic();
+    if(method == smMatch) optimize_sag_loglik_match();
     }
 
   void disttable_add(ld dist, int qty0, int qty1) {
@@ -518,24 +625,14 @@ namespace sag {
     }
 
   ld pdist(hyperpoint hi, hyperpoint hj) {
-    if(sol) {
-      hyperpoint h = rgpushxto0(hi) * hj;
-      
-      h[0] = abs(h[0]);
-      h[1] = abs(h[1]);
-      
-      ld d1 = approx_01(h);
-      ld d2 = approx_01(hyperpoint(h[1], h[0], -h[2], 1));
+    if(sol) return min(geo_dist(hi, hj), geo_dist(hj, hi));
+    if(prod && angular) {
 
-      h = rgpushxto0(hj) * hi;
-      
-      h[0] = abs(h[0]);
-      h[1] = abs(h[1]);
-      
-      ld d3 = approx_01(h);
-      ld d4 = approx_01(hyperpoint(h[1], h[0], -h[2], 1));
-
-      return min(min(d1, d2), min(d3, d4));
+      auto di = product_decompose(hi);
+      auto dj = product_decompose(hj);
+      ld x = hdist(di.second, dj.second);
+      ld z = di.first - dj.first;
+      return log((x*x+z*z) * (x > 0 ? sinh(x) / x : 0));
       }
     return geo_dist(hi, hj);
     };
@@ -833,9 +930,8 @@ namespace sag {
   
   ld edgepower=1, edgemul=1;
 
-  void read(string fn) {
-    fname = fn;
-    init(RV_GRAPH | RV_WHICHWEIGHT | RV_AUTO_MAXWEIGHT | RV_HAVE_WEIGHT);
+  void init() {
+    rogueviz::init(RV_GRAPH | RV_WHICHWEIGHT | RV_AUTO_MAXWEIGHT | RV_HAVE_WEIGHT);
 
     rv_hook(rogueviz::hooks_close, 100, [] { sag::sagedges.clear(); });
     rv_hook(shmup::hooks_turn, 100, turn);
@@ -871,14 +967,31 @@ namespace sag {
       dialog::addBoolItem_action(XLAT("auto-visualize"), sag::auto_visualize, 'b');
 
       dialog::addBoolItem_action(XLAT("continuous embedding"), sag::embedding, 'e'); 
+
+      if(method == smMatch) {
+        dialog::addSelItem(XLAT("match parameter A"), fts(match_a), 'A');
+        dialog::add_action([] {
+          dialog::editNumber(match_a, 0, 10, 1, 1, XLAT("match parameter A"), "");
+          dialog::reaction = prepare_graph;
+          });
+        dialog::addSelItem(XLAT("match parameter B"), fts(match_b), 'B');
+        dialog::add_action([] {
+          dialog::editNumber(match_b, 0, 10, 1, 1, XLAT("match parameter B"), "");
+          dialog::reaction = prepare_graph;
+          });
+        }
+
+      dialog::addSelItem(XLAT("cost value"), fts(cost), 'X');
+      dialog::add_action([] {
+        optimize_sag_loglik_auto();
+        });
       });
 
     weight_label = "min weight";
     temperature = 0; sagmode = sagOff;
-    readsag(fname.c_str());
-    if(hub_filename != "")
-      read_hubs(hub_filename);
-    
+    }
+
+  void create_viz() {
     int DN = isize(vdata);
     
     for(int i=0; i<DN; i++) vdata[i].data = 0;
@@ -889,7 +1002,25 @@ namespace sag {
       
       addedge0(ei.i, ei.j, &ei);
       }
+
+    for(int i=0; i<DN; i++) {
+      int ii = i;
+      vertexdata& vd = vdata[ii];
+      vd.cp = colorpair(dftcolor);
+      createViz(ii, sagcells[sagid[i]], Id);
+      }
+
+    storeall();
+    }
+
+  void read(string fn) {
+    fname = fn;
+    init();
+    readsag(fname.c_str());
+    if(hub_filename != "")
+      read_hubs(hub_filename);
   
+    int DN = isize(vdata);
     if(legacy)
       init_snake(2 * DN);
     else
@@ -906,15 +1037,50 @@ namespace sag {
     sagid.resize(DN);
     for(int i=0; i<DN; i++) sagid[i] = i;
     prepare_graph();
+    create_viz();
+    }
 
-    for(int i=0; i<DN; i++) {
-      int ii = i;
-      vertexdata& vd = vdata[ii];
-      vd.cp = colorpair(dftcolor);
-      createViz(ii, sagcells[sagid[i]], Id);
+  void generate_fake_data(int n, int m) {
+    init();
+    init_sag_cells();
+    compute_dists();
+
+    sagid.resize(n);
+    for(int i=0; i<n; i++) sagid[i] = i;
+    hrandom_shuffle(sagid);
+    if(m > n || m < 0) throw hr_exception("generate_fake_data parameters incorrect");
+    sagid.resize(m);
+    int SN = isize(sagcells);
+    int DN = isize(sagid);
+    vdata.resize(DN);
+    for(int i=0; i<DN; i++)
+      vdata[i].name = its(i) + "@" + its(sagid[i]);
+
+    sag_edge = add_edgetype("SAG edge");
+    for(int i=0; i<DN; i++)
+    for(int j=i+1; j<DN; j++) {
+      edgeinfo ei(sag_edge);
+      ei.i = i;
+      ei.j = j;
+      ei.weight = 1. / sagdist[sagid[i]][sagid[j]];
+      sagedges.push_back(ei);
       }
 
-    storeall();
+    if(SN < DN) {
+      println(hlog, "SN = ", SN, " DN = ", DN);
+      throw hr_exception("not enough cells for SAG");
+      exit(1);
+      }
+
+    prepare_graph();
+    create_viz();
+
+    for(int i=0; i<DN; i++) {
+      color_t col = patterns::compute_cell_color(sagcells[sagid[i]]);
+      col <<= 8;
+      col |= 0xFF;
+      vdata[i].cp.color1 = vdata[i].cp.color2 = col;
+      }
     }
 
 ld compute_mAP() {
@@ -943,6 +1109,36 @@ ld compute_mAP() {
 
 int logid;
 
+void geo_stats() {
+  start_game();
+  println(hlog, "init_sag_cells started");
+  init_sag_cells();
+  println(hlog, "compute_dists started");
+  compute_dists();
+  println(hlog, "real");
+
+  vector<short> sorted_sagdist;
+  for(auto& a: sagdist) for(auto b: a) sorted_sagdist.push_back(b);
+  sort(sorted_sagdist.begin(), sorted_sagdist.end());
+  vector<int> d(5, 0);
+  for(auto a: sagdist[0]) if(a < 5) d[a]++;
+
+  for(int i=0; i<3; i++) {
+    bool first = false;
+    #define out(x, y) if(i == 0) println(hlog, x, " = ", y); else if(first) print(hlog, ";"); first = true; if(i == 1) print(hlog, x); if(i == 2) print(hlog, y);
+    out("nodes", isize(sagcells));
+    out("maxsagdist", max_sag_dist);
+    out("dim", (euclid && WDIM == 2 && euc::eu.user_axes[1][1] == 1) ? 1 : WDIM);
+    out("geometry", S3 >= OINF ? "tree" : hyperbolic ? "hyperbolic" : sphere ? "sphere" : euclid ? "euclid" : nil ? "nil" : sol ? "solv" : prod ? "product" : "other");
+    out("closed", max_sag_dist == isize(sagcells) ? 0 : closed_manifold ? 1 : 0);
+    out("angular", angular);
+    for(int p: {1, 10, 50}) { out(format("sagdist%02d", p), sorted_sagdist[(p * sorted_sagdist.size()) / 100]); }
+    for(int p: {1, 2, 3, 4}) { out(format("d%d", p), d[p]); }
+    println(hlog);
+    #undef out
+    }
+  }
+
 void output_stats() {
   if(auto_save != "" && cost < best_cost) {
     println(hlog, "cost ", cost, " beats ", best_cost);
@@ -955,7 +1151,9 @@ void output_stats() {
   dhrg::iddata routing_result;
   dhrg::prepare_pairs(DN, [] (int i) { return edges_yes[i]; });
   dhrg::greedy_routing(routing_result, [] (int i, int j) { return sagdist[sagid[i]][sagid[j]]; });
-  println(hlog, "CSV;", logid++, ";", isize(sagnode), ";", DN, ";", isize(sagedges), ";", lgsag.R, ";", lgsag.T, ";", cost, ";", mAP, ";", routing_result.suc / routing_result.tot, ";", routing_result.routedist / routing_result.bestdist);
+  print(hlog, "CSV;", logid++, ";", isize(sagnode), ";", DN, ";", isize(sagedges), ";", lgsag.R, ";", lgsag.T, ";", cost, ";", mAP, ";", routing_result.suc / routing_result.tot, ";", routing_result.routedist / routing_result.bestdist);
+  if(report_tempi) print(hlog, ";", hightemp,";",lowtemp,";",format("%lld", numiter));
+  println(hlog);
   }
 
 int readArgs() {
@@ -975,15 +1173,46 @@ int readArgs() {
   else if(argis("-sag_gdist")) {
     shift(); sag::gdist_prec = argi();
     }
+  else if(argis("-sag_gdist_dijkstra")) {
+    shift(); sag::dijkstra_maxedge = argi();
+    }
+  else if(argis("-sag_gdist_save")) {
+    shift();
+    fhstream f(args(), "wt");
+    f.write(sagdist);
+    }
+  else if(argis("-sag_gdist_load")) {
+    shift(); distance_file = args();
+    }
+
   else if(argis("-sagrt")) {
     shift(); sag::lgsag.R = argf();
     shift(); sag::lgsag.T = argf();
-    if(sag::logistic_cost) compute_loglik_tab();
+    if(method == smLogistic) compute_loglik_tab();
     }
+
+  else if(argis("-sagmatch-ab")) {
+    shift(); sag::match_a = argf();
+    shift(); sag::match_b = argf();
+    if(method == smMatch) prepare_graph();
+    }
+
+  else if(argis("-sagrt-auto")) {
+    compute_auto_rt();
+    }
+
   else if(argis("-sag_use_loglik")) {  
-    shift(); sag::logistic_cost = argi();
-    if(sag::logistic_cost) compute_loglik_tab();
+    shift(); int mtd = argi();
+    if(mtd == 0) method = smClosest, loglik_repeat = false;
+    if(mtd == 1) method = smLogistic, loglik_repeat = false;
+    if(mtd == 2) method = smLogistic, loglik_repeat = true;
+    if(mtd == 3) method = smMatch, loglik_repeat = false;
+    if(mtd == 4) method = smMatch, loglik_repeat = true;
+    if(method == smLogistic)
+      compute_loglik_tab();
+    if(method == smMatch) prepare_graph();
     }
+
   else if(argis("-sagminhelp")) {
     shift_arg_formula(default_edgetype.visible_from_help);
     }
@@ -1011,6 +1240,12 @@ int readArgs() {
     PHASE(3); 
     shift(); sag::read(args());
     }
+  else if(argis("-sagfake")) {
+    PHASE(3);
+    shift(); int n = argi();
+    shift(); int m = argi();
+    sag::generate_fake_data(n, m);
+    }
   else if(argis("-sagaviz")) {
     PHASE(3); 
     shift(); sag::auto_visualize = argi();
@@ -1030,7 +1265,7 @@ int readArgs() {
     shift(); sag::dofullsa(argi());
     }
   else if(argis("-sagfulli")) {
-    shift(); sag::dofullsa_iterations(argi());
+    shift(); sag::dofullsa_iterations(argll());
     }
   else if(argis("-sagviz")) {
     sag::vizsa_start = SDL_GetTicks();
@@ -1038,6 +1273,9 @@ int readArgs() {
     }
   else if(argis("-sagstats")) {
     output_stats();
+    }
+  else if(argis("-sag-angular")) {
+    shift(); angular = argi();
     }
   else if(argis("-sagstats-logid")) {
     shift(); logid = argi();
@@ -1050,8 +1288,14 @@ int readArgs() {
     PHASE(3); shift(); auto_save = args();
     }
 // (6) output loglikelihood
-  else if(argis("-sagloglik")) {
-    sag::optimize_sag_loglik();
+  else if(argis("-sagloglik-l")) {
+    sag::optimize_sag_loglik_logistic();
+    }
+  else if(argis("-sagloglik-m")) {
+    sag::optimize_sag_loglik_match();
+    }
+  else if(argis("-sagloglik-a")) {
+    sag::optimize_sag_loglik_auto();
     }
   else if(argis("-sagmode")) {
     shift();
@@ -1064,6 +1308,10 @@ int readArgs() {
   else if(argis("-sagembed")) {
     sag::embedding = true;
     }
+  else if(argis("-sag0")) {
+    sag::report_tempi = true;
+    numiter = 0;
+    }
   else if(argis("-sagembedoff")) {
     sag::embedding = false;
     }
@@ -1073,6 +1321,7 @@ int readArgs() {
   else if(argis("-sagloade")) {
     PHASE(3); shift(); sag::load_embedding(args());
     }
+  else if(argis("-sag-geo-stats")) geo_stats();
   else return 1;
 #endif
   return 0;
@@ -1080,12 +1329,13 @@ int readArgs() {
 
 bool turn(int delta) {
   if(vizsa_start) {
+    if(vizsa_start == -1) vizsa_start = ticks;
     auto t = ticks;
     double d = (t-vizsa_start) / (1000. * vizsa_len);
-    if(d > 1 && logistic_cost == 2) {
-      vizsa_start = ticks;
-      optimize_sag_loglik();
+    if(d > 1 && loglik_repeat) {
+      optimize_sag_loglik_auto();
       output_stats();
+      vizsa_start = -1;
       }
     if(d > 1) sagmode = sagOff;
     else {

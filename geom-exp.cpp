@@ -187,17 +187,17 @@ EX void ge_land_selection() {
     });
   stable_sort(landlist.begin(), landlist.end(), [] (eLand l1, eLand l2) { return land_validity(l1).quality_level > land_validity(l2).quality_level; });
   
-  for(int i=0; i<euperpage; i++) {
-    if(euperpage * eupage + i >= isize(landlist)) { dialog::addBreak(100); break; }
-    eLand l = landlist[euperpage * eupage + i];
-    char ch = '1'+i;
+  dialog::start_list(900, 900, '1');
+  
+  for(auto& l: landlist) {
+  
     string s = XLAT1(linf[l].name);
 
     if(landvisited[l]) {
-      dialog::addBoolItem(s, l == specialland, ch);
+      dialog::addBoolItem(s, l == specialland, dialog::list_fake_key++);
       }
     else {
-      dialog::addSelItem(s, XLAT("(locked)"), ch);
+      dialog::addSelItem(s, XLAT("(locked)"), dialog::list_fake_key++);
       }
     
     dialog::lastItem().color = linf[l].color;
@@ -217,13 +217,13 @@ EX void ge_land_selection() {
         }));
       });
     }
-  dialog::addItem(XLAT("next page"), '-');
-  dialog::addInfo(XLAT("press letters to search"));
+  dialog::end_list();
 
   dialog::addBreak(25);
   validity_info();    
   dialog::addBreak(25);
   
+  dialog::addInfo(XLAT("press letters to search"));
   dual::add_choice();  
   dialog::addBack();
   dialog::display();
@@ -231,11 +231,7 @@ EX void ge_land_selection() {
   keyhandler = [] (int sym, int uni) {
     dialog::handleNavigation(sym, uni);
     
-    if(uni == '-' || uni == PSEUDOKEY_WHEELUP || uni == PSEUDOKEY_WHEELDOWN) {
-      eupage++;
-      if(eupage * euperpage >= isize(landlist)) eupage = 0;
-      }
-    else if(dialog::editInfix(uni)) eupage = 0;
+    if(dialog::editInfix(uni)) dialog::list_skip = 0;
     else if(doexiton(sym, uni)) popScreen();
     };
   }
@@ -249,6 +245,7 @@ EX void activate_ge_land_selection() {
 #if HDR
 struct geometry_filter {
   string name;
+  int hotkey;
   /** test if the current geometry matches the filter */
   function<bool()> test; 
   };
@@ -258,22 +255,24 @@ EX geometry_filter *current_filter;
 
 bool forced_quotient() { return quotient && !(cgflags & qOPTQ); }
 
-EX geometry_filter gf_hyperbolic = {"hyperbolic", [] { return (arcm::in() || arb::in() || hyperbolic) && !forced_quotient(); }};
-EX geometry_filter gf_spherical = {"spherical", [] { return (arcm::in() || arb::in() || sphere) && !forced_quotient(); }};
-EX geometry_filter gf_euclidean = {"Euclidean", [] { return (arcm::in() || arb::in() || euclid) && !forced_quotient(); }};
-EX geometry_filter gf_other = {"non-isotropic", [] { return prod || nonisotropic; }};
-EX geometry_filter gf_regular_2d = {"regular 2D tesselations", [] { 
+EX geometry_filter gf_hyperbolic = {"hyperbolic", 'h', [] { return (arcm::in() || arb::in() || hyperbolic) && !forced_quotient(); }};
+EX geometry_filter gf_spherical = {"spherical", 's', [] { return (arcm::in() || arb::in() || sphere) && !forced_quotient(); }};
+EX geometry_filter gf_euclidean = {"Euclidean", 'e', [] { return (arcm::in() || arb::in() || euclid) && !forced_quotient(); }};
+EX geometry_filter gf_other = {"non-isotropic", 'n', [] { return prod || nonisotropic; }};
+EX geometry_filter gf_regular_2d = {"regular 2D tesselations", 'r', [] { 
   return standard_tiling() && WDIM == 2 && !forced_quotient();
   }};
-EX geometry_filter gf_regular_3d = {"regular 3D honeycombs", [] { 
+EX geometry_filter gf_regular_3d = {"regular 3D honeycombs", '3', [] { 
   if(euclid) return geometry == gCubeTiling;
   return !bt::in() && !kite::in() && WDIM == 3 && !forced_quotient() && !nonisotropic && !prod;
   }};
-EX geometry_filter gf_quotient = {"interesting quotient spaces", [] { 
+EX geometry_filter gf_quotient = {"interesting quotient spaces", 'q', [] { 
   return forced_quotient() && !elliptic;
   }};
+EX geometry_filter gf_tes_file = {"load from file", 'f', [] { return arb::in(); }};
+EX geometry_filter gf_no_filters = {"no filters", '-', [] { return true; }};
   
-EX vector<geometry_filter*> available_filters = { &gf_hyperbolic, &gf_spherical, &gf_euclidean, &gf_other, &gf_regular_2d, &gf_regular_3d, &gf_quotient };
+EX vector<geometry_filter*> available_filters = { &gf_hyperbolic, &gf_spherical, &gf_euclidean, &gf_other, &gf_regular_2d, &gf_regular_3d, &gf_quotient, &gf_tes_file, &gf_no_filters };
 
 void ge_select_filter() {
   cmode = sm::SIDE | sm::MAYDARK;
@@ -281,12 +280,11 @@ void ge_select_filter() {
 
   dialog::init(XLAT("geometries"));
   
-  char x = 'a';
   for(auto f: available_filters) {
     if(current_filter)
-      dialog::addBoolItem(XLAT(f->name), f == current_filter, x++);
+      dialog::addBoolItem(XLAT(f->name), f == current_filter, f->hotkey);
     else
-      dialog::addItem(XLAT(f->name), x++);
+      dialog::addItem(XLAT(f->name), f->hotkey);
     dialog::add_action([f] { current_filter = f; popScreen(); });
     }
 
@@ -366,6 +364,7 @@ bool same_tiling(eGeometry g2) {
   }
 
 void ge_select_tiling() {
+  if(current_filter == &gf_tes_file) { popScreen(); set_or_configure_geometry(gArbitrary); }
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
 
@@ -378,7 +377,8 @@ void ge_select_tiling() {
 
   dialog::addBreak(100);
   
-  char letter = 'a';
+  dialog::start_list(500, 1500, 'a');
+  
   for(int i=0; i<isize(ginf); i++) {
     eGeometry g = eGeometry(i);
     if(among(g, gProduct, gRotSpace)) hybrid::configure(g);
@@ -406,11 +406,12 @@ void ge_select_tiling() {
     dialog::addBoolItem(
       is_product ? XLAT("current geometry x E") : 
       is_rotspace ? XLAT("space of rotations in current geometry") : 
-      XLAT(ginf[g].menu_displayed_name), on, letter++);
+      XLAT(ginf[g].menu_displayed_name), on, dialog::list_fake_key++);
     dialog::lastItem().value += validclasses[land_validity(specialland).quality_level];
     dialog::add_action([g] { set_or_configure_geometry(g); });
     }
   
+  dialog::end_list();
   dialog::addBreak(100);
   dual::add_choice();  
   dialog::addBack();

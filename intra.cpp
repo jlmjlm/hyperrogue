@@ -546,13 +546,8 @@ EX void shift_view_portal(hyperpoint H) {
 
 EX const connection_data* through_portal() {
   transmatrix iView = view_inverse(View);
-  ld dist = hdist0(iView * C0);
-  int nei = -1;
-  for(int i=0; i<centerover->type; i++) {
-    ld dist1 = hdist0(currentmap->ray_iadj(centerover, i) * iView * C0);
-    if(dist1 < dist) nei = i, dist = dist1;
-    }
-
+  int nei = through_wall(centerover, iView * C0);
+  if(nei == -1) return nullptr;
   auto cw1 = cellwalker(centerover, nei);
   return at_or_null(connections, cw1);
   }
@@ -647,25 +642,101 @@ void erase_unconnected(cellwalker cw) {
       unconnected.erase(unconnected.begin() + i);
   }
 
+EX string portal_help =
+  "In portal maps, you can create portals on walls. Such portals can be entered to end up in another world. "
+  "The portals are 'immersive', that is, you can see through the portals. In the current implementation, "
+  "the immersive view works only in the raycasting mode, for rendering walls -- so any other objects will not "
+  "be rendered. (You can turn raycasting off to see the world without any portals.) As a consequence, "
+  "there is no HyperRogue game in a portal map -- you can only move the camera around the scene. Pick "
+  "'set recommended settings' in the manage portals menu to optimize settings for this.\n\n"
+  "To create portals between different geometries, you need to create a map in the other geometry and save it "
+  "(using the map editor), then in your portal map such a world can be loaded to be added to the scene "
+  "(in the manage portals menu). Such portals work correctly when their intrinsic shapes are equal (including the "
+  "curvature), their extrinsic curvatures match, and are actually implemented; see the video 'Portals to "
+  "Non-Euclidean Geometries' for some portals that work.\n\n"
+  ;
+
+EX void become_menu() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("Become a portal map"));
+  dialog::addHelp(XLAT(portal_help));
+  dialog::addItem(XLAT("yes, that's what I want"), 'y');
+  dialog::add_action([] {
+    intra::become();
+    intra::start();
+    game_keys_scroll = true;
+    mapeditor::drawplayer = false;
+    popScreen();
+    pushScreen(show_portals);
+    });
+
+  dialog::addBack();
+  dialog::display();
+  }
+
 int edit_spin;
 
-EX void show_portals() {
+EX void world_list() {
   cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("world list"));
+  dialog::start_list(900, 900, '1');
+  int c = current;
+  for(int i=0; i<isize(data); i++) {
+    switch_to(i);
+    dialog::addBoolItem(full_geometry_name(), i == c, dialog::list_fake_key++);
+    dialog::add_action([i] {
+      int ic = i;
+      switch_to(ic);
+      });
+    }
+  switch_to(c);
+  dialog::end_list();
+  dialog::addBreak(100);
+  dialog::addItem("add a saved world to the scene", 'a');
+  dialog::add_action([] {
+    dialog::openFileDialog(levelfile, XLAT("level to load:"), ".lev", [] () {
+      intra::become();
+      if(mapstream::loadMap(levelfile.c_str())) {
+        addMessage(XLAT("Map loaded from %1", levelfile));
+        intra::become();
+        intra::start();
+        return true;
+        }
+      else {
+        addMessage(XLAT("Failed to load map from %1", levelfile));
+        intra::start();
+        return false;
+        }
+      });
+    });
+  dialog::addBack();
+  dialog::display();
+  }
+
+EX void show_portals() {
+  cmode = sm::SIDE | sm::MAYDARK | sm::PANNING;
+  if(mapeditor::building_mode) cmode |= sm::EDIT_INSIDE_WALLS;
   gamescreen();
 
   dialog::init(XLAT("manage portals"));
 
-  cellwalker cw(centerover, point_direction);
-  bool valid = point_direction >= 0 && point_direction < centerover->type;
+  cellwalker cw(mouseover2, point_direction);
+  bool valid = point_direction >= 0 && point_direction < mouseover2->type;
 
-  dialog::addItem(XLAT("move to the next space"), 'm');
-  dialog::add_action([] {
-    int ic = (current + 1) % isize(data);
-    switch_to(ic);
-    });
+  if(valid) {
+    initquickqueue();
+    for (const shiftmatrix& V : hr::span_at(current_display->all_drawn_copies, mouseover2)) {
+      dynamicval<color_t> p(poly_outline, 0xFFFFFF);
+      int ofs = currentmap->wall_offset(mouseover2);
+      queuepolyat(V, cgi.shWireframe3D[ofs + point_direction], 0, PPR::SUPERLINE);
+      }
+    quickqueue();
+    }
 
-  dialog::addSelItem(XLAT("mode"), ray::fixed_map ? "perf" : "edit", 'e');
-  dialog::add_action([] { ray::fixed_map = !ray::fixed_map; });
+  dialog::addItem(XLAT("view another world"), 'm');
+  dialog::add_action_push(world_list);
 
   if(debug_portal) {
     dialog::addItem(XLAT("debug"), 'd');
@@ -690,6 +761,7 @@ EX void show_portals() {
       unconnected.push_back(tcw);
       connections.erase(cw);
       connections.erase(tcw);
+      mapeditor::map_version++;
       });
     }
   else if(in_list) {
@@ -701,13 +773,16 @@ EX void show_portals() {
   else {
     dialog::addItem(XLAT("add to list"), 'a');
     dialog::add_action([cw] { unconnected.push_back(cw); });
+    dialog::start_list(500, 500, '1');
     for(auto p: unconnected) {
-      dialog::addItem(XLAT("connect " + lalign(0, p)), '1');
+      dialog::addItem(XLAT("connect " + lalign(0, p)), dialog::list_fake_key++);
       dialog::add_action([p, cw] {
         connect_portal(cw, p, edit_spin);
+        mapeditor::map_version++;
         erase_unconnected(p);
         });
       }
+    dialog::end_list();
     dialog::addSelItem(XLAT("portal orientation"), its(edit_spin), 'o');
     dialog::add_action([] { edit_spin = edit_spin + 1; });
     if(debug_portal) {
@@ -720,7 +795,33 @@ EX void show_portals() {
       }
     }
 
+  if(!game_keys_scroll || mapeditor::drawplayer || !ray::fixed_map || vid.cells_drawn_limit > 100) {
+    dialog::addItem(XLAT("set recommended settings"), 'A');
+    dialog::add_action([] {
+      game_keys_scroll = true;
+      mapeditor::drawplayer = false;
+      ray::fixed_map = true;
+      vid.cells_drawn_limit = 100;
+      });
+    }
+  else {
+    dialog::addItem(XLAT("configure raycasting"), 'A');
+    dialog::add_action_push(ray::configure);
+    }
+
+  if(prod && point_direction < mouseover2->type - 2) {
+    ld r = get_ratio_edge(mouseover2, point_direction);
+    dialog::addSelItem(XLAT("height-to-width ratio"), fts(r), 'r');
+    dialog::add_action([] {
+      be_ratio_edge(mouseover2, point_direction);
+      });
+    }
+  else dialog::addBreak(100);
+
   walking::add_options();
+
+  dialog::addHelp();
+  dialog::add_action([] { gotoHelp(portal_help); });
 
   dialog::display();
   }
@@ -755,12 +856,26 @@ EX void be_ratio(ld v IS(1)) {
   cgi.require_basics();
   }
 
-EX void be_ratio_edge(int i, ld v IS(1)) {
-  start_game();
-  ld len = hdist(currentmap->get_corner(cwt.at, i), currentmap->get_corner(cwt.at, (i+1)%cwt.at->type));
-  PIU( vid.plevel_factor = v * len / cgi.scalefactor );
+EX ld get_edge_length(cell *c, int i) {
+  auto c1 = hybrid::get_where(c).first;
+  return PIU( hdist(currentmap->get_corner(c1, i), currentmap->get_corner(c1, (i+c1->type-1)%c1->type)) );
+  }
+
+EX ld get_ratio_edge(cell *c, int i) {
+  ld len = get_edge_length(c, i);
+  return PIU( vid.plevel_factor * cgi.scalefactor / len );
+  }
+
+EX void be_ratio_edge(cell *c, int i, ld v IS(1)) {
+  ld len = get_edge_length(c, i);
+  vid.plevel_factor = v * len / cgi.scalefactor;
   check_cgi();
   cgi.require_basics();
+  }
+
+EX void be_ratio_edge(int i, ld v IS(1)) {
+  start_game();
+  be_ratio_edge(cwt.at, i, v);
   }
 
 /** Remove the space with the given id. Turns off intra */

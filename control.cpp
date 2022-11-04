@@ -26,6 +26,7 @@ EX bool holdmouse;
 EX int getcstat, lgetcstat;
 EX ld getcshift;
 EX bool inslider;
+EX bool invslider;
 EX int slider_x;
 
 EX function <void(int sym, int uni)> keyhandler = [] (int sym, int uni) {};
@@ -1113,6 +1114,7 @@ EX void handle_event(SDL_Event& ev) {
       which_pointer = 0;
       bool was_holdmouse = holdmouse;
       holdmouse = false;
+      invslider = false;
       
       bool down = ev.type == SDL_MOUSEBUTTONDOWN SDL12(, || ev.type == SDL_MOUSEWHEEL);
       bool up = ev.type == SDL_MOUSEBUTTONUP;
@@ -1136,7 +1138,7 @@ EX void handle_event(SDL_Event& ev) {
       if(ev.button.button == SDL_BUTTON_LEFT) {
         if(ISPANDORA ? pandora_rightclick : lctrlclick)
           ev.button.button = SDL_BUTTON_MIDDLE;
-        else if((ISPANDORA ? pandora_leftclick : lshiftclick) && !(vid.shifttarget&1))
+        else if((ISPANDORA ? pandora_leftclick : lshiftclick) && !(vid.shifttarget&1) && !(cmode & sm::MAP))
           ev.button.button = SDL_BUTTON_RIGHT;
         }
       

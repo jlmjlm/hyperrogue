@@ -50,7 +50,7 @@ struct setting {
   virtual bool affects(void *v) { return false; }
   virtual void add_as_saver() {}
   void show_edit_option() { show_edit_option(default_key); }
-  virtual void show_edit_option(char key) {
+  virtual void show_edit_option(int key) {
     println(hlog, "default called!"); }
   virtual string search_key() { 
     return parameter_name + "|" + config_name + "|" + menu_item_name + "|" + help_text;
@@ -100,7 +100,7 @@ struct list_setting : setting {
     default_key = key;
     return this;
     }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   };
 
 template<class T> struct enum_setting : list_setting {
@@ -135,7 +135,7 @@ struct float_setting : public setting {
   float_setting *modif(const function<void(float_setting*)>& r) { modify_me = r; return this; }
   void add_as_saver() override;
   bool affects(void *v) override { return v == value; }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   cld get_cld() override { return *value; }
   void load_from(const string& s) override;
   };
@@ -149,7 +149,7 @@ struct int_setting : public setting {
   function<void(int_setting*)> modify_me;
   int_setting *modif(const function<void(int_setting*)>& r) { modify_me = r; return this; }
   bool affects(void *v) override { return v == value; }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   cld get_cld() override { return *value; }
   int_setting *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, char key) {
     this->is_editable = true;
@@ -177,7 +177,7 @@ struct bool_setting : public setting {
     menu_item_name = cap; default_key = key; return this; 
     } 
   bool affects(void *v) override { return v == value; }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   cld get_cld() override { return *value ? 1 : 0; }
   void load_from(const string& s) override {
     *value = parseint(s);
@@ -188,7 +188,7 @@ struct custom_setting : public setting {
   function<void(char)> custom_viewer;
   function<cld()> custom_value;
   function<bool(void*)> custom_affect;
-  void show_edit_option(char key) override { custom_viewer(key); }
+  void show_edit_option(int key) override { custom_viewer(key); }
   cld get_cld() override { return custom_value(); }
   bool affects(void *v) override { return custom_affect(v); }
   };
@@ -320,7 +320,7 @@ void non_editable() {
   dialog::addHelp("Warning: editing this value through this menu may not work correctly");
   }
 
-void float_setting::show_edit_option(char key) {
+void float_setting::show_edit_option(int key) {
   if(modify_me) modify_me(this);
   dialog::addSelItem(XLAT(menu_item_name), fts(*value) + unit, key);
   dialog::add_action([this] () {
@@ -332,7 +332,7 @@ void float_setting::show_edit_option(char key) {
     });
   }
 
-void int_setting::show_edit_option(char key) {
+void int_setting::show_edit_option(int key) {
   if(modify_me) modify_me(this);
   dialog::addSelItem(XLAT(menu_item_name), its(*value), key);
   dialog::add_action([this] () {
@@ -344,7 +344,7 @@ void int_setting::show_edit_option(char key) {
     });
   }
 
-void bool_setting::show_edit_option(char key) {
+void bool_setting::show_edit_option(int key) {
   dialog::addBoolItem(XLAT(menu_item_name), *value, key);
   dialog::add_action([this] () {
     add_to_changed(this);
@@ -647,7 +647,8 @@ EX void initConfig() {
   -> editable("resizable window", 'r');
 
   param_b(no_find_player, "no_find_player");
-  param_b(game_keys_scroll, "game_keys_scroll");
+  param_b(game_keys_scroll, "game_keys_scroll")
+  -> editable("pure exploration (game keys scroll)", 'P');
   param_b(reg3::cubes_reg3, "cubes_reg3");
   param_f(linepatterns::tree_starter, "tree_starter")
   -> editable(0, 1, 0.05, "tree-drawing parameter", "How much of edges to draw for tree patterns (to show how the tree edges are oriented).", 't');
@@ -906,6 +907,8 @@ EX void initConfig() {
   
   addsaver(viewdists, "expansion mode");
   param_f(backbrightness, "back", "brightness behind sphere");
+  param_b(auto_extend, "expansion_auto_extend")
+  -> editable("extend automatically", 'E');
 
   param_f(vid.ipd, "ipd", "interpupilar-distance", 0.05);
   param_f(vid.lr_eyewidth, "lr", "eyewidth-lr", 0.5);
@@ -2966,31 +2969,30 @@ EX void find_setting() {
 
   dialog::init(XLAT("find a setting"));
   if(dialog::infix != "") mouseovers = dialog::infix;
-  
-  vector<setting*> found;
-  
+
+  dialog::start_list(900, 900, '1');
+
+  int found = 0;
+
   for(auto& p: params) {
     auto& fs = p.second;
     string key = fs->search_key();
-    if(fs->available() && dialog::hasInfix(key))
-      found.push_back(&*fs);
+    if(fs->available() && dialog::hasInfix(key)) {
+      fs->show_edit_option(dialog::list_fake_key++);
+      found++;
+      }
     }
 
-  for(int i=0; i<9; i++) {
-    if(i < isize(found)) {
-      found[i]->show_edit_option('1' + i);
-      }
-    else dialog::addBreak(100);
-    }
+  dialog::end_list();
 
   dialog::addBreak(100);
   dialog::addInfo(XLAT("press letters to search"));
-  dialog::addSelItem(XLAT("matching items"), its(isize(found)), 0);
+  dialog::addSelItem(XLAT("matching items"), its(found), 0);
   dialog::display();
-  
+
   keyhandler = [] (int sym, int uni) {
-    dialog::handleNavigation(sym, uni);    
-    if(dialog::editInfix(uni)) ;
+    dialog::handleNavigation(sym, uni);
+    if(dialog::editInfix(uni)) dialog::list_skip = 0;
     else if(doexiton(sym, uni)) popScreen();
     };
   }
@@ -3002,10 +3004,11 @@ EX void edit_all_settings() {
 
   for(auto &fs: params) fs.second->check_change();
 
-  int id = 0;
+  dialog::start_list(1000, 1000, 'a');
   for(auto l: last_changed) 
-    if(l->available() && id < 10)
-    l->show_edit_option('a'+(id++));
+    if(l->available())
+      l->show_edit_option(dialog::list_fake_key++);
+  dialog::end_list();
 
   dialog::addBreak(100);
   dialog::addItem(XLAT("find a setting"), '/');
@@ -3014,7 +3017,7 @@ EX void edit_all_settings() {
   dialog::display();
   }
 
-void list_setting::show_edit_option(char key) {
+void list_setting::show_edit_option(int key) {
   string opt = options[get_value()].first;
   dialog::addSelItem(XLAT(menu_item_name), XLAT(opt), key);
   dialog::add_action_push([this] {
@@ -3076,7 +3079,7 @@ EX void showSettings() {
   dialog::addBreak(100);
 
 #if CAP_CONFIG
-  dialog::addItem(XLAT("recently changed settings"), '/');
+  dialog::addItem(XLAT("find a setting"), '/');
   dialog::add_action_push(edit_all_settings);
 
   dialog::addItem(XLAT("save the current config"), 's');
@@ -3346,6 +3349,9 @@ EX int read_config_args() {
     }
   else if(argis("-d:all")) {
     PHASEFROM(2); launch_dialog(edit_all_settings);
+    }
+  else if(argis("-d:find")) {
+    PHASEFROM(2); launch_dialog(find_setting);
     }
   else if(argis("-char")) {
     auto& cs = vid.cs;

@@ -574,6 +574,8 @@ EX namespace yendor {
     vid.fsize = vid.fsize * 4/5;
     dialog::init(XLAT("Yendor Challenge"), iinf[itOrbYendor].color, 150, 100);
 
+    dialog::start_list(2000, 2000);
+
     for(int i=1; i<YENDORLEVELS; i++) {
       string s;
       
@@ -593,6 +595,8 @@ EX namespace yendor {
       
       dialog::addSelItem(s, v, i > 26 ? 'A' + i - 27 : 'a' + i-1);
       }
+
+    dialog::end_list();
 
     dialog::addBreak(60);
     if (yendor::on)
@@ -937,8 +941,7 @@ EX namespace tactic {
         
         "Good luck, and have fun!"
         );
-      else if(dialog::infix == "" && dialog::handlePageButtons(uni)) ;
-      else if(dialog::editInfix(uni)) ;
+      else if(dialog::editInfix(uni)) dialog::list_skip = 0;
       else if(doexiton(sym, uni)) popScreen();
       };
     }
