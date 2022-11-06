@@ -173,6 +173,7 @@ EX namespace dialog {
     if(k == SDLK_F9) return "F9";
     if(k == SDLK_F1) return "F1";
     if(k == SDLK_F4) return "F4";
+    if(k == SDLK_F3) return "F3";
     if(k >= 10000 && k < 10500) return "";
     if(k == SDLK_HOME) return "Home";
     if(k == SDLK_BACKSPACE) return "Backspace";
@@ -388,8 +389,12 @@ EX namespace dialog {
   EX string highlight_text;
   EX int highlight_key;
 
-  EX bool is_highlight(item& I) { return I.body == highlight_text && I.key == highlight_key; }
+  EX bool is_highlight(item& I) { return I.body == highlight_text && among(highlight_key, I.key, PSEUDOKEY_SELECT); }
   EX void set_highlight(item& I) { highlight_text = I.body; highlight_key = I.key; }
+  EX void find_highlight(const string& s) {
+    println(hlog, "highlight_text set to ", s);
+    highlight_text = s; highlight_key = PSEUDOKEY_SELECT;
+    }
   
   EX void measure() {
     tothei = 0;
@@ -401,6 +406,8 @@ EX namespace dialog {
     bool autoval = cmode & sm::AUTO_VALUES;
     rightwidth = 0;
     if(!autoval) rightwidth = textwidth(dfsize, "MMMMMMMM") + dfsize/2;
+    if(cmode & sm::DIALOG_WIDE)
+      innerwidth = textwidth(dfsize, "MMMMM") * 7;
 
     for(int i=0; i<N; i++) {
       if(items[i].type == diListStart)
@@ -1391,8 +1398,10 @@ EX namespace dialog {
   
   void handleKeyFile(int sym, int uni);
 
+  bool search_mode;
+
   EX void drawFileDialog() {
-    cmode = sm::NUMBER | dialogflags;
+    cmode = sm::NUMBER | dialogflags | sm::DIALOG_WIDE;
     gamescreen();
     init(filecaption);
 
@@ -1407,15 +1416,22 @@ EX namespace dialog {
     struct dirent *dir;
 
     string where = ".";
+    string what = cfile;
     for(int i=0; i<isize(cfile); i++)
-      if(cfile[i] == '/' || cfile[i] == '\\')
+      if(cfile[i] == '/' || cfile[i] == '\\') {
         where = cfile.substr(0, i+1);
+        what = cfile.substr(i+1);
+        }
 
     d = opendir(where.c_str());
     if (d) {
       while ((dir = readdir(d)) != NULL) {
         string s = dir->d_name;
         if(s != ".." && s[0] == '.') ;
+        else if(search_mode) {
+          if(has_substring(human_simplify(s, true), human_simplify(what, true)))
+            v.push_back(make_pair(s, CFILE));
+          }
         else if(isize(s) > 4 && s.substr(isize(s)-4) == cfileext)
           v.push_back(make_pair(s, CFILE));
         else if(dir->d_type & DT_DIR)
@@ -1425,7 +1441,7 @@ EX namespace dialog {
       }
     sort(v.begin(), v.end(), filecmp);
 
-    dialog::start_list(1500, 1500);
+    dialog::start_list(2000, 2000);
     for(auto& vv: v) {
       dialog::addItem(vv.first, list_fake_key++);
       dialog::lastItem().color = vv.second;
@@ -1434,26 +1450,38 @@ EX namespace dialog {
       dialog::add_action([vf, dir] {
         string& s(*cfileptr);
         string where = "", what = s, whereparent = "../";
+        string last = "";
         for(int i=0; i<isize(s); i++)
           if(s[i] == '/') {
-            if(i >= 2 && s.substr(i-2,3) == "../")
+            if(i >= 2 && s.substr(i-2,3) == "../") {
               whereparent = s.substr(0, i+1) + "../";
-            else
+              last = "";
+              }
+            else {
+              last = s.substr(isize(where), i + 1 - isize(where));
               whereparent = where;
+              }
             where = s.substr(0, i+1), what = s.substr(i+1);
             }
         string str1;
-        if(vf == "../")
-          str1 = whereparent + what;
-        else if(dir)
-          str1 = where + vf + what;
-        else
-          str1 = where + vf;
-        if(s == str1) {
-          popScreen();
-          if(!file_action()) pushScreen(drawFileDialog);
+        if(vf == "../") {
+          s = whereparent + what;
+          find_highlight(last);
+          list_skip = 0;
           }
-        s = str1;
+        else if(dir) {
+          s = where + vf + what;
+          find_highlight("../");
+          list_skip = 0;
+          }
+        else {
+          str1 = where + vf;
+          if(s == str1) {
+            popScreen();
+            if(!file_action()) pushScreen(drawFileDialog);
+            }
+          s = str1;
+          }
         });
       }
     dialog::end_list();
@@ -1461,6 +1489,7 @@ EX namespace dialog {
     dialog::addBreak(100);
 
     dialog::addBoolItem_action("extension", editext, SDLK_F4);
+    dialog::addBoolItem_action("search mode", search_mode, SDLK_F3);
     dialog::addItem("choose", SDLK_RETURN);
     dialog::addItem("cancel", SDLK_ESCAPE);
     dialog::display();
@@ -1484,10 +1513,12 @@ EX namespace dialog {
     else if(sym == SDLK_BACKSPACE && i) {
       s.erase(i-1, 1);
       highlight_text = "//missing";
+      list_skip = 0;
       }
     else if(uni >= 32 && uni < 127) {
       s.insert(i, s0 + char(uni));
       highlight_text = "//missing";
+      list_skip = 0;
       }
     return;
     }
@@ -1507,8 +1538,7 @@ EX namespace dialog {
   string foreign_letters = "ÁÄÇÈÉÍÎÖÚÜßàáâãäçèéêìíîïòóôõöøùúüýąćČčĎďĘęĚěğİıŁłńňŘřŚśŞşŠšŤťůŹźŻżŽž";
   string latin_letters   = "AACEEIIOUUsAAAAACEEEIIIIOOOOOOUUUYACCCDDEEEEGIILLNNRRSSSSSSTTUZZZZZZ";
 
-  EX bool hasInfix(const string &s) {
-    if(infix == "") return true;
+  EX string human_simplify(const string &s, bool include_symbols) {
     string t = "";
     for(int i=0; i<isize(s); i++) {
       char c = s[i];
@@ -1516,6 +1546,7 @@ EX namespace dialog {
       if(c >= 'a' && c <= 'z') tt += c - 32;
       else if(c >= 'A' && c <= 'Z') tt += c;
       else if(c == '@') tt += c;
+      else if(include_symbols && c > 0) tt += c;
       
       if(tt == 0) for(int k=0; k<isize(latin_letters); k++) {
         if(s[i] == foreign_letters[2*k] && s[i+1] == foreign_letters[2*k+1]) {
@@ -1526,9 +1557,23 @@ EX namespace dialog {
 
       if(tt) t += tt;
       }
-    return t.find(infix) != string::npos;
+    return t;
     }
-  
+
+  EX bool hasInfix(const string &s) {
+    if(infix == "") return true;
+    return human_simplify(s, false).find(infix) != string::npos;
+    }
+
+  EX bool has_substring(const string &s, const string& needle) {
+    int spos = 0, npos = 0;
+    while(true) {
+      if(npos == isize(needle)) return true;
+      if(spos == isize(s)) return false;
+      if(s[spos++] == needle[npos]) npos++;
+      }
+    }
+
   EX bool editInfix(int uni) {
     if(uni >= 'A' && uni <= 'Z') infix += uni;
     else if(uni >= 'a' && uni <= 'z') infix += uni-32;

@@ -621,7 +621,7 @@ EX namespace yendor {
             make_pair(-sc, scoreboard[i].username));
         }
       
-      displayScore(scorehere, vid.xres / 4);
+      displayScore(scorehere, vid.fsize);
       }
 
     yendor::uploadScore();
@@ -941,6 +941,7 @@ EX namespace tactic {
         
         "Good luck, and have fun!"
         );
+      else if(dialog::infix == "" && dialog::handlePageButtons(uni)) ;
       else if(dialog::editInfix(uni)) dialog::list_skip = 0;
       else if(doexiton(sym, uni)) popScreen();
       };
