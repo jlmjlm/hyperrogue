@@ -42,7 +42,7 @@ namespace sag {
   bool auto_visualize = true;
 
   int vizsa_start;
-  int vizsa_len;
+  int vizsa_len = 5;
   
   /** all the SAG cells */
   vector<cell*> sagcells;
@@ -365,7 +365,12 @@ namespace sag {
       cost += costat(i, sagid[i]);
     cost /= 2;
     }
-  
+
+  void set_inverse() {
+    if(method == smMatch) vizflags |= RV_INVERSE_WEIGHT;
+    else vizflags &=~ RV_INVERSE_WEIGHT;
+    }
+
   void reassign() {
     int DN = isize(sagid);
     for(int i=0; i<DN; i++) {
@@ -373,6 +378,7 @@ namespace sag {
       forgetedges(i);
       }
     shmup::fixStorage();
+    set_inverse();
     }
 
   void load_sag_solution(const string& fname) {
@@ -464,18 +470,21 @@ namespace sag {
     reassign();
     }
 
+  int sag_ittime = 100;
+
   void iterate() {
     if(!sagmode) return;
     int t1 = SDL_GetTicks();
+    int last = -1;
     for(int i=0; i<ipturn; i++) {
       numiter++;
       sag::saiter();
       }
     int t2 = SDL_GetTicks();
     int t = t2 - t1;
-    if(t < 50) ipturn *= 2;
-    else if(t > 200) ipturn /= 2;
-    else ipturn = ipturn * 100 / t;
+    if(t < (sag_ittime+1) / 2) ipturn *= 2;
+    else if(t > sag_ittime * 2) ipturn /= 2;
+    else ipturn = ipturn * sag_ittime / t;
     print(hlog, format("it %12Ld temp %6.4f [2:%8.6f,10:%8.6f,50:%8.6f] cost = %f\n",
       numiter, double(sag::temperature), 
       (double) exp(-2 * exp(-sag::temperature)),
@@ -873,6 +882,7 @@ namespace sag {
   void readsag(const char *fname) {
     maxweight = 0;
     sag_edge = add_edgetype("SAG edge");
+    rogueviz::cleanup.push_back([] { sag_edge = nullptr; });
     fhstream f(fname, "rt");
     if(!f.f) {
       printf("Failed to open SAG file: %s\n", fname);
@@ -962,6 +972,13 @@ namespace sag {
       dialog::add_action([] { 
         sag::vizsa_start = sag::vizsa_start ? 0 : SDL_GetTicks();
         sag::sagmode = sagOff;
+        });
+
+      dialog::addSelItem(XLAT("smoothness"), its(sag_ittime), 's');
+      dialog::add_action([] {
+        dialog::editNumber(sag_ittime, 0, 1000, 10, 100, XLAT("smoothness"),
+          XLAT("How much milliseconds to compute before re-rendering the screen when optimizing in the background. Low values look nicer, but may cause less time to be spent on iterations.")
+          );
         });
 
       dialog::addBoolItem_action(XLAT("auto-visualize"), sag::auto_visualize, 'b');
@@ -1163,12 +1180,13 @@ int readArgs() {
   if(0) ;
 
   else if(argis("-sagmin")) {
-    shift_arg_formula(default_edgetype.visible_from);
-    default_edgetype.visible_from_hi = default_edgetype.visible_from;
-    default_edgetype.visible_from_help = default_edgetype.visible_from;    
+    auto& ed = sag_edge ? *sag_edge : default_edgetype;
+    shift_arg_formula(ed.visible_from);
+    ed.visible_from_hi = ed.visible_from;
     }
   else if(argis("-sagminhi")) {
-    shift_arg_formula(default_edgetype.visible_from_hi);
+    auto& ed = sag_edge ? *sag_edge : default_edgetype;
+    shift_arg_formula(ed.visible_from_hi);
     }
   else if(argis("-sag_gdist")) {
     shift(); sag::gdist_prec = argi();
@@ -1213,9 +1231,6 @@ int readArgs() {
     if(method == smMatch) prepare_graph();
     }
 
-  else if(argis("-sagminhelp")) {
-    shift_arg_formula(default_edgetype.visible_from_help);
-    }
   else if(argis("-sagformat")) {
     shift(); informat = argi();
     }
@@ -1270,6 +1285,9 @@ int readArgs() {
   else if(argis("-sagviz")) {
     sag::vizsa_start = SDL_GetTicks();
     shift(); sag::vizsa_len = argi();
+    }
+  else if(argis("-sagsmooth")) {
+    shift(); sag::sag_ittime = argi();
     }
   else if(argis("-sagstats")) {
     output_stats();
