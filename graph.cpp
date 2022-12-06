@@ -5030,7 +5030,8 @@ EX bool nonisotropic_weird_transforms;
 
 EX void make_actual_view() {
   sphereflip = Id;
-  if(sphereflipped()) sphereflip[LDIM][LDIM] = -1;
+  sphere_flipped = flip_sphere();
+  if(sphere_flipped) sphereflip[LDIM][LDIM] = -1;
   actual_view_transform = sphereflip;  
   if(vid.yshift && WDIM == 2) actual_view_transform = ypush(vid.yshift) * actual_view_transform;
   #if MAXMDIM >= 4
@@ -5055,9 +5056,9 @@ EX void make_actual_view() {
     transmatrix T = actual_view_transform * View;
     transmatrix U = view_inverse(T);
     
-    if(T[0][2]) 
+    if(T[0][2])
       T = spin(-atan2(T[0][2], T[1][2])) * T;
-    if(T[1][2] && T[2][2]) 
+    if(T[1][2])
       T = cspin(1, 2, -atan2(T[1][2], T[2][2])) * T;
 
     ld z = -asin_auto(tC0(view_inverse(T)) [2]);

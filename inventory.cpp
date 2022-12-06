@@ -539,21 +539,32 @@ EX namespace inv {
             if(!remaining[i]) icol = gradient(icol, 0, 0, .5, 1);
             bool gg = graphglyph(false);
             
+            bool b = hypot(mousex-px, mousey-py) < rad;
+
             if(!hiliteclick) {
               if(gg) {
                 initquickqueue();
+                poly_outline = OUTLINE_DEFAULT;
                 transmatrix V = atscreenpos(px, py, rad*2);
                 drawItemType(o, NULL, shiftless(V), icol, ticks/3 + i * 137, false);
                 quickqueue();
                 }
-              
-              int tcol = remaining[i] ? darkenedby(icol, 1) : 0;
-  
-              if(remaining[i] != 1 || !gg)
-                displaystr(px, py, 2, gg?rad:rad*3/2, remaining[i] <= 0 ? "X" : remaining[i] == 1 ? "o" : its(remaining[i]), tcol, 8);
+
+              string s = remaining[i] <= 0 ? "X" : its(remaining[i]);
+
+              if(vid.orbmode < 2) {
+                int tcol = remaining[i] ? darkenedby(icol, 1) : 0;
+
+                if(remaining[i] != 1 || !gg)
+                  displaystr(px, py, 2, gg?rad:rad*3/2, s, tcol, 8);
+                }
+              else {
+                if(remaining[i] != 1 || !gg) {
+                  displayfr(px + rad/2, py + rad/2, 2, gg?rad:rad*3/2, remaining[i] <= 0 ? "X" : remaining[i] == 1 ? "o" : its(remaining[i]), dialog::dialogcolor_over(b), 8);
+                  }
+                }
               }
-            
-            bool b = hypot(mousex-px, mousey-py) < rad;
+
             if(b) {
               getcstat = c, 
               which = o;
