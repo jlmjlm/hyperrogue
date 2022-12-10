@@ -693,14 +693,14 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
               });
             }
           if(!vid.pseudohedral) for(int t=0; t<e-s; t++) {
-            hyperpoint v1 = may_kleinize(hpc[s+t]) - C0;
-            hyperpoint v2 = may_kleinize(hpc[s+t+1]) - C0;
+            hyperpoint fctr = tile_center();
+            hyperpoint v1 = may_kleinize(hpc[s+t]) - fctr;
+            hyperpoint v2 = may_kleinize(hpc[s+t+1]) - fctr;
             texture_order([&] (ld x, ld y) { 
-              hpcpush(
-                orthogonal_move(
-                  normalize(C0 + v1 * x + v2 * y)
-                  , dfloor_table[k])
-                ); 
+              hyperpoint a = fctr + v1 * x + v2 * y;
+              hyperpoint b = normalize_flat(a);
+              hyperpoint c = orthogonal_move(b, dfloor_table[k]);
+              cgi.hpcpush(c);
               });
             }
           }
@@ -731,9 +731,10 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
           int s = fsh.b[id].s;
           int e = fsh.b[id].e-1;        
           for(int t=0; t<e-s; t++) {
-            hyperpoint v1 = may_kleinize(hpc[s+t]) - C0;
-            hyperpoint v2 = may_kleinize(hpc[s+t+1]) - C0;
-            texture_order([&] (ld x, ld y) { hpcpush(orthogonal_move(normalize(C0 + v1 * x + v2 * y), top + h * (x+y))); });
+            auto TC0 = tile_center();
+            hyperpoint v1 = may_kleinize(hpc[s+t]) - TC0;
+            hyperpoint v2 = may_kleinize(hpc[s+t+1]) - TC0;
+            texture_order([&] (ld x, ld y) { hpcpush(orthogonal_move(normalize_flat(TC0 + v1 * x + v2 * y), top + h * (x+y))); });
             }
           }
 
@@ -789,17 +790,19 @@ void geometry_information::generate_floorshapes() {
   cell model;
   model.master = &modelh;
   modelh.c7 = &model;
-  model.type = modelh.type = S7;
+  model.type = modelh.type = FULL_EDGE;
   
   auto mmerge1 = [&] (int i, int j) { model.c.setspin(i, j, false); modelh.c.setspin(i, j, false); };  
   auto mmerge = [&] (int i, int j) { mmerge1(i, j); mmerge1(j, i); };  
 
-  for(int i=0; i<S7; i++) {
+  for(int i=0; i<FULL_EDGE; i++) {
     model.move(i) = &model;
     modelh.move(i) = &modelh;
     model.c.setspin(i, i, false);
     modelh.c.setspin(i, i, false);
     }
+
+  model.type = modelh.type = S7;
 
   if(WDIM == 3) ;
   
@@ -1396,7 +1399,9 @@ EX void make_floor_textures() {
   dynamicval<eModel> gm(pmodel, mdDisk);
   dynamicval<eVariation> va(variation, eVariation::pure);
   dynamicval<geometryinfo1> gie(ginf[geometry].g, giEuclid2);
+  dynamicval<flagtype> gief(ginf[geometry].flags, qOPTQ);
   dynamicval<geometryinfo1> gih(ginf[gNormal].g, giHyperb2);
+  dynamicval<flagtype> gihf(ginf[gNormal].flags, 0);
   dynamicval<bool> a3(vid.always3, false);
   dynamicval<bool> hq(inHighQual, true);
   dynamicval<int> hd(darken, 0);

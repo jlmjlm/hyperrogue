@@ -518,7 +518,7 @@ EX namespace mapstream {
       f.write(asonov::period_z);
       }
     #endif
-    if(prod) {
+    if(mproduct) {
       f.write(hybrid::csteps);
       f.write(product::cspin);
       f.write(product::cmirror);
@@ -527,7 +527,7 @@ EX namespace mapstream {
     if(rotspace) {
       f.write(hybrid::csteps);
       }
-    if(hybri) {
+    if(mhybrid) {
       hybrid::in_underlying_geometry([&] { save_geometry(f); });
       }
     if(fake::in()) {
@@ -661,7 +661,7 @@ EX namespace mapstream {
     if(geometry == gRotSpace && vernum >= 0xA833) {
       f.read(hybrid::csteps);
       }
-    if(hybri && vernum >= 0xA80C) {
+    if(mhybrid && vernum >= 0xA80C) {
       auto g = geometry;
       load_geometry(f);
       set_geometry(g);
@@ -688,7 +688,7 @@ EX namespace mapstream {
   EX hookset<void(hstream&, int)> hooks_loadmap;
   
   EX cell *save_start() {
-    return (closed_manifold || euclid || prod || arcm::in() || sol || INVERSE) ? currentmap->gamestart() : cwt.at->master->c7;
+    return (closed_manifold || euclid || mproduct || arcm::in() || sol || INVERSE) ? currentmap->gamestart() : cwt.at->master->c7;
     }
 
 #if CAP_EDIT  
@@ -926,7 +926,7 @@ EX namespace mapstream {
       for(int k=0; k<i; k++) f.read(kills[k]);    
       }
 
-    int sub = hybri ? 2 : 0;
+    int sub = mhybrid ? 2 : 0;
     while(true) {
       cell *c;
       int rspin;
@@ -947,7 +947,7 @@ EX namespace mapstream {
         
         // spinval becomes xspinval
         rspin = gmod(c2->c.spin(dir) - f.read_char(), c->type - sub);
-        if(GDIM == 3 && rspin && !hybri) {
+        if(GDIM == 3 && rspin && !mhybrid) {
           println(hlog, "rspin in 3D");
           throw hstream_exception();
           }
@@ -3092,7 +3092,8 @@ EX namespace mapeditor {
         hpcshape& sh(cgi.ushr[&ds]);
     
         if(sh.s != sh.e) {
-          auto& last = queuepolyat(mmscale(V, GDIM == 3 ? 0 : geom3::lev_to_factor(ds.zlevel)), sh, ds.color ? ds.color : color, prio);
+          shiftmatrix V1 = GDIM == 3 ? V : orthogonal_move(V, ds.zlevel);
+          auto& last = queuepolyat(V1, sh, ds.color ? ds.color : color, prio);
           if(GDIM == 3) {
             last.tinf = &user_triangles_texture;
             last.offset_texture = ds.texture_offset;

@@ -832,6 +832,18 @@ EX void initConfig() {
   addsaver(vid.highlightmode, "highlightmode");
 
   addsaver(vid.always3, "3D always", false);
+
+  param_enum(geom3::spatial_embedding, "spatial_embedding", "spatial_embedding", geom3::seDefault)
+  ->editable(geom3::spatial_embedding_options, "3D embedding method", 'E')
+  ->set_reaction([] {
+    if(vid.always3) {
+      geom3::switch_fpp();
+      geom3::switch_fpp();
+      delete_sky();
+      // not sure why this is needed...
+      resetGL();
+      }
+    });
   
   param_b(memory_saving_mode, "memory_saving_mode", (ISMOBILE || ISPANDORA || ISWEB) ? 1 : 0);
   param_i(reserve_limit, "memory_reserve", 128);
@@ -2192,17 +2204,21 @@ EX void show3D() {
   gamescreen();
   dialog::init(XLAT("3D configuration"));
 
-  if(GDIM == 2) {
-    dialog::addBoolItem(XLAT("configure TPP automatically"), pmodel == mdDisk && pconf.camera_angle, 'T');
-    dialog::add_action(geom3::switch_tpp);
-    }
-  
 #if MAXMDIM >=4
   if(WDIM == 2) {
+    if(WDIM == 2) add_edit(geom3::spatial_embedding);
     dialog::addBoolItem(XLAT("configure FPP automatically"), GDIM == 3, 'F');
     dialog::add_action(geom3::switch_fpp);
     }
 #endif
+
+  dialog::addBreak(50);
+
+  if(GDIM == 2) {
+    dialog::addBoolItem(XLAT("configure TPP automatically"), pmodel == mdDisk && pconf.camera_angle, 'T');
+    dialog::add_action(geom3::switch_tpp);
+    }
+
   dialog::addBreak(50);
 
 #if MAXMDIM >= 4
@@ -2278,7 +2294,7 @@ EX void show3D() {
       });
     }
 
-  if((WDIM == 2 && GDIM == 3) || prod)
+  if(mproduct || embedded_plane)
     dialog::addBoolItem_action(XLAT("fixed Y/Z rotation"), vid.fixed_yz, 'Z');
 
   if(WDIM == 2 && GDIM == 3) {

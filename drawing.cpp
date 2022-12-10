@@ -738,7 +738,7 @@ void dqi_poly::gldraw() {
         glStencilOp( GL_INVERT, GL_INVERT, GL_INVERT);
         glStencilFunc( GL_ALWAYS, 0x1, 0x1 );
         glhr::color2(0xFFFFFFFF);
-        glDrawArrays(tinf ? GL_TRIANGLES : GL_TRIANGLE_FAN, offset, cnt);
+        glDrawArrays(tinf ? GL_TRIANGLES : GL_TRIANGLE_FAN, ioffset, cnt);
         
         current_display->set_mask(ed);
         glhr::color2(color);
@@ -766,7 +766,7 @@ void dqi_poly::gldraw() {
         else { 
           glStencilOp( GL_ZERO, GL_ZERO, GL_ZERO);
           glStencilFunc( GL_EQUAL, 1, 1);
-          glDrawArrays(tinf ? GL_TRIANGLES : GL_TRIANGLE_FAN, offset, cnt);
+          glDrawArrays(tinf ? GL_TRIANGLES : GL_TRIANGLE_FAN, ioffset, cnt);
           }
         
         glDisable(GL_STENCIL_TEST);
@@ -1559,7 +1559,7 @@ EX namespace ods {
 
       for(int j=0; j<3; j++) {
         hyperpoint o = p->V * glhr::gltopoint((*p->tab)[p->offset+i+j]);
-        if(nonisotropic || prod) {
+        if(nonisotropic || gproduct) {
           o = lp_apply(inverse_exp(o, iTable, false));
           o[3] = 1;
           dynamicval<eGeometry> g(geometry, gEuclid);
@@ -2456,7 +2456,7 @@ EX void drawqueue() {
   #endif
 
   #if MAXMDIM >= 4 && CAP_GL
-  if(WDIM == 2 && GDIM == 3 && hyperbolic && !vrhr::rendering()) make_air();
+  if(embedded_plane && (hyperbolic || geom3::sph_in_euc()) && !vrhr::rendering()) make_air();
   #endif
   
   #if CAP_VR
