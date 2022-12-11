@@ -2,7 +2,6 @@
 mymake_files/
 *.lev
 *.bak
-*.*-bak
 hyper
 hyper.o
 hyperrogue
