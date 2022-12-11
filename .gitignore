@@ -1,1 +1,12 @@
 .deps/
+mymake_files/
+*.lev
+*.bak
+*.*-bak
+hyper
+hyper.o
+hyperrogue
+hyperrogue.ini
+hyperrogue.log
+langen
+mymake
