@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "12.1f"
-#define VERNUM_HEX 0xA926
+#define VER "12.1g"
+#define VERNUM_HEX 0xA927
 
 #include "sysconfig.h"
 
@@ -144,13 +144,13 @@ void addMessage(string s, char spamtype = 0);
 #define cgclass (cginf.cclass)
 #define euclid (cgclass == gcEuclid)
 #define sphere (cgclass == gcSphere)
-#define sol (cgflags & qSOL)
-#define nih (cgflags & qNIH)
+#define sol (among(cgclass, gcSol, gcSolN))
+#define nih (among(cgclass, gcNIH, gcSolN))
 #define nil (cgclass == gcNil)
 #define sl2 (cgclass == gcSL2)
 #define rotspace (geometry == gRotSpace)
 #define hyperbolic (cgclass == gcHyperbolic)
-#define nonisotropic (among(cgclass, gcSolNIH, gcNil, gcSL2))
+#define nonisotropic (among(cgclass, gcSol, gcSolN, gcNIH, gcSL2, gcNil))
 #define translatable (euclid || nonisotropic)
 #define nonorientable (cgflags & qNONORIENTABLE)
 #define elliptic (cgflags & qELLIPTIC)

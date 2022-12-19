@@ -711,9 +711,6 @@ void geometry_information::prepare_basics() {
   if(geometry == gHoroRec || kite::in() || sol || nil || nih) hexvdist = rhexf = .5, tessf = .5, scalefactor = .5, crossf = hcrossf7/2;
   if(bt::in()) scalefactor *= min<ld>(vid.binary_width, 1), crossf *= min<ld>(vid.binary_width, 1);
   #endif
-  #if CAP_BT && MAXMDIM >= 4
-  if(bt::in()) bt::build_tmatrix();
-  #endif
   #if MAXMDIM >= 4
   if(reg3::in()) reg3::generate();
   if(euc::in(3)) euc::generate();
@@ -771,6 +768,7 @@ void geometry_information::prepare_basics() {
     scalefactor *= exp(-vid.depth);
     }
 
+  if(geom3::euc_in_noniso()) scalefactor *= geom3::euclid_embed_scale;
   if(geom3::sph_in_euc()) scalefactor *= (1 + vid.depth);
   if(geom3::sph_in_hyp()) scalefactor *= sinh(1 + vid.depth);
 
@@ -817,6 +815,10 @@ void geometry_information::prepare_basics() {
   set_sibling_limit();
   
   geom3::light_flip(false);
+
+  #if CAP_BT && MAXMDIM >= 4
+  if(bt::in()) bt::build_tmatrix();
+  #endif
 
   prepare_compute3();
   if(hyperbolic && &currfp != &fieldpattern::fp_invalid)
@@ -1021,8 +1023,9 @@ EX namespace geom3 {
       reduce = (GDIM == 3 ? human_height * .3 : 0);
       
       int sgn = vid.wall_height > 0 ? 1 : -1;
+      ld ees = geom3::euc_in_noniso() ? geom3::euclid_embed_scale : 1;
 
-      STUFF = lev_to_factor(0) - sgn * max(orbsize * 0.3, zhexf * .6);
+      STUFF = lev_to_factor(0) - sgn * max(orbsize * ees * 0.3, zhexf * ees * .6);
       
       ABODY = lev_to_factor(human_height * .4 - reduce);
       ALEG0 = lev_to_factor(human_height * .0 - reduce);
@@ -1061,6 +1064,8 @@ EX namespace geom3 {
         if(HELLSPIKE < max_high) HELLSPIKE = max_high;
         if(sgn < 0) INFDEEP = -1;
         }
+
+      if(geom3::euc_in_hyp() && sgn < 0) INFDEEP = FLOOR - 5;
       }
     }    
 
@@ -1068,29 +1073,37 @@ EX namespace geom3 {
 
   #if HDR
   enum eSpatialEmbedding {
+    seNone,
     seDefault,
-    seFlat,
-    seInverted,
     seLowerCurvature,
-    seLowerCurvatureInverted,
     seMuchLowerCurvature,
-    seMuchLowerCurvatureInverted,
-    seProduct
+    seProduct,
+    seNil,
+    seSol, seNIH, seSolN,
+    seNIH_inv
     };
   #endif
 
   EX vector<pair<string, string>> spatial_embedding_options = {
-    {"default",         "Embed as a equidistant surface in the 3D version of the same geometry. This is the model used by HyperRogue in its 2D graphics."},
-    {"flat",            "Embed as a flat surface in the 3D version of the same geometry."},
-    {"inverted",        "Embed as a equidistant surface, but this time it is inverted."},
-    {"lower curvature", "Embed as a convex surface in a space of lower curvature."},
-    {"lower curvature inverted", "Embed as a concave surface in a space of lower curvature."},
-    {"much lower curvature", "Embed sphere as a convex sphere in hyperbolic space."},
-    {"much lower curvature inverted", "Embed sphere as a concave sphere in hyperbolic space."},
-    {"product",          "Add one extra dimension in the Euclidean way."}
+    {"2D engine",       "Use HyperRogue's 2D engine to simulate same curvature. Works well in top-down and third-person perspective."},
+    {"same curvature",  "Embed as an equidistant surface in the 3D version of the same geometry."},
+    {"lower curvature", "Embed as a surface in a space of lower curvature."},
+    {"much lower curvature", "Embed sphere as a sphere in hyperbolic space."},
+    {"product",          "Add one extra dimension in the Euclidean way."},
+    {"Nil",              "Embed into Nil. Works only with Euclidean. You need to set the variation to Pure."},
+    {"Sol",              "Embed into Sol. Works only with Euclidean. You need to set the variation to Pure."},
+    {"stretched hyperbolic",              "Embed into stretched hyperbolic geometry. Works only with Euclidean. You need to set the variation to Pure."},
+    {"stretched Sol",              "Embed into stretched Sol geometry. Works only with Euclidean. You need to set the variation to Pure."},
     };
 
-  EX eSpatialEmbedding spatial_embedding;
+  EX eSpatialEmbedding spatial_embedding = seDefault;
+  EX ld euclid_embed_scale = 1;
+  EX bool auto_configure = true;
+  EX bool flat_embedding = false;
+  EX bool inverted_embedding = false;
+
+  EX bool supports_flat() { return spatial_embedding == seDefault; }
+  EX bool supports_invert() { return among(spatial_embedding, seDefault, seLowerCurvature, seMuchLowerCurvature, seNil, seSol, seNIH, seSolN); }
 
   EX vector<geometryinfo> ginf_backup;
 
@@ -1106,12 +1119,32 @@ EX namespace geom3 {
     return ggclass() == gcHyperbolic && mgclass() == gcEuclid;
     }
 
+  EX bool euc_in_nil() {
+    return ggclass() == gcNil && mgclass() == gcEuclid;
+    }
+
+  EX bool euc_in_solnih() {
+    return among(ggclass(), gcSol, gcNIH, gcSolN) && mgclass() == gcEuclid;
+    }
+
+  EX bool hyp_in_solnih() {
+    return among(ggclass(), gcSol, gcNIH, gcSolN) && mgclass() == gcHyperbolic;
+    }
+
+  EX bool euc_in_noniso() {
+    return among(ggclass(), gcNil, gcSol, gcNIH, gcSolN) && mgclass() == gcEuclid;
+    }
+
   EX bool sph_in_euc() {
     return ggclass() == gcEuclid && mgclass() == gcSphere;
     }
 
   EX bool sph_in_hyp() {
     return ggclass() == gcHyperbolic && mgclass() == gcSphere;
+    }
+
+  EX bool sph_in_low() {
+    return mgclass() == gcSphere && among(ggclass(), gcHyperbolic, gcEuclid);
     }
 
   EX bool in_product() {
@@ -1139,6 +1172,12 @@ EX namespace geom3 {
     return f();
     }
 
+  template<class T> auto in_not_flipped(const T& f) -> decltype(f()) {
+    light_flip(false);
+    finalizer ff([] { light_flip(true); });
+    return f();
+    }
+
   #define IPF(x) geom3::in_flipped([&] { return (x); })
   #endif
 
@@ -1163,14 +1202,38 @@ EX namespace geom3 {
             g.sig[2] = g.sig[3];
             }
 
-          if(among(spatial_embedding, seLowerCurvature, seLowerCurvatureInverted)) {
+          if(spatial_embedding == seLowerCurvature) {
             if(g.kind == gcEuclid) g = ginf[gSpace534].g;
             if(g.kind == gcSphere) g = ginf[gCubeTiling].g;
             g.gameplay_dimension = 2;
             }
 
-          if(among(spatial_embedding, seMuchLowerCurvature, seMuchLowerCurvatureInverted)) {
+          if(spatial_embedding == seMuchLowerCurvature) {
             g = ginf[gSpace534].g;
+            g.gameplay_dimension = 2;
+            }
+
+          bool ieuclid = g.kind == gcEuclid;
+
+          if(spatial_embedding == seNil && ieuclid) {
+            g = ginf[gNil].g;
+            g.gameplay_dimension = 2;
+            }
+
+          bool ieuc_or_binary = ieuclid || (gi.flags & qBINARY);
+
+          if(spatial_embedding == seSol && ieuc_or_binary) {
+            g = ginf[gSol].g;
+            g.gameplay_dimension = 2;
+            }
+
+          if(spatial_embedding == seNIH && ieuc_or_binary) {
+            g = ginf[gNIH].g;
+            g.gameplay_dimension = 2;
+            }
+
+          if(spatial_embedding == seSolN && ieuc_or_binary) {
+            g = ginf[gSolN].g;
             g.gameplay_dimension = 2;
             }
           }
@@ -1236,38 +1299,38 @@ EX void switch_always3() {
         }
       vid.camera = 0;
       vid.eye = 0;
-      if(sph_in_euc() || sph_in_hyp()) {
+      if(sph_in_low()) {
         vid.depth = 0;
         vid.wall_height = -1;
-        vid.eye = 0.5;
-        if(among(spatial_embedding, seLowerCurvatureInverted, seMuchLowerCurvatureInverted)) {
+        vid.eye = -0.5;
+        if(inverted_embedding) {
           vid.wall_height = 1.4;
-          vid.eye = -0.2;
+          vid.eye = 0.2;
           vid.depth = 0.5;
           }
         }
-      if(spatial_embedding == seFlat) {
-        vid.eye -= vid.depth / 2;
+      if(spatial_embedding == seDefault && flat_embedding) {
+        vid.eye += vid.depth / 2;
         vid.depth = 0;
         }
-      if(spatial_embedding == seInverted) {
-        vid.eye -= vid.depth * 1.5;
+      if(spatial_embedding == seDefault && !flat_embedding && inverted_embedding) {
+        vid.eye += vid.depth * 1.5;
         vid.depth *= -1;
         }
-      if(euc_in_hyp() && spatial_embedding == seLowerCurvatureInverted) {
+      if((euc_in_hyp() || euc_in_noniso()) && inverted_embedding) {
         vid.wall_height *= -1;
-        vid.eye = 2 * vid.depth;
+        vid.eye = -2 * vid.depth;
         }
-      if(euc_in_hyp() && spatial_embedding == seMuchLowerCurvatureInverted) {
-        vid.wall_height *= -1;
-        vid.eye = 2 * vid.depth;
+      if(euc_in_hyp() && spatial_embedding == seMuchLowerCurvature) {
+        vid.eye = inverted_embedding ? -vid.depth : vid.depth;
+        vid.depth = 0;
         }
       if(msphere && spatial_embedding == seProduct) {
         vid.depth = 0;
         vid.wall_height = 2;
-        vid.eye = -2;
+        vid.eye = 2;
         }
-      if(pmodel == mdDisk) pmodel = mdPerspective;
+      if(pmodel == mdDisk) pmodel = nonisotropic ? mdGeodesic : mdPerspective;
       swapmatrix(View);
       swapmatrix(current_display->which_copy);
       callhooks(hooks_swapdim);
@@ -1279,6 +1342,24 @@ EX void switch_always3() {
 #endif
       check_cgi();
       cgi.prepare_basics();
+      if(hyperbolic && same_in_same() && spatial_embedding == seLowerCurvature) {
+        vid.eye += vid.depth;
+        vid.depth *= 2;
+        if(inverted_embedding) {
+          vid.eye = 1;
+          vid.depth *= -1;
+          vid.wall_height *= -1;
+          }
+        }
+      if(hyperbolic && same_in_same() && spatial_embedding == seMuchLowerCurvature) {
+        vid.eye += vid.depth;
+        vid.depth *= 3;
+        if(inverted_embedding) {
+          vid.eye = 2;
+          vid.depth *= -1;
+          vid.wall_height *= -1;
+          }
+        }
       }
     else {
       vid.always3 = false;
@@ -1388,6 +1469,8 @@ EX string cgi_string() {
   V("3D", ONOFF(vid.always3));
   
   if(embedded_plane) V("X:", its(geom3::ggclass()));
+
+  if(embedded_plane && meuclid) V("XS:", fts(geom3::euclid_embed_scale));
 
   if(scale_used()) V("CS", fts(vid.creature_scale));
   

@@ -69,7 +69,11 @@ EX void delete_sky() {
 void compute_skyvertices(const vector<sky_item>& sky) {
   skyvertices.clear();
   if(!draw_sky) return;
-  if(vid.wall_height < 0 && geom3::euc_in_hyp()) return; /* just looks bad */
+  if(vid.wall_height < 0 && geom3::euc_in_hyp()) return; /* just looks bad, hollow horospheres should not have sky */
+  if(vid.wall_height < 0 && meuclid && geom3::ggclass() == gcNIH) return; /* same */
+  if(among(geom3::ggclass(), gcSol, gcSolN)) return;  /* errors */
+  if(among(geom3::ggclass(), gcNil)) return;  /* errors sometimes too */
+  if(geom3::hyp_in_solnih()) return;
 
   int sk = get_skybrightness();
   
@@ -323,7 +327,7 @@ void draw_star(const shiftmatrix& V, const hpcshape& sh, color_t col, ld rev = f
 
 void celldrawer::draw_ceiling() {
 
-  if(pmodel != mdPerspective || sphere) return;
+  if(!models::is_perspective(pmodel) || sphere) return;
   
   auto add_to_sky = [this] (color_t col, color_t col2) {
     if(sky) sky->sky.emplace_back(c, V, col, col2);
@@ -516,6 +520,12 @@ void celldrawer::draw_ceiling() {
 
 EX struct renderbuffer *airbuf;
 
+EX void swap_if_missing(bool missing) {
+  if(!missing) return;
+  arb::swap_vertices();
+  irr::swap_vertices();
+  }
+
 EX void make_air() {
   if(!sky) return;
 
@@ -574,7 +584,7 @@ EX void make_air() {
     geom3::apply_always3();
     check_cgi();
     missing = !(cgi.state & 2);
-    if(missing) arb::swap_vertices();
+    swap_if_missing(missing);
     cgi.require_shapes();
     
     eGeometry orig = geometry;
@@ -623,7 +633,7 @@ EX void make_air() {
 
   GLERR("after draw");
   geom3::apply_always3();
-  if(missing) arb::swap_vertices();
+  swap_if_missing(missing);
   check_cgi();
   calcparam();
   GLERR("after make_air");

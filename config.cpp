@@ -313,7 +313,9 @@ void bool_setting::add_as_saver() {
   }
 
 void float_setting::load_from(const string& s) {
+  *value = parseld(s);
   anims::animate_parameter(*value, s, reaction);
+  if(reaction) reaction();
   }
 
 void non_editable() {
@@ -685,7 +687,7 @@ EX void initConfig() {
 
   param_i(vid.mobilecompasssize, "mobile compass size", 0); // ISMOBILE || ISPANDORA ? 30 : 0);
   param_i(vid.radarsize, "radarsize size", 120);
-  addsaver(vid.radarrange, "radarrange", 2.5);
+  param_f(vid.radarrange, "radarrange", 2.5);
   param_i(vid.axes, "movement help", 1);
   param_b(vid.axes3, "movement help3", true);
   param_i(vid.shifttarget, "shift-targetting", 2);
@@ -832,6 +834,29 @@ EX void initConfig() {
   addsaver(vid.highlightmode, "highlightmode");
 
   addsaver(vid.always3, "3D always", false);
+
+  param_f(geom3::euclid_embed_scale, "euclid_embed_scale", "euclid_embed_scale")
+  -> editable(0, 2, 0.05, "Euclidean embedding scale", "How to scale the Euclidean map, relatively to the 3D absolute unit.", 'F')
+  -> set_sets([] { dialog::bound_low(0.05); })
+  -> set_reaction([] { if(vid.always3) { geom3::switch_fpp(); geom3::switch_fpp(); } });
+
+  param_enum(embedded_shift_method_choice, "embedded_shift_method", "embedded_shift_method", smcBoth)
+  -> editable({
+    {"geodesic", "always move on geodesics"},
+    {"keep levels", "keep the vertical angle of the camera"},
+    {"mixed", "on geodesics when moving camera manually, keep level when auto-centering"}
+    }, "view shift for embedded planes", 'H');
+
+  param_b(geom3::auto_configure, "auto_configure_3d", "auto_configure_3d")
+  -> editable("set 3D settings automatically", 'A');
+
+  param_b(geom3::inverted_embedding, "inverted_3d", false)
+  -> editable("invert convex/concave", 'I')
+  -> set_reaction([] { if(vid.always3) { geom3::switch_fpp(); geom3::switch_fpp(); } });
+
+  param_b(geom3::flat_embedding, "flat_3d", false)
+  -> editable("flat, not equidistant", 'F')
+  -> set_reaction([] { if(vid.always3) { geom3::switch_fpp(); geom3::switch_fpp(); } });
 
   param_enum(geom3::spatial_embedding, "spatial_embedding", "spatial_embedding", geom3::seDefault)
   ->editable(geom3::spatial_embedding_options, "3D embedding method", 'E')
@@ -2199,6 +2224,69 @@ EX void edit_levellines(char c) {
     });
   }
 
+EX geom3::eSpatialEmbedding shown_spatial_embedding() {
+  if(GDIM == 2) return geom3::seNone;
+  return geom3::spatial_embedding;
+  }
+
+EX bool in_tpp() { return pmodel == mdDisk && pconf.camera_angle; }
+
+EX void display_embedded_errors() {
+  if(meuclid && among(geom3::spatial_embedding, geom3::seNil, geom3::seSol, geom3::seSolN, geom3::seNIH) && (!among(geometry, gEuclid, gEuclidSquare) || !PURE))
+    dialog::addInfo(XLAT("error: works only in PURE Euclidean regular square or hex tiling"), 0xC00000);
+  }
+
+EX void show_spatial_embedding() {
+  cmode = sm::SIDE | sm::MAYDARK | sm::CENTER | sm::PANNING | sm::SHOWCURSOR;
+  gamescreen();
+  dialog::init(XLAT("3D styles"));
+  auto emb = shown_spatial_embedding();
+  add_edit(geom3::auto_configure);
+
+  dialog::addBreak(100);
+
+  auto &seo = geom3::spatial_embedding_options;
+
+  for(int i=0; i<isize(seo); i++) {
+    auto se = geom3::eSpatialEmbedding(i);
+    dialog::addBoolItem(XLAT(seo[i].first), emb == i, 'a' + i);
+    dialog::add_action([se, emb] {
+      if(GDIM == 3) { if(geom3::auto_configure) geom3::switch_fpp(); else geom3::switch_always3(); }
+      if(in_tpp()) geom3::switch_tpp();
+      if(se != geom3::seNone) {
+        geom3::spatial_embedding = se;
+        if(geom3::auto_configure) geom3::switch_fpp(); else geom3::switch_always3();
+        delete_sky();
+        resetGL();
+        }
+      });
+    }
+
+  dialog::addBreak(100);
+  dialog::addHelp(XLAT(seo[emb].second));
+  display_embedded_errors();
+  dialog::addBreak(100);
+
+  if(geom3::auto_configure) {
+    if(emb == geom3::seNone) {
+      dialog::addBoolItem(XLAT("third-person perspective"), in_tpp(), 'T');
+      dialog::add_action(geom3::switch_tpp);
+      dialog::addBreak(100);
+      }
+    else {
+      if(geom3::supports_flat()) add_edit(geom3::flat_embedding);
+      else dialog::addBreak(100);
+      if(geom3::supports_invert()) add_edit(geom3::inverted_embedding);
+      else dialog::addBreak(100);
+      }
+    }
+
+  dialog::addBreak(100);
+  dialog::addBack();
+
+  dialog::display();
+  }
+
 EX void show3D() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
@@ -2206,27 +2294,14 @@ EX void show3D() {
 
 #if MAXMDIM >=4
   if(WDIM == 2) {
-    if(WDIM == 2) add_edit(geom3::spatial_embedding);
-    dialog::addBoolItem(XLAT("configure FPP automatically"), GDIM == 3, 'F');
-    dialog::add_action(geom3::switch_fpp);
+    dialog::addSelItem("3D style", geom3::spatial_embedding_options[shown_spatial_embedding()].first, 'E');
+    dialog::add_action_push(show_spatial_embedding);
+
+    display_embedded_errors();
+    dialog::addBreak(50);
     }
 #endif
 
-  dialog::addBreak(50);
-
-  if(GDIM == 2) {
-    dialog::addBoolItem(XLAT("configure TPP automatically"), pmodel == mdDisk && pconf.camera_angle, 'T');
-    dialog::add_action(geom3::switch_tpp);
-    }
-
-  dialog::addBreak(50);
-
-#if MAXMDIM >= 4
-  if(WDIM == 2) {
-    dialog::addBoolItem(XLAT("use the full 3D models"), vid.always3, 'U');
-    dialog::add_action(geom3::switch_always3);
-    }
-#endif
   if(vid.use_smart_range == 0 && GDIM == 2) {
     add_edit(vid.highdetail);
     add_edit(vid.middetail);
@@ -2234,6 +2309,8 @@ EX void show3D() {
     }
   
   if(WDIM == 2) {
+    if(geom3::euc_in_noniso()) add_edit(geom3::euclid_embed_scale);
+    add_edit(embedded_shift_method_choice);
     add_edit(vid.camera);
     if(GDIM == 3)
       add_edit(vid.eye);
@@ -2336,7 +2413,7 @@ EX void show3D() {
   
   edit_levellines('L');
   
-  if(WDIM == 3 || (GDIM == 3 && euclid)) {
+  if(WDIM == 3 || (GDIM == 3 && meuclid)) {
     dialog::addSelItem(XLAT("radar range"), fts(vid.radarrange), 'R');
     dialog::add_action([] () {
       dialog::editNumber(vid.radarrange, 0, 10, 0.5, 2, "", XLAT(""));
@@ -3043,16 +3120,26 @@ void list_setting::show_edit_option(int key) {
     dialog::init(XLAT(menu_item_name));
     dialog::addBreak(100);
     int q = isize(options);
+
+    int need_list = q > 15 ? 2 : q > 10 ? 1 : 0;
+
+    if(need_list >= 2) dialog::start_list(1500, 1500, 'a');
     for(int i=0; i<q; i++) {
-      dialog::addBoolItem(XLAT(options[i].first), get_value() == i, 'a'+i);
-      dialog::add_action([this, i] { set_value(i); if(reaction) reaction(); popScreen(); });
-      dialog::addBreak(100);
-      if(options[i].second != "") {
+      dialog::addBoolItem(XLAT(options[i].first), get_value() == i, need_list >= 2 ? dialog::list_fake_key++ : 'a' + i);
+      dialog::add_action([this, i, need_list] { set_value(i); if(reaction) reaction(); if(need_list == 0) popScreen(); });
+      if(need_list == 0 && options[i].second != "") {
+        dialog::addBreak(100);
         dialog::addHelp(XLAT(options[i].second));
         dialog::addBreak(100);
         }
       }
+    if(need_list >= 2) dialog::end_list();
     dialog::addBreak(100);
+
+    if(need_list >= 1 && options[get_value()].second != "") {
+      dialog::addHelp(XLAT(options[get_value()].second));
+      dialog::addBreak(100);
+      }
     dialog::addBack();
     dialog::display();
     });

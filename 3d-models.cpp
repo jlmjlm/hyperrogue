@@ -492,7 +492,7 @@ void geometry_information::make_skeletal(hpcshape& sh, ld push) {
 
 hyperpoint yzspin(ld alpha, hyperpoint h) {
   if(gproduct) return product::direct_exp(cspin(1, 2, alpha) * product::inverse_exp(h));
-  else if(embedded_plane && msphere && !sphere) {
+  else if(embedded_plane && geom3::sph_in_low()) {
     h = gpushxto0(tile_center()) * h;
     h = cspin(1, 2, alpha) * h;
     h = rgpushxto0(tile_center()) * h;
@@ -629,9 +629,12 @@ void geometry_information::animate_bird(hpcshape& orig, hpcshape_animated& anima
 
 void geometry_information::slimetriangle(hyperpoint a, hyperpoint b, hyperpoint c, ld rad, int lev) {
   dynamicval<int> d(vid.texture_step, 8);
+  ld sca = 1;
+  if(mhybrid) sca = .5;
+  if(geom3::euc_in_noniso()) sca *= .3;
   texture_order([&] (ld x, ld y) {
     ld z = 1-x-y;
-    ld r = scalefactor * hcrossf7 * (0 + pow(max(x,max(y,z)), .3) * 0.8) * (mhybrid ? .5 : 1);
+    ld r = scalefactor * hcrossf7 * (0 + pow(max(x,max(y,z)), .3) * 0.8) * sca;
     hyperpoint h = direct_exp(tangent_length(a*x+b*y+c*z, r));
     hpcpush(h);
     });  
@@ -1138,10 +1141,10 @@ void geometry_information::make_3d_models() {
   hyperpoint atip = xtangent(-1);
   ld z = 63.43 * degree;
   for(int i=0; i<5; i++) {
-    auto a = cspin(1, 2, (72 * i   ) * degree) * spin(z) * xtangent(1);
-    auto b = cspin(1, 2, (72 * i-72) * degree) * spin(z) * xtangent(1);
-    auto c = cspin(1, 2, (72 * i+36) * degree) * spin(M_PI-z) * xtangent(1);
-    auto d = cspin(1, 2, (72 * i-36) * degree) * spin(M_PI-z) * xtangent(1);
+    auto a = cspin(1, 2, (72 * i   ) * degree) * cspin(0, 1, z) * xtangent(1);
+    auto b = cspin(1, 2, (72 * i-72) * degree) * cspin(0, 1, z) * xtangent(1);
+    auto c = cspin(1, 2, (72 * i+36) * degree) * cspin(0, 1, M_PI-z) * xtangent(1);
+    auto d = cspin(1, 2, (72 * i-36) * degree) * cspin(0, 1, M_PI-z) * xtangent(1);
     slimetriangle(tip, a, b, 1, 0);
     slimetriangle(a, b, c, 1, 0);
     slimetriangle(b, c, d, 1, 0);

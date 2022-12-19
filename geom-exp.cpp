@@ -507,34 +507,27 @@ EX void showQuotientConfig3() {
   }
 #endif
 
-EX string geometry_name() {
-  switch(ginf[geometry].cclass) {
+EX string geometry_name(eGeometryClass gc) {
+  switch(gc) {
     case gcHyperbolic:
-      return XLAT("hyperbolic") + dim_name();
+      return XLAT("hyperbolic");
 
     case gcEuclid: 
       if(cgflags & qAFFINE)
-        return XLAT("affine") + dim_name();
-      return XLAT("flat") + dim_name();
+        return XLAT("affine");
+      return XLAT("flat");
     
     case gcSphere:
-      return XLAT("spherical") + dim_name();
+      return XLAT("spherical");
 
-    case gcSolNIH:
-#if CAP_SOLV
-      switch(sn::geom()) {
-        case gSol:
-          return XLAT("Sol");
-        case gNIH:
-          return XLAT("hyperbolic (3:2)");
-        case gSolN:
-          return XLAT("Sol (3:2)");
-        default:
-          return "unknown";
-        }
-#else
+    case gcSol:
       return XLAT("Sol");
-#endif
+
+    case gcNIH:
+      return XLAT("hyperbolic (3:2)");
+
+    case gcSolN:
+      return XLAT("Sol (3:2)");
 
     case gcNil:
       return XLAT("Nil");
@@ -547,6 +540,19 @@ EX string geometry_name() {
     }
   return "?";
   }
+
+EX string geometry_name() {
+  if(embedded_plane && geom3::same_in_same())
+    return geometry_name(geom3::mgclass());
+  else if(embedded_plane && gproduct)
+    return geometry_name(geom3::mgclass()) + " (x E)";
+  else if(embedded_plane)
+    return geometry_name(geom3::mgclass()) + " @ " + geometry_name(geom3::ggclass());
+  else if(among(ginf[geometry].cclass, gcHyperbolic, gcEuclid, gcSphere))
+    return geometry_name(ginf[geometry].cclass) + dim_name();
+  else
+    return geometry_name(ginf[geometry].cclass);
+  };
 
 EX void select_quotient_screen() {
   cmode = sm::SIDE | sm::MAYDARK;
@@ -761,9 +767,9 @@ EX geometry_data compute_geometry_data() {
   gd.area = PURE ? 1 : 3;
 
   gd.euler = 0;
-  if(euclid) gd.euler = 0;
-  else if(sphere && nonorientable) gd.euler = 1;
-  else if(sphere) gd.euler = 2;
+  if(meuclid) gd.euler = 0;
+  else if(msphere && nonorientable) gd.euler = 1;
+  else if(msphere) gd.euler = 2;
   else if(!closed_manifold) gd.euler = -2;
   else if(WDIM == 3) gd.euler = 0;
   else switch(geometry) {
@@ -1102,8 +1108,14 @@ EX void showEuclideanMenu() {
     dialog::add_action_push(show3D);
     }
   menuitem_projection('1');
-  if(nonisotropic && !sl2)
-    dialog::addBoolItem_action(XLAT("geodesic movement in Sol/Nil"), nisot::geodesic_movement, 'G');
+  if(nonisotropic && !sl2 && !embedded_plane) {
+    dialog::addBoolItem(XLAT("geodesic movement in Sol/Nil"), nisot::geodesic_movement, 'G');
+    dialog::add_action([] {
+      nisot::geodesic_movement = !nisot::geodesic_movement;
+      if(pmodel == mdLiePerspective && nisot::geodesic_movement) pmodel = mdGeodesic;
+      if(pmodel == mdGeodesic && !nisot::geodesic_movement) pmodel = mdLiePerspective;
+      });
+    }
   #if CAP_CRYSTAL && MAXMDIM >= 4
   crystal::add_crystal_transform('x');  
   #endif

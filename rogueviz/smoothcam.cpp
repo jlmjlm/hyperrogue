@@ -379,7 +379,7 @@ void show() {
     view_trace = !view_trace;
     if(view_trace) generate_trace();
     });
-  dialog::addBoolItem_action("side display", side, 'M');
+  dialog::addBoolItem_action("side display", side, 'm');
 
   dialog::addItem("test the animation", 't');
   dialog::add_action([] {
@@ -407,8 +407,10 @@ void show() {
     last_time = HUGE_VAL;
     });
   
-  if(GDIM == 2) dialog::addItem("centering", 'X');
-  dialog::add_action_push(snap_to_center);
+  if(GDIM == 2) {
+    dialog::addItem("centering", 'z');
+    dialog::add_action_push(snap_to_center);
+    }
     
   dialog::addHelp();
   dialog::add_action([] { gotoHelp(smooth_camera_help); });
@@ -423,7 +425,7 @@ void show() {
   }
 
 void prepare_for_interpolation(hyperpoint& h) {
-  if(prod) {
+  if(gproduct) {
     h[3] = zlevel(h);
     ld t = exp(h[3]);
     h[0] /= t;
@@ -433,7 +435,7 @@ void prepare_for_interpolation(hyperpoint& h) {
   }
 
 void after_interpolation(hyperpoint& h) {
-  if(prod) {
+  if(gproduct) {
     ld v = exp(h[3]) / sqrt(abs(intval(h, Hypc)));
     h[0] *= v;
     h[1] *= v;

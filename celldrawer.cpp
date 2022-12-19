@@ -669,7 +669,7 @@ int celldrawer::getSnakelevColor(int i, int last) {
 void celldrawer::draw_wallshadow() {
   if(!noshadow) {
     dynamicval<color_t> p(poly_outline, OUTLINE_TRANS);
-    draw_shapevec(c, V, qfi.fshape->shadow, SHADOW_WALL, PPR::WALLSHADOW);
+    draw_shapevec(c, V, qfi.fshape->shadow, SHADOW_WALL, GDIM == 3 ? PPR::TRANSPARENT_SHADOW : PPR::WALLSHADOW);
     }
   }
 
@@ -905,20 +905,28 @@ void celldrawer::draw_grid() {
     }
   #endif
   #if CAP_BT
-  else if(bt::in() && WDIM == 2 && geometry != gTernary) {
-    ld yx = log(2) / 2;
-    ld yy = yx;
-    ld xx = 1 / sqrt(2)/2;
-    queueline(V * bt::get_horopoint(-yy, xx), V * bt::get_horopoint(yy, 2*xx), gridcolor(c, c->move(bt::bd_right)), prec);
-    auto horizontal = [&] (ld y, ld x1, ld x2, int steps, int dir) {
-      if(vid.linequality > 0) steps <<= vid.linequality;
-      if(vid.linequality < 0) steps >>= -vid.linequality;
-      for(int i=0; i<=steps; i++) curvepoint(bt::get_horopoint(y, x1 + (x2-x1) * i / steps));
-      queuecurve(V, gridcolor(c, c->move(dir)), 0, PPR::LINE);
-      };
-    horizontal(yy, 2*xx, xx, 4, bt::bd_up_right);
-    horizontal(yy, xx, -xx, 8, bt::bd_up);
-    horizontal(yy, -xx, -2*xx, 4, bt::bd_up_left);
+  else if(bt::in() && WDIM == 2) {
+    for(int t=0; t<c->type; t++) {
+      if(!c->move(t)|| c->move(t) < c) continue;
+      auto h0 = bt::get_corner_horo_coordinates(c, t);
+      auto h1 = bt::get_corner_horo_coordinates(c, t+1);
+      int steps = 12 * abs(h0[1] - h1[1]);
+      if(!steps) {
+        gridline(V, bt::get_horopoint(h0), bt::get_horopoint(h1), gridcolor(c, c->move(t)), prec);
+        }
+      else {
+        if(vid.linequality > 0) steps <<= vid.linequality;
+        if(vid.linequality < 0) steps >>= -vid.linequality;
+        auto step = (h1 - h0) / steps;
+        if(GDIM == 3) {
+          for(int i=0; i<=steps; i++) gridline(V, bt::get_horopoint(h0 + i * step), V, bt::get_horopoint(h0 + (i+1) * step), gridcolor(c, c->move(t)), prec-2);
+          }
+        else {
+          for(int i=0; i<=steps; i++) curvepoint(bt::get_horopoint(h0 + i * step));
+          queuecurve(V, gridcolor(c, c->move(t)), 0, PPR::LINE);
+          }
+        }
+      }
     }
   #endif
   else if(isWarped(c) && has_nice_dual()) {
@@ -1379,7 +1387,7 @@ void celldrawer::draw_features() {
       if(detaillevel >= 2)
         queuepolyat(at_smart_lof(V, zgrad0(0, cgi.slev, 1, 2)), cgi.shHeptaMarker, darkena(wcol, 0, 0xFF), PPR::REDWALL);
       if(detaillevel >= 1)
-        queuepolyat(at_smart_lof(V, cgi.SLEV[1]) * pispin, cgi.shWeakBranch, darkena(wcol, 0, 0xFF), PPR::REDWALL+1);
+        queuepolyat(at_smart_lof(V, cgi.SLEV[1]) * lpispin(), cgi.shWeakBranch, darkena(wcol, 0, 0xFF), PPR::REDWALL+1);
       if(detaillevel >= 2)
         queuepolyat(at_smart_lof(V, zgrad0(0, cgi.slev, 3, 2)), cgi.shHeptaMarker, darkena(wcol, 0, 0xFF), PPR::REDWALL+2);
       queuepolyat(at_smart_lof(V, cgi.SLEV[2]), cgi.shSolidBranch, darkena(wcol, 0, 0xFF), PPR::REDWALL+3);
@@ -1389,7 +1397,7 @@ void celldrawer::draw_features() {
       if(detaillevel >= 2)
         queuepolyat(at_smart_lof(V, zgrad0(0, cgi.slev, 1, 2)), cgi.shHeptaMarker, darkena(wcol, 0, 0xFF), PPR::REDWALL);
       if(detaillevel >= 1)
-        queuepolyat(at_smart_lof(V, cgi.SLEV[1]) * pispin, cgi.shWeakBranch, darkena(wcol, 0, 0xFF), PPR::REDWALL+1);
+        queuepolyat(at_smart_lof(V, cgi.SLEV[1]) * lpispin(), cgi.shWeakBranch, darkena(wcol, 0, 0xFF), PPR::REDWALL+1);
       if(detaillevel >= 2)
         queuepolyat(at_smart_lof(V, zgrad0(0, cgi.slev, 3, 2)), cgi.shHeptaMarker, darkena(wcol, 0, 0xFF), PPR::REDWALL+2);
       queuepolyat(at_smart_lof(V, cgi.SLEV[2]), cgi.shWeakBranch, darkena(wcol, 0, 0xFF), PPR::REDWALL+3);
@@ -2385,8 +2393,13 @@ void celldrawer::draw_wall_full() {
       if(sha & 4) {
         bool dbot = true;
         forCellIdEx(c2, i, c) if(chasmgraph(c2) == 2) {
-          if(dbot) dbot = false,
-            draw_qfi(c, orthogonal_move_fol(V, cgi.BOTTOM), 0x080808FF, PPR::LAKEBOTTOM);
+          if(dbot) {
+            dbot = false;
+            if(GDIM == 2)
+              draw_qfi(c, orthogonal_move_fol(V, cgi.BOTTOM), 0x080808FF, PPR::LAKEBOTTOM);
+            else
+              draw_shapevec(c, V, qfi.fshape->levels[SIDE_BTOI], 0x0F0808FF, PPR::LAKEBOTTOM);
+            }
           if(placeSidewall(c, i, SIDE_BTOI, V, D(.6))) break;
           }
 #undef D

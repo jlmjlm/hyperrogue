@@ -99,7 +99,7 @@ EX movedir vectodir(hyperpoint P) {
   for(int i=0; i<cwt.at->type; i++) {
     transmatrix T = currentmap->adj(cwt.at, (cwt + i).spin);
     ld d1 = geo_dist(U * T * TC0, Centered * P);
-    ld d2 = geo_dist(U * T * TC0, Centered * TC0);
+    ld d2 = geo_dist(U * T * TC0, Centered * C0);
     dirdist[i] = d1 - d2;
     }
     
@@ -123,7 +123,7 @@ EX void remission() {
  }
 
 EX hyperpoint move_destination_vec(int d) {
-  if(WDIM == 2) return spin(-d * 45._deg) * smalltangent();
+  if(WDIM == 2 && (!embedded_plane || geom3::same_in_same())) return spin(-d * 45._deg) * smalltangent();
   else if(d&1) return cspin(0, 1, d > 4 ? 45._deg : -45._deg) * smalltangent();
   else return cspin(0, 2, d * 45._deg) * smalltangent();
   }

@@ -81,6 +81,8 @@ transmatrix hrmap_standard::master_relative(cell *c, bool get_inverse) {
     }
   else if(WDIM == 3)
     return Id;
+  else if(dont_inverse())
+    return Id;
   else
     return pispin * Id;
   }
@@ -248,7 +250,7 @@ horo_distance::horo_distance(shiftpoint h1, const shiftmatrix& T) {
 #endif
   if(sn::in() || mhybrid || nil) become(inverse_shift(T, h1));
   else
-    a = 0, b = intval(h1.h, unshift(tC0(T), h1.shift));
+    a = 0, b = intval(h1.h, unshift(T * tile_center(), h1.shift));
   }
 
 bool horo_distance::operator < (const horo_distance z) const {
@@ -310,7 +312,7 @@ void virtualRebase_cell(cell*& base, T& at, const U& check) {
 template<class T, class U> 
 void virtualRebase(cell*& base, T& at, const U& check) {
 
-  if(nil) {
+  if(nil && WDIM == 3) {
     hyperpoint h = check(at);
     auto step = [&] (int i) {
       at = currentmap->adj(base, (i+S7/2) % S7) * at;
@@ -440,6 +442,8 @@ EX bool no_easy_spin() {
   return NONSTDVAR || arcm::in() || WDIM == 3 || bt::in() || kite::in();
   }
 
+EX bool dont_inverse() { return geometry == 1 && PURE && geom3::euc_in_noniso(); }
+
 ld hrmap_standard::spin_angle(cell *c, int d) {
   if(WDIM == 3) return SPIN_NOT_AVAILABLE;
   ld hexshift = 0;
@@ -454,6 +458,7 @@ ld hrmap_standard::spin_angle(cell *c, int d) {
     return -atan2(p[1], p[0]) - hexshift;
     }
   #endif
+  if(dont_inverse()) return - d * TAU / c->type;
   return M_PI - d * TAU / c->type - hexshift;
   }
 
@@ -462,7 +467,10 @@ EX transmatrix iddspin(cell *c, int d, ld bonus IS(0)) { return currentmap->spin
 EX ld cellgfxdist(cell *c, int d) { return currentmap->spacedist(c, d); }
 
 EX transmatrix ddspin_side(cell *c, int d, ld bonus IS(0)) { 
+  if(geom3::euc_in_noniso() || geom3::hyp_in_solnih())
+    return spin(bonus);
   if(kite::in()) {
+    if(embedded_plane) return spin(bonus);
     hyperpoint h1 = get_corner_position(c, gmod(d, c->type), 3);
     hyperpoint h2 = get_corner_position(c, gmod(d+1, c->type) , 3);
     hyperpoint hm = mid(h1, h2);
@@ -472,7 +480,10 @@ EX transmatrix ddspin_side(cell *c, int d, ld bonus IS(0)) {
   }
 
 EX transmatrix iddspin_side(cell *c, int d, ld bonus IS(0)) {
+  if(geom3::euc_in_noniso() || geom3::hyp_in_solnih())
+    return spin(bonus);
   if(kite::in()) {
+    if(embedded_plane) return spin(bonus);
     hyperpoint h1 = get_corner_position(c, gmod(d, c->type), 3);
     hyperpoint h2 = get_corner_position(c, gmod(d+1, c->type) , 3);
     hyperpoint hm = mid(h1, h2);
@@ -574,6 +585,9 @@ hyperpoint hrmap_standard::get_corner(cell *c, int cid, ld cf) {
     }
   #endif
   if(PURE) {
+    if(geom3::euc_in_nil()) {
+      return lspinpush0(spin_angle(c, cid) + M_PI/S7, cgi.hcrossf * 3 / cf);
+      }
     return ddspin(c,cid,M_PI/S7) * lxpush0(cgi.hcrossf * 3 / cf);
     }
   if(BITRUNCATED) {
@@ -631,10 +645,10 @@ EX hyperpoint nearcorner(cell *c, int i) {
     ld yx = log(2) / 2;
     ld yy = yx;
     hyperpoint neis[5];
-    neis[0] = bt::get_horopoint(2*yy, -0.5);
-    neis[1] = bt::get_horopoint(2*yy, +0.5);
+    neis[0] = bt::get_horopoint(2*yy, -0.25);
+    neis[1] = bt::get_horopoint(2*yy, +0.25);
     neis[2] = bt::get_horopoint(0, 1);
-    neis[3] = bt::get_horopoint(-2*yy, c->master->zebraval ? -0.25 : +0.25);
+    neis[3] = bt::get_horopoint(-2*yy, c->master->zebraval ? -0.5 : +0.5);
     neis[4] = bt::get_horopoint(0, -1);
     return neis[i];
     }
@@ -642,11 +656,11 @@ EX hyperpoint nearcorner(cell *c, int i) {
     ld yx = log(3) / 2;
     ld yy = yx;
     hyperpoint neis[6];
-    neis[0] = bt::get_horopoint(2*yy, -1);
+    neis[0] = bt::get_horopoint(2*yy, -1/3.);
     neis[1] = bt::get_horopoint(2*yy, +0);
-    neis[2] = bt::get_horopoint(2*yy, +1);
+    neis[2] = bt::get_horopoint(2*yy, +1/3.);
     neis[3] = bt::get_horopoint(0, 1);
-    neis[4] = bt::get_horopoint(-2*yy, c->master->zebraval / 3.);
+    neis[4] = bt::get_horopoint(-2*yy, c->master->zebraval);
     neis[5] = bt::get_horopoint(0, -1);
     return neis[i];
     }
@@ -666,13 +680,13 @@ EX hyperpoint nearcorner(cell *c, int i) {
     // ld xx = 1 / sqrt(2)/2;
     hyperpoint neis[7];
     neis[0] = bt::get_horopoint(0, 1);
-    neis[1] = bt::get_horopoint(yy*2, 1);
+    neis[1] = bt::get_horopoint(yy*2, 0.5);
     neis[2] = bt::get_horopoint(yy*2, 0);
-    neis[3] = bt::get_horopoint(yy*2, -1);
+    neis[3] = bt::get_horopoint(yy*2, -0.5);
     neis[4] = bt::get_horopoint(0, -1);
     if(c->type == 7)
-      neis[5] = bt::get_horopoint(-yy*2, -.5),
-      neis[6] = bt::get_horopoint(-yy*2, +.5);
+      neis[5] = bt::get_horopoint(-yy*2, -1),
+      neis[6] = bt::get_horopoint(-yy*2, +1);
     else
       neis[5] = bt::get_horopoint(-yy*2, 0);
     return neis[i];
