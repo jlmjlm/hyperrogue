@@ -350,7 +350,8 @@ EX transmatrix lpispin() {
   }
 
 EX const transmatrix& lmirror() {
-  if(geom3::euc_in_nil()) return MirrorZ;
+  if(geom3::euc_in_product()) return Id;
+  if(geom3::euc_vertical()) return MirrorZ;
   if(geom3::hyp_in_solnih()) return MirrorZ;
   return Mirror;
   }
@@ -691,7 +692,7 @@ transmatrix otherbodyparts(const shiftmatrix& V, color_t col, eMonster who, doub
 
   shiftmatrix Tright, Tleft;
   
-  if(GDIM == 2 || mhybrid) {
+  if(GDIM == 2 || mhybrid || geom3::euc_in_product()) {
     Tright = VFOOT * xpush(rightfoot);
     Tleft = VFOOT * lmirror() * xpush(-rightfoot);
     }
@@ -773,7 +774,8 @@ EX shiftmatrix face_the_player(const shiftmatrix V) {
   if(mproduct) return orthogonal_move(V, cos(ptick(750)) * cgi.plevel / 16);
   if(mhybrid) return V * zpush(cos(ptick(750)) * cgi.plevel / 16);
   transmatrix dummy; /* used only in prod anyways */
-  if(geom3::euc_in_nil()) return V;
+  if(geom3::euc_vertical()) return V;
+  if(geom3::euc_in_sph()) return V;
   if(nonisotropic && !embedded_plane) return shiftless(spin_towards(unshift(V), dummy, C0, 2, 0));
   #if CAP_VR
   if(vrhr::enabled) {
@@ -2615,56 +2617,36 @@ EX bool applyAnimation(cell *c, shiftmatrix& V, double& footphase, int layer) {
   ld aspd = td / 1000.0 * exp(vid.mspeed);
   ld R;
   again:
-  
-  if(sl2) {
-    a.wherenow = slr::translate(tC0(a.wherenow));
-    hyperpoint h = tC0(iso_inverse(a.wherenow));
-    hyperpoint ie = slr::get_inverse_exp(shiftless(h));
-    auto R = hypot_d(3, ie);
-    aspd *= (1+R+(shmup::on?1:0));
-    if(R < aspd || std::isnan(R) || std::isnan(aspd) || R > 10) {
-      animations[layer].erase(c);
-      return false;
-      }
-    a.wherenow = nisot::parallel_transport(a.wherenow, tangent_length(h, aspd));
-    a.footphase += a.attacking == 2 ? -aspd : aspd;
-    // todo attack animation, rotate correctly
-    footphase = a.footphase;
-    V = V * a.wherenow;
-    a.ltick = ticks;
-    return true;
-    }
+  auto TC0 = tile_center();
 
   if(among(a.attacking, 1, 3))
-    R = hdist(tC0(a.attackat), tC0(a.wherenow));
+    R = hdist(a.attackat * TC0, a.wherenow * TC0);
   else
-    R = hdist0(tC0(a.wherenow));
+    R = hdist(a.wherenow * TC0, TC0);
   aspd *= (1+R+(shmup::on?1:0));
 
   if(a.attacking == 3 && aspd > R) aspd = R;
-  
+
   if((R < aspd || std::isnan(R) || std::isnan(aspd) || R > 10) && a.attacking != 3) {
     if(a.attacking == 1) { a.attacking = 2; goto again; }
     animations[layer].erase(c);
     return false;
     }
   else {
+    transmatrix T = inverse(a.wherenow);
+    if(moved_center()) T = lzpush(-1) * T;
+
     hyperpoint wnow;
     if(a.attacking == 1 || a.attacking == 3)
-      wnow = tC0(z_inverse(a.wherenow) * a.attackat);
+      wnow = T * a.attackat * TC0;
     else
-      wnow = tC0(z_inverse(a.wherenow));
+      wnow = T * TC0;
     
-    if(gproduct) {
-      auto d = product_decompose(wnow);
-      ld dist = d.first / R * aspd;
-      if(abs(dist) > abs(d.first)) dist = -d.first;
-      a.wherenow = orthogonal_move(a.wherenow, dist);
-      /* signed_sqrt to prevent precision errors */
-      aspd *= signed_sqrt(R*R - d.first * d.first) / R;
-      }
-    a.wherenow = a.wherenow * rspintox(wnow);
-    a.wherenow = a.wherenow * xpush(aspd);
+    shift_v_towards(T, shiftless(wnow), aspd, shift_method(smaAnimation));
+    if(moved_center()) T = lzpush(1) * T;
+    a.wherenow = inverse(T);
+    fixmatrix(a.wherenow);
+
     if(cgflags & qAFFINE) {
       transmatrix T = a.wherenow;
       fixmatrix_euclid(T);
@@ -2673,15 +2655,15 @@ EX bool applyAnimation(cell *c, shiftmatrix& V, double& footphase, int layer) {
         a.wherenow[i] = lerp(a.wherenow[i], Id[i], aspd / R);
       a.wherenow = T * a.wherenow;
       }
-    fixmatrix(a.wherenow);
+
     a.footphase += a.attacking == 2 ? -aspd : aspd;
     if(a.attacking == 3 && aspd >= R) {
       a.footphase = 0;
       hyperpoint h1 = a.wherenow * C0;
-      a.wherenow = rgpushxto0(h1) * rspintox(h1);
+      a.wherenow = rgpushxto0(h1) * lrspintox(h1);
       }
     footphase = a.footphase;
-    V = V * a.wherenow;
+    V = V * a.wherenow * lrspintox(wnow);
     if(a.mirrored) V = V * lmirror();
     if(a.attacking == 2) V = V * lpispin();
     a.ltick = ticks;
@@ -3145,7 +3127,8 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
     
     if(!nospins) {
       shiftmatrix& where = (c->monst == moMirrorSpirit && inmirrorcount) ? ocwtV : cwtV;
-      if(WDIM == 2 || mproduct) {
+      if(geom3::euc_in_product()) { }
+      else if(WDIM == 2 || mproduct) {
         hyperpoint V0 = inverse_shift(Vs, where * tile_center());
         ld z = 0;
         if(gproduct) {
@@ -3818,7 +3801,7 @@ EX void pushdown(cell *c, int& q, const shiftmatrix &V, double down, bool rezoom
       auto pp = dynamic_cast<dqi_poly*> (&*ptds[q++]);
       if(!pp) continue;
       auto& ptd = *pp;
-      ptd.V = ptd.V * zpush(+down);
+      ptd.V = ptd.V * lzpush(+down);
       }
     return;
     }
@@ -4093,7 +4076,7 @@ void make_clipping_planes() {
     sx /= hypot_d(3, sx);
     sx[3] = 0;
     sx = T * sx;
-    if(nisot::local_perspective_used()) sx = ortho_inverse(nlp) * sx;
+    if(nisot::local_perspective_used) sx = ortho_inverse(nlp) * sx;
     clipping_plane_sets.back().push_back(sx);
     };
 
@@ -5059,6 +5042,8 @@ EX ld wall_radar(cell *c, transmatrix T, transmatrix LPe, ld max) {
 EX bool nonisotropic_weird_transforms;
 
 EX void make_actual_view() {
+  nisot::local_perspective_used = gproduct;
+  if(!nisot::local_perspective_used) NLP = Id;
   sphereflip = Id;
   sphere_flipped = flip_sphere();
   if(sphere_flipped) sphereflip[LDIM][LDIM] = -1;
@@ -5073,36 +5058,35 @@ EX void make_actual_view() {
       actual_view_transform = get_shift_view_of(ztangent(d), actual_view_transform * View) * view_inverse(View); 
       }
     hyperpoint h = tC0(view_inverse(actual_view_transform * View));
-
-    if(geom3::euc_in_nil()) camera_level = h[1];
-    else if(geom3::euc_in_solnih()) camera_level = h[2];
-    else if(geom3::hyp_in_solnih()) camera_level = h[0];
-    else if(gproduct) camera_level = log(h[2]);
-    else camera_level = asin_auto(h[2]);
-    if(moved_center()) camera_level--;
+    
+    camera_level = get_logical_z(h);
 
     camera_sign = cgi.FLOOR > cgi.WALL;
     }
-  if(nonisotropic && !nonisotropic_weird_transforms) {
+  if((nonisotropic || (hyperbolic && bt::in() && !nisot::geodesic_movement)) && !nonisotropic_weird_transforms) {
     transmatrix T = actual_view_transform * View;
     transmatrix T2 = eupush( tC0(view_inverse(T)) );
     NLP = T * T2;
     actual_view_transform = ortho_inverse(NLP) * actual_view_transform;
+    nisot::local_perspective_used = true;
     }
   #endif
   #if MAXMDIM >= 4
   if(embedded_plane) {
-    if(nonisotropic) {
+    if(geom3::euc_in_sl2()) {
+      current_display->radar_transform = inverse(actual_view_transform * View);
+      }
+    else if(nonisotropic) {
       transmatrix T = actual_view_transform * View;
       ld z = -tC0(view_inverse(T)) [2];
       transmatrix R = actual_view_transform;
-      R = (logical_to_actual()) * R;
+      R = cgi.logical_scaled_to_intemediate * R;
       if(R[1][2] || R[2][2])
         R = cspin(1, 2, -atan2(R[1][2], R[2][2])) * R;
       if(R[0][2] || R[2][2])
         R = cspin(0, 2, -atan2(R[0][2], R[2][2])) * R;
       if(geom3::hyp_in_solnih()) R = Id;
-      R = inverse(logical_to_actual()) * R;
+      R = cgi.intermediate_to_logical_scaled * R;
       current_display->radar_transform = inverse(R) * zpush(-z);
       }
     else if(gproduct) {
@@ -5116,6 +5100,9 @@ EX void make_actual_view() {
         R = cspin(0, 2, -atan2(R[0][2], R[2][2])) * R;
 
       current_display->radar_transform = R * zpush(z);
+      }
+    else if(geom3::euc_in_sph()) {
+      current_display->radar_transform = inverse(View);
       }
     else {
       transmatrix T = actual_view_transform * View;
@@ -6054,8 +6041,8 @@ EX void animateAttackOrHug(const movei& m, int layer, int phase, ld ratio, ld de
   bool newanim = !animations[layer].count(m.s);
   animation& a = animations[layer][m.s];
   a.attacking = phase;
-  if(phase == 3) println(hlog, "distance = ", hdist0(T * C0));
-  a.attackat = lrspintox(tC0(iso_inverse(T))) * lxpush(hdist0(T*C0) * ratio + delta);
+  auto TC0 = tile_center();
+  a.attackat = lrspintox(iso_inverse(T) * TC0) * lxpush(hdist(TC0, T*TC0) * ratio + delta);
   if(newanim) a.wherenow = Id, a.ltick = ticks, a.footphase = 0;
   }
 

@@ -379,11 +379,11 @@ EX ld signed_sqrt(ld x) { return x > 0 ? sqrt(x) : -sqrt(-x); }
 EX int axial_x, axial_y;
 
 EX void apply_perspective(const hyperpoint& H, hyperpoint& ret) {
-  if(H[2] == 0) { ret[0] = 1e6; ret[1] = 1e6; ret[2] = 1; return; }
+  if(H[2] == 0) { ret[0] = 1e6; ret[1] = 1e6; ret[2] = 0; return; }
   ld ratio = vid.xres / current_display->tanfov / current_display->radius / 2;
   ret[0] = H[0]/H[2] * ratio;
   ret[1] = H[1]/H[2] * ratio;
-  ret[2] = 1;
+  ret[2] = H[2];
   ret[3] = 1;
   }
 
@@ -539,11 +539,8 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
         exit(1);
         /* x wanes as z grows! */
         }
-      if(hyperbolic) {
-        models::apply_orientation_yz(H[1], H[2]);
-        models::apply_orientation(H[0], H[1]);
-        }
-      auto S = lie_log(H); S[3] = 1;
+      hyperpoint S = lie_log_correct(H_orig, H);
+      S[3] = 1;
       S = lp_apply(S);
       if(hyperbolic) {
         models::apply_orientation(ret[1], ret[0]);
@@ -554,7 +551,7 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       }
 
     case mdRelPerspective: {
-      auto S = rel_log(H_orig); S[3] = 1;
+      auto S = rel_log(H_orig, true); S[3] = 1;
       S = lp_apply(S);
       apply_perspective(S, ret);
       return;
@@ -778,20 +775,14 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
         models::apply_orientation_yz(ret[2], ret[1]);
         }
       
-      if(nonisotropic && !vrhr::rendering()) ret = lp_apply(ret);
+      if(!vrhr::rendering()) ret = lp_apply(ret);
 
       break;
       }
 
     case mdLieOrthogonal: {
-      find_zlev(H);
+      ret = lie_log_correct(H_orig, H);
 
-      if(hyperbolic) {
-        models::apply_orientation_yz(H[1], H[2]);
-        models::apply_orientation(H[0], H[1]);
-        }
-
-      ret = lie_log(H);
       ret *= .5;
       ret[LDIM] = 1;
 
@@ -800,18 +791,18 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
         models::apply_orientation_yz(ret[2], ret[1]);
         }
 
-      if(nonisotropic && !vrhr::rendering()) ret = lp_apply(ret);
+      if(!vrhr::rendering()) ret = lp_apply(ret);
 
       break;
       }
 
     case mdRelOrthogonal: {
 
-      ret = rel_log(H_orig);
+      ret = rel_log(H_orig, true);
       ret *= .5;
       ret[LDIM] = 1;
 
-      if(nonisotropic && !vrhr::rendering()) ret = lp_apply(ret);
+      if(!vrhr::rendering()) ret = lp_apply(ret);
       break;
       }
 
@@ -1085,6 +1076,7 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       
     case mdBand: 
       if(pconf.model_transition != 1) {
+        H = unshift(H_orig);
         ld& mt = pconf.model_transition;
         
         H = space_to_perspective(H);
@@ -1634,13 +1626,14 @@ EX bool in_smart_range(const shiftmatrix& T) {
   ld y = current_display->ycenter + current_display->radius * h1[1] * pconf.stretch;
 
   bool culling = !geom3::euc_in_hyp();
+  bool inp = in_perspective();
 
   if(culling) {
     if(x > current_display->xtop + current_display->xsize * 2) return false;
     if(x < current_display->xtop - current_display->xsize * 1) return false;
     if(y > current_display->ytop + current_display->ysize * 2) return false;
     if(y < current_display->ytop - current_display->ysize * 1) return false;
-    if(GDIM == 3) {
+    if(GDIM == 3 && !inp) {
       if(-h1[2] < pconf.clip_min * 2 - pconf.clip_max) return false;
       if(-h1[2] > pconf.clip_max * 2 - pconf.clip_min) return false;
       }
@@ -1671,8 +1664,8 @@ EX bool in_smart_range(const shiftmatrix& T) {
     }
   
   else if(GDIM == 3) { 
-    if(-h1[2] + 2 * dz < pconf.clip_min || -h1[2] - 2 * dz > pconf.clip_max) return false;
-    sort(dh, dh+GDIM); 
+    if(!inp && (-h1[2] + 2 * dz < pconf.clip_min || -h1[2] - 2 * dz > pconf.clip_max)) return false;
+    sort(dh, dh+3);
     ld scale = sqrt(dh[1] * dh[2]) * cgi.scalefactor * hcrossf7;
     if(scale <= (WDIM == 2 ? vid.smart_range_detail : vid.smart_range_detail_3)) return false;
     }
@@ -1917,6 +1910,10 @@ EX hyperpoint vertical_vector() {
     }
   if(embedded_plane && geom3::same_in_same())
     return get_view_orientation() * lztangent(vid.wall_height);
+  if(geom3::euc_in_sl2() || geom3::euc_in_sph()) {
+    transmatrix Rot = View * map_relative_push(inverse(View) * C0);
+    return Rot * lztangent(vid.wall_height);
+    }
   if(embedded_plane && vid.fixed_yz && nonisotropic) {
     return NLP * lztangent(vid.wall_height);
     }
@@ -2036,14 +2033,19 @@ EX void adjust_eye(transmatrix& T, cell *c, ld sign) {
   geom3::do_auto_eye();
   int sl = snakelevel(c);
   if(isWorm(c->monst) && sl < 3) sl++;
-  int i = geom3::sph_in_low() ? 1 : 0;
+  int i = moved_center() ? 1 : 0;
   if(sl || vid.eye || i)
     T = T * lzpush(sign * (cgi.SLEV[sl] - cgi.FLOOR - vid.eye + i));
   }
 
 /** achieve top-down perspective */
 EX transmatrix default_spin() {
-  return cspin90(0, 1) * inverse(logical_to_actual());
+  return cspin90(0, 1) * cgi.intermediate_to_logical_scaled;
+  }
+
+EX bool shmup_inverted() {
+  if(!embedded_plane) return false;
+  return (vid.wall_height < 0) ^ (geom3::euc_in_nil() || geom3::euc_in_sl2());
   }
 
 EX void centerpc(ld aspd) {
@@ -2076,12 +2078,15 @@ EX void centerpc(ld aspd) {
     else {
       adjust_eye(T, pc->base, +1);
       }
-
+    
     View = iview_inverse(T);
     if(gproduct) NLP = ortho_inverse(pc->ori);
     if(WDIM == 2) {
-      if(vid.wall_height < 0) rotate_view(cspin180(2, 1));
-      rotate_view( cspin(2, 1, -90._deg - shmup::playerturny[id]) * default_spin());
+      if(shmup_inverted()) rotate_view(cspin180(2, 1));
+      if(gproduct)
+        rotate_view( cspin(2, 1, -90._deg - shmup::playerturny[id]) * cspin90(0, 1));
+      else
+        rotate_view( cspin(2, 1, -90._deg - shmup::playerturny[id]) * default_spin());
       }
     return;
     }
@@ -2219,11 +2224,12 @@ EX void resetview() {
   // EUCLIDEAN
   NLP = Id;
   stretch::mstretch_matrix = Id;
+  auto& vo = get_view_orientation();
   if(cwt.at) {
     centerover = cwt.at;
     View = iddspin(cwt.at, cwt.spin);
-    if(!flipplayer) View = spin180() * View;
-    if(cwt.mirrored) View = lmirror() * View;
+    if(!flipplayer) vo = spin180() * vo;
+    if(cwt.mirrored) vo = lmirror() * vo;
 
     if(centering) {
       hyperpoint vl = View * get_corner_position(cwt.at, cwt.spin);
@@ -2243,12 +2249,11 @@ EX void resetview() {
 
   adjust_eye(View, cwt.at, -1);
 
-  if(WDIM == 2) View = spin(M_PI + vid.fixed_facing_dir * degree) * View;
-  if(WDIM == 3 && !gproduct) View = cspin90(0, 2) * View;
-  if(gproduct) NLP = cspin90(0, 2);
-  View = inverse(logical_to_actual()) * View;
-  if(embedded_plane) get_view_orientation() = cspin90(1, 2) * get_view_orientation();
-  if(embedded_plane && vid.wall_height < 0) View = cspin180(0, 1) * View;
+  if(WDIM == 2) vo = spin(M_PI + vid.fixed_facing_dir * degree) * vo;
+  if(WDIM == 3) vo = cspin90(0, 2) * vo;
+  vo = cgi.intermediate_to_logical_scaled * vo;
+  if(embedded_plane) vo = cspin90(1, 2) * vo;
+  if(embedded_plane && vid.wall_height < 0) vo = cspin180(0, 1) * vo;
 
   cwtV = shiftless(View);
   current_display->which_copy = 
@@ -2299,6 +2304,7 @@ EX int flat_on;
 eGeometry backup_geometry;
 eVariation backup_variation;
 videopar backup_vid;
+bool backup_lpu;
 
 /** \brief enable the 'flat' model for drawing HUD. See hr::flat_model_enabler */
 EX void enable_flat_model(int val) {
@@ -2308,9 +2314,12 @@ EX void enable_flat_model(int val) {
     #endif
     backup_geometry = geometry;
     backup_variation = variation;
+    backup_lpu = nisot::local_perspective_used;
     backup_vid = vid;
     geometry = gNormal;
     variation = eVariation::bitruncated;
+    nisot::local_perspective_used = false;
+
     pmodel = mdDisk;
     pconf.alpha = 1;
     pconf.scale = 1;
@@ -2330,6 +2339,7 @@ EX void enable_flat_model(int val) {
   if(flat_on >= 1 && flat_on + val < 1) {
     geometry = backup_geometry;
     variation = backup_variation;
+    nisot::local_perspective_used = backup_lpu;
     vid = backup_vid;
     geom3::apply_always3();
     calcparam();
@@ -2907,6 +2917,10 @@ EX namespace dq {
   EX queue<pair<heptagon*, shiftmatrix>> drawqueue;
   
   EX unsigned bucketer(const shiftpoint& T) {
+    if(geom3::euc_in_sl2()) {
+      auto T1 = T; optimize_shift(T1);
+      return bucketer(T1.h) + unsigned(floor(T1.shift*81527+.5));
+      }
     return bucketer(T.h) + unsigned(floor(T.shift*81527+.5));
     }
 
@@ -2920,7 +2934,7 @@ EX namespace dq {
   EX set<unsigned> visited_by_matrix;
   EX void enqueue_by_matrix(heptagon *h, const shiftmatrix& T) {
     if(!h) return;
-    unsigned b = bucketer(tC0(T));
+    unsigned b = bucketer(T * tile_center());
     if(visited_by_matrix.count(b)) { return; }
     visited_by_matrix.insert(b);
     drawqueue.emplace(h, T);
@@ -2937,7 +2951,7 @@ EX namespace dq {
 
   EX void enqueue_by_matrix_c(cell *c, const shiftmatrix& T) {
     if(!c) return;
-    unsigned b = bucketer(tC0(T));
+    unsigned b = bucketer(T * tile_center());
     if(visited_by_matrix.count(b)) { return; }
     visited_by_matrix.insert(b);
     drawqueue_c.emplace(c, T);
@@ -2956,7 +2970,7 @@ EX namespace dq {
 
 EX bool do_draw(cell *c) {
   // do not display out of range cells, unless on torus
-  if(c->pathdist == PINFD && !(euclid && quotient) && vid.use_smart_range == 0)
+  if(c->pathdist == PINFD && !(meuclid && quotient) && vid.use_smart_range == 0)
     return false;
   // do not display not fully generated cells, unless changing range allowed
   if(c->mpdist > 7 && !allowChangeRange()) return false;
@@ -2977,6 +2991,8 @@ bool limited_generation(cell *c) {
   return true;
   }
 
+EX int min_cells_drawn = 50;
+
 EX bool do_draw(cell *c, const shiftmatrix& T) {
 
   if(WDIM == 3) {
@@ -2984,7 +3000,7 @@ EX bool do_draw(cell *c, const shiftmatrix& T) {
     if(GDIM == 3 && racing::on && c->land == laMemory && cells_drawn >= S7+1) return false;
 
     if(cells_drawn > vid.cells_drawn_limit) return false;
-    if(cells_drawn < 50) { limited_generation(c); return true; }
+    if(cells_drawn < min_cells_drawn) { limited_generation(c); return true; }
     #if MAXMDIM >= 4
     if(nil && models::is_perspective(pmodel)) {
       ld dist = hypot_d(3, inverse_exp(tC0(T), pQUICK));
@@ -3009,7 +3025,7 @@ EX bool do_draw(cell *c, const shiftmatrix& T) {
       }
     #endif
     else if(vid.use_smart_range) {
-      if(cells_drawn >= 50 && !in_smart_range(T)) return false;
+      if(cells_drawn >= min_cells_drawn && !in_smart_range(T)) return false;
       if(!limited_generation(c)) return false;
       }
     else {
@@ -3042,7 +3058,7 @@ EX bool do_draw(cell *c, const shiftmatrix& T) {
     }
   if(cells_drawn > vid.cells_drawn_limit) return false;
   bool usr = vid.use_smart_range || quotient;
-  if(usr && cells_drawn >= 50 && !in_smart_range(T) && !(WDIM == 2 && GDIM == 3 && hdist0(tC0(T)) < 2.5)) return false;
+  if(usr && cells_drawn >= min_cells_drawn && !in_smart_range(T) && !(WDIM == 2 && GDIM == 3 && hdist0(tC0(T)) < 2.5)) return false;
   if(vid.use_smart_range == 2 && !limited_generation(c)) return false;
   return true; 
   }
@@ -3091,7 +3107,9 @@ EX void rotate_view(transmatrix T) {
   if(!gproduct && !rug::rugged) current_display->which_copy = T * current_display->which_copy;
   }
 
-EX hyperpoint lie_exp(hyperpoint h) {
+EX shiftpoint lie_exp(hyperpoint h1) {
+  shiftpoint sh = shiftless(h1);
+  auto& h = sh.h;
   if(nil) {
     h[3] = 1;
     h[2] += h[0] * h[1] / 2;
@@ -3121,6 +3139,24 @@ EX hyperpoint lie_exp(hyperpoint h) {
       h[1] *= (exp(+z) - 1) / z;
       }
     }
+  else if(sl2) {
+    h[3] = 0;
+    ld v = h[0] * h[0] + h[1] * h[1] - h[2] * h[2];
+    if(v < 0) {
+      v = sqrt(-v);
+      h *= sin(v) / v;
+      h[3] += cos(v);
+      ld cycles = floor(v / TAU + .5);
+      sh.shift += TAU * cycles * (h[2] > 0 ? 1 : -1);
+      }
+    else if(v > 0) {
+      v = sqrt(v);
+      h *= sinh(v) / v;
+      h[3] += cosh(v);
+      }
+    else h[3]++;
+    return sh;
+    }
   else {
     /* not implemented -- approximate for now */
     const int steps = 16;
@@ -3131,10 +3167,13 @@ EX hyperpoint lie_exp(hyperpoint h) {
     for(int i=0; i<16; i++) T = T * T;
     h = tC0(T);
     }
-  return h;
+  return sh;
   }
 
-EX hyperpoint rel_log(shiftpoint h) {
+/** Compute the Lie logarithm in SL(2,R), which corresponds to a geodesic in AdS; or a geodesic in de Sitter space.
+ **/
+
+EX hyperpoint rel_log(shiftpoint h, bool relativistic_length) {
   if(sl2) {
     optimize_shift(h);
     ld cycles = floor(h.shift / TAU + .5);
@@ -3147,7 +3186,12 @@ EX hyperpoint rel_log(shiftpoint h) {
       if(h1[3] < 0) z = M_PI - z;
       z += cycles * TAU;
       }
-    else if(cycles || h1[3] < -1 || choice == 0) {
+    else if(cycles || h1[3] < -1) {
+      /* impossible, or light-like */
+      r = 1; z = 0;
+      }
+    else if(choice == 0) {
+      if(!relativistic_length) return h1 - C0;
       /* impossible, or light-like */
       r = 1; z = 0;
       }
@@ -3165,13 +3209,22 @@ EX hyperpoint rel_log(shiftpoint h) {
     ld r, z;
     if(choice > 0) { r = sqrt(choice); z = asinh(r); }
     else { r = sqrt(-choice); z = asin_clamp(r); if(h1[2] < 0) z = M_PI - z; }
+    if(!relativistic_length) r = sqrt(h1[3] * h1[3] + h1[0] * h1[0] + h1[1] * h1[1]);
     h1 = h1 * z / r; h1[2] = h1[3]; h1[3] = 0;
     return h1;
     }
   throw hr_exception("rel_log in wrong geometry");
   }
 
-EX hyperpoint lie_log(hyperpoint h) {
+/** Is Lie movement available? Depends on map geometry, not ambient geometry. */
+EX bool lie_movement_available() {
+  if(nonisotropic && !embedded_plane) return true;
+  if(mhyperbolic && bt::in()) return true;
+  return false;
+  };
+
+EX hyperpoint lie_log(const shiftpoint h1) {
+  hyperpoint h = unshift(h1);
   if(nil) {
     h[3] = 0;
     h[2] -= h[0] * h[1] / 2;
@@ -3210,33 +3263,66 @@ EX hyperpoint lie_log(hyperpoint h) {
       for(int i=1; i<LDIM; i++)
         h[i] *= h[0] / (exp(h[0])-1);
     }
+  else if(sl2) {
+    return rel_log(h1, false);
+    }
   else {
     /* not implemented */
     }
   return h;
   }
 
-/** shift the view according to the given tangent vector */
-EX transmatrix get_shift_view_of(const hyperpoint H, const transmatrix V, eShiftMethod sm IS(shift_method(smaManualCamera))) {
+/** Like lie_log but includes orientation and level in hyperbolic space. May modify H */
+EX hyperpoint lie_log_correct(const shiftpoint H_orig, hyperpoint& H) {
+  find_zlev(H);
+  if(hyperbolic) {
+    models::apply_orientation_yz(H[1], H[2]);
+    models::apply_orientation(H[0], H[1]);
+    return lie_log(shiftless(H));
+    }
+  return lie_log(H_orig);
+  }
+
+/** Shift the view according to the given tangent vector. NOTE: known bug when  // note: possible error when lie_exp includes a shift!*/
+EX void shift_v_by_vector(transmatrix& V, const hyperpoint H, eShiftMethod sm IS(shift_method(smaManualCamera))) {
   switch(sm) {
     case smProduct:
-      return rgpushxto0(direct_exp(lp_iapply(H))) * V;
+      V = rgpushxto0(direct_exp(lp_iapply(H))) * V;
+      return;
     case smIsotropic:
-      return rgpushxto0(direct_exp(H)) * V;
+      V = rgpushxto0(direct_exp(H)) * V;
+      return;
     case smEmbedded:
-      return get_shift_view_embedded_of(V, rgpushxto0(direct_exp(H))) * V;
+      return shift_v_embedded(V, rgpushxto0(direct_exp(H)));
     case smLie: {
-      transmatrix IV = view_inverse(View);
+      transmatrix IV = view_inverse(V);
       transmatrix view_shift = eupush( tC0(IV) );
       transmatrix rot = V * view_shift;
-      hyperpoint tH = lie_exp(inverse(rot) * H);
-      return rot * eupush(tH) * inverse(view_shift);
+      hyperpoint tH = lie_exp(inverse(rot) * H).h;
+      V = rot * eupush(tH) * inverse(view_shift);
+      return;
       }
     case smGeodesic:
-      return iview_inverse(nisot::parallel_transport(view_inverse(V), -H));
+      V = iview_inverse(nisot::parallel_transport(view_inverse(V), -H));
+      return;
+    case smESL2: {
+      hyperpoint H1 = esl2_ita0(lp_iapply(-H));
+      transmatrix IV = view_inverse(V);
+      transmatrix rot = V * map_relative_push(IV * C0);
+      transmatrix V1 = gpushxto0(H1) * gpushxto0(IV*C0);
+      transmatrix IV1 = view_inverse(V1);
+      transmatrix rot1 = V1 * map_relative_push(IV1 * C0);
+      V = rot * inverse(rot1) * V1;
+      return;
+      }
     default:
       throw hr_exception("unknown shift method (embedded not supported)");
     }
+  }
+
+EX transmatrix get_shift_view_of(const hyperpoint H, transmatrix V, eShiftMethod sm IS(shift_method(smaManualCamera))) {
+  shift_v_by_vector(V, H, sm);
+  return V;
   }
 
 /** shift the view according to the given tangent vector */
@@ -3255,39 +3341,23 @@ EX void shift_view(hyperpoint H, eShiftMethod sm IS(shift_method(smaManualCamera
   wc = get_shift_view_of(H, wc, sm);
   }
 
-/** works in embedded_plane (except embedded product where shift_view works) */
-EX transmatrix get_shift_view_embedded_of(const transmatrix V, const transmatrix T) {
+/** works in embedded_plane (except embedded product where shift_view works, and euc_in_sl2) */
+EX void shift_v_embedded(transmatrix& V, const transmatrix T) {
   transmatrix IV = view_inverse(V);
   transmatrix rot = V * map_relative_push(IV * C0);
   transmatrix V1 = T * V;
   transmatrix IV1 = view_inverse(V1);
   transmatrix rot1 = V1 * map_relative_push(IV1 * C0);
-  return rot * inverse(rot1) * T;
+  V = rot * inverse(rot1) * V1;
   }
 
-/** works in embedded_plane (except embedded product where shift_view works) */
-void shift_view_embedded(const transmatrix T) {
-  transmatrix R = get_shift_view_embedded_of(View, T);
-  View = R * View;
-  auto& wc = current_display->which_copy;
-  wc = R * wc;
-  }
-
-/** works in isotropic and product spaces */
-void shift_view_mmul(const transmatrix T) {
-  View = T * View;
-  auto& wc = current_display->which_copy;
-  wc = T * wc;
-  }
-
-void shift_view_by_matrix(const transmatrix T, eShiftMethod sm) {
+EX void shift_v_by_matrix(transmatrix& V, const transmatrix T, eShiftMethod sm) {
   switch(sm) {
     case smEmbedded:
-      shift_view_embedded(T);
-      return;
+      return shift_v_embedded(V, T);
     case smIsotropic:
     case smProduct:
-      shift_view_mmul(T);
+      V = T * V;
       return;
     default:
       throw hr_exception("unsupported shift method in shift_view_by_matrix");
@@ -3297,6 +3367,13 @@ void shift_view_by_matrix(const transmatrix T, eShiftMethod sm) {
 /* like rgpushxto0 but keeps the map orientation correct */
 EX transmatrix map_relative_push(hyperpoint h) {
   if(!embedded_plane) return rgpushxto0(h);
+  if(geom3::euc_in_product()) {
+    ld bz = zlevel(h);
+    auto h1 = h / exp(bz);
+    ld by = asin_auto(h1[1]);
+    ld bx = atan_auto(h1[0] / h1[2]);
+    return zpush(bz) * xpush(bx) * ypush(by);
+    }
   if(geom3::same_in_same()) {
     ld z = -asin_auto(h[2]);
     ld u = 1 / cos_auto(z);
@@ -3317,42 +3394,60 @@ EX transmatrix map_relative_push(hyperpoint h) {
     geom3::light_flip(false);
     return T * zpush(z);
     }
+  if(geom3::euc_in_sl2()) {
+    auto h1 = esl2_ati(h);
+    return esl2_zpush(h1[2]) * xpush(h1[0]) * ypush(h1[1]);
+    }
+  if(geom3::euc_in_sph()) {
+    ld tx = hypot(h[0], h[2]);
+    ld ty = hypot(h[1], h[3]);
+    return cspin(0, 2, atan2(h[0], h[2])) * cspin(1, 3, atan2(h[1], h[3])) * cspin(2, 3, atan2(tx, ty));
+    }
   return rgpushxto0(h);
   }
 
 EX void shift_view_to(shiftpoint H, eShiftMethod sm IS(shift_method(smaManualCamera))) {
+  shift_v_to(View, H, sm);
+  shift_v_to(current_display->which_copy, H, sm);
+  }
+
+EX void shift_v_to(transmatrix& V, shiftpoint H, eShiftMethod sm IS(shift_method(smaManualCamera))) {
   switch(sm) {
     case smIsotropic:
     case smEmbedded:
     case smProduct:
-      shift_view_by_matrix(gpushxto0(unshift(H)), sm);
-      return;
+      return shift_v_by_matrix(V, gpushxto0(unshift(H)), sm);
+    case smESL2:
+      return shift_v_by_vector(V, -lp_apply(esl2_ati(lp_iapply(unshift(H)))), sm);
     case smLie:
-      shift_view(-lie_log(unshift(H)), sm);
+      return shift_v_by_vector(V, -lie_log(H), sm);
       return;
     case smGeodesic:
-      shift_view(-inverse_exp(H), sm);
-      return;
+      return shift_v_by_vector(V, -inverse_exp(H), sm);
     default:
       throw hr_exception("unsupported shift method in shift_view_to");
     }
   }
 
 EX void shift_view_towards(shiftpoint H, ld l, eShiftMethod sm IS(shift_method(smaManualCamera))) {
+  shift_v_towards(View, H, l, sm);
+  shift_v_towards(current_display->which_copy, H, l, sm);
+  }
+
+EX void shift_v_towards(transmatrix& V, shiftpoint H, ld l, eShiftMethod sm IS(shift_method(smaManualCamera))) {
   switch(sm) {
     case smIsotropic:
     case smEmbedded:
-      shift_view_by_matrix(rspintox(unshift(H)) * xpush(-l) * spintox(unshift(H)), sm);
-      return;
+      return shift_v_by_matrix(V, rspintox(unshift(H)) * xpush(-l) * spintox(unshift(H)), sm);
+    case smESL2:
+      return shift_v_by_vector(V, -lp_apply(tangent_length(esl2_ati(lp_iapply(unshift(H))), l)), sm);
     case smLie:
-      shift_view(tangent_length(unshift(H)-C0, -l), sm);
-      return;
+      return shift_v_by_vector(V, tangent_length(lie_log(H), -l), sm);
     case smGeodesic:
     case smProduct: {
       hyperpoint ie = inverse_exp(H, pNORMAL | pfNO_DISTANCE);
       if(gproduct) ie = lp_apply(ie);
-      shift_view(tangent_length(ie, -l), sm);
-      return;
+      return shift_v_by_vector(V, tangent_length(ie, -l), sm);
       }
     default:
       throw hr_exception("unsupported shift method in shift_view_towards");

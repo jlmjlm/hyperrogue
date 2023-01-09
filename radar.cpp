@@ -19,7 +19,7 @@ pair<bool, hyperpoint> makeradar(shiftpoint h) {
   else if(sl2) h1 = slr::get_inverse_exp(h);
   else h1 = unshift(h);
   
-  if(nisot::local_perspective_used() && !embedded_plane) {
+  if(nisot::local_perspective_used && !embedded_plane) {
     h1 = NLP * h1;
     }
   
@@ -53,6 +53,34 @@ pair<bool, hyperpoint> makeradar(shiftpoint h) {
     else if(geom3::same_in_same()) {
       if(d > vid.radarrange) return {false, h1};
       if(d) h1 = h1 * (d / (vid.radarrange + cgi.scalefactor/4) / hypot_d(3, h1));
+      }
+    else if(geom3::euc_in_sph()) {
+      h1[0] = atan2(h.h[0], h.h[2]);
+      h1[1] = atan2(h.h[1], h.h[3]);
+      h1[2] = 0;
+      h1 = cgi.intermediate_to_logical * h1;
+      d = hypot_d(2, h1);
+      if(d > vid.radarrange) return {false, h1};
+      if(d) h1 = h1 / (vid.radarrange + cgi.scalefactor/4);
+      }
+    else if(geom3::euc_in_sl2()) {
+      h1 = cgi.intermediate_to_logical * esl2_ati(unshift(h)); h1[1] = -h1[1];
+      d = hypot_d(2, h1);
+      if(d > vid.radarrange) return {false, h1};
+      if(d) h1 = h1 / (vid.radarrange + cgi.scalefactor/4);
+      }
+    else if(geom3::euc_in_product()) {
+      if(in_h2xe())
+        h1[0] = atanh(h.h[0] / h.h[2]);
+      else
+        h1[0] = atan2(h.h[2], h.h[0]);
+      h1[2] = - zlevel(h.h) - h.shift;
+      h1[1] = 0;
+      h1[3] = 0;
+      h1 = cgi.intermediate_to_logical * h1;
+      d = hypot_d(2, h1);
+      if(d > vid.radarrange) return {false, h1};
+      if(d) h1 = h1 / (vid.radarrange + cgi.scalefactor/4);
       }
     else {
       d = hypot_d(2, h1);
@@ -107,6 +135,7 @@ EX void draw_radar(bool cornermode) {
   if(subscreens::split([=] () { calcparam(); draw_radar(false); })) return;
   if(dual::split([] { dual::in_subscreen([] { calcparam(); draw_radar(false); }); })) return;
   bool d3 = WDIM == 3;
+  int ldim = LDIM;
   bool hyp = mhyperbolic;
   bool sph = msphere;
   bool scompass = nonisotropic && !mhybrid && !embedded_plane;
@@ -178,7 +207,7 @@ EX void draw_radar(bool cornermode) {
     if(sph)
       return point3(cx + (rad-10) * h[0], cy + (rad-10) * h[2] * si + (rad-10) * h[1] * co, +h[1] * si > h[2] * co ? 8 : 16);
     else if(hyp) 
-      return point3(cx + rad * h[0], cy + rad * h[1], 1/(1+h[LDIM]) * cgi.scalefactor * current_display->radius / (inHighQual ? 10 : 6));
+      return point3(cx + rad * h[0], cy + rad * h[1], 1/(1+h[ldim]) * cgi.scalefactor * current_display->radius / (inHighQual ? 10 : 6));
     else
       return point3(cx + rad * h[0], cy + rad * h[1], rad * cgi.scalefactor / (vid.radarrange + cgi.scalefactor/4) * 0.8);
     };

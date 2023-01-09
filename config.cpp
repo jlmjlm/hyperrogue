@@ -762,6 +762,8 @@ EX void initConfig() {
   param_enum(vid.graphglyph, "graphglyph", "graphical items/kills", 1)
   -> editable({{"letters", ""}, {"auto", ""}, {"images", ""}}, "inventory/kill mode", 'd');
 
+  param_i(min_cells_drawn, "min_cells_drawn");
+
   param_i(menu_darkening, "menu_darkening", 2)
   -> editable(0, 8, 1, "menu map darkening", "A larger number means darker game map in the background. Set to 8 to disable the background.", 'd')
   -> set_sets([] { dialog::bound_low(0); dialog::bound_up(8); dialog::dialogflags |= sm::DARKEN; });
@@ -836,8 +838,17 @@ EX void initConfig() {
   addsaver(vid.always3, "3D always", false);
 
   param_f(geom3::euclid_embed_scale, "euclid_embed_scale", "euclid_embed_scale")
-  -> editable(0, 2, 0.05, "Euclidean embedding scale", "How to scale the Euclidean map, relatively to the 3D absolute unit.", 'F')
+  -> editable(0, 2, 0.05, "Euclidean embedding scale", "How to scale the Euclidean map, relatively to the 3D absolute unit.", 'X')
   -> set_sets([] { dialog::bound_low(0.05); })
+  -> set_reaction([] { if(vid.always3) { geom3::switch_fpp(); geom3::switch_fpp(); } });
+
+  param_f(geom3::euclid_embed_scale_y, "euclid_embed_scale_y", "euclid_embed_scale_y")
+  -> editable(0, 2, 0.05, "Euclidean embedding scale Y/X", "This scaling factor affects only the Y coordinate.", 'Y')
+  -> set_sets([] { dialog::bound_low(0.05); })
+  -> set_reaction([] { if(vid.always3) { geom3::switch_fpp(); geom3::switch_fpp(); } });
+
+  param_f(geom3::euclid_embed_rotate, "euclid_embed_rotate", "euclid_embed_rotate")
+  -> editable(0, 360, 15, "Euclidean embedding rotation", "How to rotate the Euclidean embedding, in degrees.", 'F')
   -> set_reaction([] { if(vid.always3) { geom3::switch_fpp(); geom3::switch_fpp(); } });
 
   param_enum(embedded_shift_method_choice, "embedded_shift_method", "embedded_shift_method", smcBoth)
@@ -1111,7 +1122,12 @@ EX void initConfig() {
 
   addsaver(bounded_mine_percentage, "bounded_mine_percentage");
 
-  param_b(nisot::geodesic_movement, "solv_geodesic_movement", true);
+  param_enum(nisot::geodesic_movement, "solv_geodesic_movement", "solv_geodesic_movement", true)
+  -> editable({{"Lie group", "light, camera, and objects move in lines of constant direction, in the Lie group sense"}, {"geodesics", "light, camera, and objects always take the shortest path"}}, "straight lines", 'G')
+  -> set_reaction([] {
+    if(pmodel == mdLiePerspective && nisot::geodesic_movement) pmodel = hyperbolic ? mdPerspective : mdGeodesic;
+    if(among(pmodel, mdGeodesic, mdPerspective) && !nisot::geodesic_movement) pmodel = mdLiePerspective;
+    });
 
   addsaver(s2xe::qrings, "s2xe-rings");
   addsaver(rots::underlying_scale, "rots-underlying-scale");
@@ -2232,8 +2248,40 @@ EX geom3::eSpatialEmbedding shown_spatial_embedding() {
 EX bool in_tpp() { return pmodel == mdDisk && pconf.camera_angle; }
 
 EX void display_embedded_errors() {
-  if(meuclid && among(geom3::spatial_embedding, geom3::seNil, geom3::seSol, geom3::seSolN, geom3::seNIH) && (!among(geometry, gEuclid, gEuclidSquare) || !PURE))
-    dialog::addInfo(XLAT("error: works only in PURE Euclidean regular square or hex tiling"), 0xC00000);
+  using namespace geom3;
+  if(meuclid && among(spatial_embedding, seNil, seSol, seSolN, seNIH, seProductH, seProductS, seCliffordTorus, seSL2) && (!among(geometry, gEuclid, gEuclidSquare) || !PURE)) {
+    dialog::addInfo(XLAT("error: currently works only in PURE Euclidean regular square or hex tiling"), 0xC00000);
+    return;
+    }
+  if(mhyperbolic && among(spatial_embedding, seSol, seSolN, seNIH) && !bt::in()) {
+    dialog::addInfo(XLAT("error: currently works only in binary tiling and similar"), 0xC00000);
+    return;
+    }
+  if(meuclid && spatial_embedding == seCliffordTorus) {
+    rug::clifford_torus ct;
+    ld h = ct.xh | ct.yh;
+    bool err = sqhypot_d(2, ct.xh) < 1e-3 || sqhypot_d(2, ct.yh) < 1e-3 || abs(h) > 1e-3;
+    if(err) {
+      dialog::addInfo(XLAT("error: this method works only in rectangular torus"), 0xC00000);
+      return;
+      }
+    }
+  if(meuclid && spatial_embedding == seProductS) {
+    rug::clifford_torus ct;
+    bool err = sqhypot_d(2, ct.xh) < 1e-3 && sqhypot_d(2, ct.yh) < 1e-3;
+    if(err) {
+      dialog::addInfo(XLAT("error: this method works only in cylinder"), 0xC00000);
+      return;
+      }
+    }
+  if(msphere && !among(spatial_embedding, seNone, seDefault, seLowerCurvature, seMuchLowerCurvature, seProduct, seProductS)) {
+    dialog::addInfo(XLAT("error: this method does not work in spherical geometry"), 0xC00000);
+    return;
+    }
+  if(mhyperbolic && !among(spatial_embedding, seNone, seDefault, seLowerCurvature, seMuchLowerCurvature, seProduct, seProductH, seSol, seSolN, seNIH)) {
+    dialog::addInfo(XLAT("error: this method does not work in hyperbolic geometry"), 0xC00000);
+    return;
+    }
   }
 
 EX void show_spatial_embedding() {
@@ -2271,6 +2319,14 @@ EX void show_spatial_embedding() {
     if(emb == geom3::seNone) {
       dialog::addBoolItem(XLAT("third-person perspective"), in_tpp(), 'T');
       dialog::add_action(geom3::switch_tpp);
+      dialog::addBoolItem(XLAT("Hypersian Rug"), rug::rugged, 'u');
+      dialog::add_action([] {
+        if(in_tpp()) geom3::switch_tpp();
+        if(!rug::rugged) {
+          pconf.alpha = 1, pconf.scale = 1; if(!rug::rugged) rug::init();
+          }
+        else rug::close();
+        });
       dialog::addBreak(100);
       }
     else {
@@ -2309,7 +2365,11 @@ EX void show3D() {
     }
   
   if(WDIM == 2) {
-    if(geom3::euc_in_noniso()) add_edit(geom3::euclid_embed_scale);
+    if(geom3::euc_in_noniso()) {
+      add_edit(geom3::euclid_embed_scale);
+      add_edit(geom3::euclid_embed_scale_y);
+      add_edit(geom3::euclid_embed_rotate);
+      }
     add_edit(embedded_shift_method_choice);
     add_edit(vid.camera);
     if(GDIM == 3)
@@ -2384,6 +2444,11 @@ EX void show3D() {
     dialog::addSelItem(XLAT("projection"), current_proj_name(), 'M');
     dialog::add_action_push(models::model_menu);  
     }
+  if(GDIM == 2) {
+    dialog::addItem(XLAT("configure Hypersian Rug"), 'u');
+    dialog::add_action_push(rug::show);
+    }
+
   #if MAXMDIM >= 4
   if(GDIM == 3) add_edit_fov('f');
   if(GDIM == 3) {

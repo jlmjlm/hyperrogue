@@ -69,6 +69,7 @@ struct monster {
     stunoff = 0; blowoff = 0; fragoff = 0; footphase = 0;
     inertia = Hypc; ori = Id; vel = 0;
     swordangle = 0;
+    if(geom3::euc_in_product()) ori = cgi.intermediate_to_logical_scaled;
     }
 
   monster() {
@@ -199,12 +200,15 @@ void full_fix(transmatrix& T) {
       fixmatrix(T);
       }
     else {
-      hyperpoint h = tC0(T);
+      hyperpoint h = T * tile_center();
       transmatrix rot = iso_inverse(map_relative_push(h)) * T;
+      if(geom3::euc_in_sph()) rot = rot * lzpush(1);
       fix_rotation(rot);
       if(geom3::hyp_in_solnih()) h[0] = 0;
-      if(geom3::euc_in_nil()) h[1] = 0;
+      else if(geom3::euc_in_nil()) h[1] = 0;
+
       T = map_relative_push(h) * rot;
+      if(geom3::euc_in_sph()) T = T * lzpush(-1);
       fixmatrix(T);
       }
     }
@@ -881,7 +885,7 @@ void movePlayer(monster *m, int delta) {
   
   godir[cpid] = 0;
 
-  if(embedded_plane && vid.wall_height < 0) mdx = -mdx;
+  if(shmup_inverted()) mdx = -mdx;
 
   if(WDIM == 2 && GDIM == 3 && (mdx || mdy)) {
     double mdd = hypot(mdx, mdy);
@@ -932,11 +936,14 @@ void movePlayer(monster *m, int delta) {
     }
   #endif
 
-  if(embedded_plane && vid.wall_height < 0) playerturn[cpid] = -playerturn[cpid];
+  if(shmup_inverted()) playerturn[cpid] = -playerturn[cpid];
     
   if(playerturn[cpid] && canmove && !blown && WDIM == 2) {
     m->swordangle -= playerturn[cpid];
-    rotate_object(nat.T, m->ori, spin(playerturn[cpid]));
+    if(geom3::euc_in_product())
+      rotate_object(nat.T, m->ori, cspin(0, 1, playerturn[cpid]));
+    else
+      rotate_object(nat.T, m->ori, spin(playerturn[cpid]));
     if(inertia_based) m->inertia = spin(-playerturn[cpid]) * m->inertia;
     }
   shiftmatrix nat0 = nat;
