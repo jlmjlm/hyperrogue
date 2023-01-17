@@ -1502,9 +1502,16 @@ struct hrmap_arbi : hrmap {
   void verify() override { }
 
   transmatrix adj(heptagon *h, int dl) override { 
-    if(h->c.move(dl))
-      return get_adj(current_or_slided(), id_of(h), dl, id_of(h->c.move(dl)), h->c.spin(dl), h->c.mirror(dl));
-    else
+    if(h->c.move(dl)) {
+      auto curorsl = current_or_slided();
+      auto id = id_of(h);
+      auto dlid = id_of(h->c.move(dl));
+      auto spin = h->c.spin(dl);
+      auto mirror = h->c.mirror(dl);
+      auto rv = get_adj(curorsl, id, dl, dlid, spin, mirror);
+      return rv;
+      //return get_adj(current_or_slided(), id_of(h), dl, id_of(h->c.move(dl)), h->c.spin(dl), h->c.mirror(dl));
+    } else
       return get_adj(current_or_slided(), id_of(h), dl);
     }
 
