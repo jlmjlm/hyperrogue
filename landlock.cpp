@@ -741,10 +741,7 @@ EX land_validity_t& land_validity(eLand l) {
 
   using namespace lv;
   
-  if(l == laDice && geometry == gNormal && PURE)
-    return dont_work;
-
-  if(l == laDice && WDIM == 3)
+  if(l == laDice)
     return dont_work;
   
   if(old_daily_id < frog_when && among(l, laFrog, laEclectic, laWet))
