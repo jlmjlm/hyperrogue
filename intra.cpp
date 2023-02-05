@@ -163,7 +163,7 @@ EX portal_data make_portal(cellwalker cw, int spin) {
     #if CAP_BT
     if(bt::in()) {
       for(auto h: fac)
-        println(hlog, PIU(deparabolic13(normalize_flat(h))));
+        println(hlog, PIU(deparabolic13(cgi.emb->normalize_flat(h))));
       if(cw.spin == cw.at->type - 2)
         fac.pop_back();
       else
@@ -176,7 +176,7 @@ EX portal_data make_portal(cellwalker cw, int spin) {
     else {
       hyperpoint ctr = Hypc;
       for(auto p: fac) ctr += product_decompose(p).second;
-      ctr = normalize_flat(ctr);
+      ctr = cgi.emb->normalize_flat(ctr);
       id.T = gpushxto0(ctr);
       }
     }
@@ -185,8 +185,8 @@ EX portal_data make_portal(cellwalker cw, int spin) {
     id.v0 = Hypc;
     id.scale = cgi.plevel;
     for(auto p: fac) id.v0 += p;
-    id.v0 = normalize_flat(id.v0);
-    hyperpoint h = normalize_flat(fac[0]);
+    id.v0 = cgi.emb->normalize_flat(id.v0);
+    hyperpoint h = cgi.emb->normalize_flat(fac[0]);
     id.T = cspin90(1, 0) * spintox(gpushxto0(id.v0) * h) * gpushxto0(id.v0);
     if((id.T * C0)[0] > 0) id.T = spin180() * id.T;
     for(int i=0; i<3; i++) id.T[3][i] = id.T[i][3] = i==3;
@@ -985,6 +985,7 @@ EX bool isFloor(cell *c) {
 
 EX void handle() {
   if(playermoved || !on) return;
+  make_actual_view();
 
   if(floor_dir == -1 || on_floor_of != centerover) {
     vector<int> choices;
@@ -1171,17 +1172,17 @@ EX void add_options() {
 auto a = addHook(hooks_configfile, 100, [] {
   param_b(auto_eyelevel, "auto_eyelevel")
       -> editable("keep eye level when walking enabled", 'L');
-  param_f(eye_level, "eye_level")
+  param_f(eye_level, "walk_eye_level")
       -> editable(0, 5, .1, "walking eye level",
       "Distance from the floor to the eye in the walking mode, in absolute units. In VR this is adjusted automatically.",
       'e')
       ->set_extra([] { add_edit(auto_eyelevel); });
-  param_f(eye_angle, "eye_angle")
+  param_f(eye_angle, "walk_eye_angle")
       -> editable(-90, 90, 15, "walking eye angle",
       "0 = looking forward, 90 = looking upward. In VR this is adjusted automatically.",
       'k')
       ->set_extra([] { add_edit(eye_angle_scale); });
-  param_f(eye_angle_scale, "eye_angle_scale")
+  param_f(eye_angle_scale, "walk_eye_angle_scale")
       -> editable(-2, 0, 2, "eye angle scale",
       "1 = the angle can be changed with keyboard or mouse movements, 0 = the angle is fixed",
       'k');

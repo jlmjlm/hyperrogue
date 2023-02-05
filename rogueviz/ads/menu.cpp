@@ -86,6 +86,8 @@ void edit_view_mode() {
   dialog::addBoolItem(XLAT("view replay"), in_replay, 'r');
   dialog::add_action(switch_replay);
 
+  dialog::addBoolItem_action(XLAT("reverse replay"), rev_replay, 'w');
+
   dialog::addBreak(100);
 
   if(!main_rock) add_edit(auto_rotate);
@@ -189,6 +191,11 @@ void game_menu() {
   dialog::addItem("RogueViz settings", 'v');
   dialog::add_action([] {
     pushScreen(showSettings);
+    });
+
+  dialog::addItem("save animation/shot", 's');
+  dialog::add_action([] {
+    pushScreen(anims::show);
     });
 
   #if CAP_FILES && !ISWEB

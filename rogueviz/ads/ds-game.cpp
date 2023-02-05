@@ -213,6 +213,9 @@ rock_generator rockgen, rsrcgen;
 
 auto future_shown = 5 * TAU;
 
+/** start with a fixed good-looking sequence */
+bool demo;
+
 void init_ds_game() {
 
   dynamicval<eGeometry> g(geometry, gSpace435);
@@ -238,10 +241,17 @@ void init_ds_game() {
     }
 
   rockgen.cshift += 2;
+  if(demo) {
+    rockgen.static_starry_field();
+    rockgen.hyperboloid();
+    rockgen.chaotic_starry_field();
+    rockgen.rack();
+    }
   rockgen.add_until(future_shown);
   
   rsrcgen.cshift += 1;
   rsrcgen.add_rsrc_until(future_shown);
+
   }
 
 void ds_gen_particles(int qty, transmatrix from, ld shift, color_t col, ld spd, ld t, ld spread = 1) {
@@ -486,7 +496,7 @@ void view_ds_game() {
   bool hv = hyperbolic;
   bool hvrel = among(pmodel, mdRelPerspective, mdRelOrthogonal);
 
-  sphereflip = hv ? Id : sphereflipped() ? MirrorZ : Id;
+  sphereflip = hv ? Id : sphere_flipped ? MirrorZ : Id;
 
   copyright_shown = "";
   if(!hv) draw_textures();
@@ -569,7 +579,7 @@ void view_ds_game() {
         for(auto p: rock.pts) curvepoint(p.h);
         curvepoint_first();
         color_t col = rock.col; part(col, 0) /= 2;
-        queuecurve(shiftless(sphereflip), ghost_color, 0, obj_prio[rock.type]).flags |= POLY_NO_FOG;
+        queuecurve(shiftless(sphereflip), ghost_color, 0, obj_prio[rock.type]).flags |= POLY_NO_FOG | POLY_FORCEWIDE;
         }
 
       if(view_proper_times && rock.type != oParticle) {
@@ -624,7 +634,7 @@ void view_ds_game() {
       if(pmodel == mdPerspective) {
         for(auto pt: pts) curvepoint(pt);
         curvepoint_first();
-        queuecurve(shiftless(sphereflip), ghost_color, 0, PPR::MONSTER_FOOT).flags |= POLY_NO_FOG;
+        queuecurve(shiftless(sphereflip), ghost_color, 0, PPR::MONSTER_FOOT).flags |= POLY_NO_FOG | POLY_FORCEWIDE;
         }
 
       if(view_proper_times) {
@@ -646,7 +656,7 @@ void view_ds_game() {
           curvepoint(ds_cross0(at1).h);
           }
         curvepoint_first();
-        queuecurve(shiftless(sphereflip * spin(ang*degree)), ghost_color, 0, PPR::MONSTER_HAIR).flags |= POLY_NO_FOG;
+        queuecurve(shiftless(sphereflip * spin(ang*degree)), ghost_color, 0, PPR::MONSTER_HAIR).flags |= POLY_NO_FOG | POLY_FORCEWIDE;
         }
       else {
         queuepolyat(shiftless(sphereflip * spin(ang*degree)), make_shape(), shipcolor, PPR::MONSTER_HAIR);

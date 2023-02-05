@@ -137,11 +137,6 @@ matrixitem genitem(const transmatrix& m1, const transmatrix& m2, int nsym) {
 
 bool do_kleinize() { return S3 >= OINF || (cgflags & qIDEAL); }
 
-EX hyperpoint kleinize(hyperpoint h) { 
-  if(GDIM == 2) return point3(h[0]/h[2], h[1]/h[2], 1); 
-  else return point31(h[0]/h[3], h[1]/h[3], h[2]/h[3]);
-  }
-
 EX hyperpoint may_kleinize(hyperpoint h) { 
   if(do_kleinize()) return kleinize(h);
   else return h;
@@ -288,20 +283,23 @@ void geometry_information::bshape_regular(floorshape &fsh, int id, int sides, ld
   if(bt::in()) {
 
     const int STEP = vid.texture_step;
-    
+
     for(int t=0; t<2; t++) {
     
       if(t == 0) 
         bshape(fsh.b[id], fsh.prio);
       if(t == 1)
         bshape(fsh.shadow[id], fsh.prio);
+
+      int STEP1 = STEP;
+      if((embedded_plane || geom3::flipped) && t == 0) STEP1 = 1;
       
       for(int i=0; i<sides; i++) {
         hyperpoint h0 = bt::get_corner_horo_coordinates(c, i) * size;
         hyperpoint h1 = bt::get_corner_horo_coordinates(c, i+1) * size;
         if(t) h0 *= SHADMUL, h1 *= SHADMUL;
-        hyperpoint hd = (h1 - h0) / STEP;
-        for(int j=0; j<STEP; j++) {
+        hyperpoint hd = (h1 - h0) / STEP1;
+        for(int j=0; j<STEP1; j++) {
           hpcpush(bt::get_horopoint(h0 + hd * j));
           if(geometry == gBinary4 && among(i, 2, 4)) break;
           if(geometry == gBinaryTiling && among(i, 0, 4)) break;
@@ -346,7 +344,7 @@ void geometry_information::bshape_regular(floorshape &fsh, int id, int sides, ld
     hpcpush(xspinpush0(-M_PI/sides, size));
     chasmifyPoly(dlow_table[k], dhi_table[k], k);
 
-    if(geom3::euc_in_noniso()) {
+    if(cgi.emb->is_euc_in_noniso()) {
       fsh.gpside[k].resize(c->type);
       for(int i=0; i<c->type; i++) {
         sizeto(fsh.gpside[k][i], id);
@@ -679,38 +677,32 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
         last->tinf = &floor_texture_vertices[fsh.id];
         last->texture_offset = 0;
 
-        #if CAP_BT
-        if(bt::in()) 
-          for(int t=0; t<c->type; t++)
-            texture_order([&] (ld x, ld y) {
-              hyperpoint left = bt::get_corner_horo_coordinates(c, t);
-              hyperpoint right = bt::get_corner_horo_coordinates(c, t+1);
-              hpcpush(orthogonal_move(bt::get_horopoint(left * x + right * y), dfloor_table[k]));
-              });
-        else 
-        #endif
         if(1) {
           int s = fsh.b[id].s;
           int e = fsh.b[id].e-1;
-          hyperpoint ctr = Hypc;
-          for(int t=0; t<e-s; t++)
-            ctr += orthogonal_move(may_kleinize(hpc[s+t]), dfloor_table[k]);
-          ctr = normalize(ctr);
-          if(vid.pseudohedral) for(int t=0; t<e-s; t++) {
-            hyperpoint v1 = orthogonal_move(may_kleinize(hpc[s+t]), dfloor_table[k]) - ctr;
-            hyperpoint v2 = orthogonal_move(may_kleinize(hpc[s+t+1]), dfloor_table[k]) - ctr;
-            texture_order([&] (ld x, ld y) {
-              hpcpush(normalize(ctr + v1 * x + v2 * y));
-              });
+          if(vid.pseudohedral) {
+            hyperpoint ctr = Hypc;
+            for(int t=0; t<e-s; t++)
+              ctr += kleinize(cgi.emb->orthogonal_move(hpc[s+t], dfloor_table[k]));
+            ctr = normalize(ctr);
+
+            for(int t=0; t<e-s; t++) {
+              hyperpoint v1 = kleinize(cgi.emb->orthogonal_move(hpc[s+t], dfloor_table[k])) - ctr;
+              hyperpoint v2 = kleinize(cgi.emb->orthogonal_move(hpc[s+t+1], dfloor_table[k])) - ctr;
+              texture_order([&] (ld x, ld y) {
+                hpcpush(normalize(ctr + v1 * x + v2 * y));
+                });
+              }
             }
           if(!vid.pseudohedral) for(int t=0; t<e-s; t++) {
-            hyperpoint fctr = tile_center();
-            hyperpoint v1 = may_kleinize(hpc[s+t]) - fctr;
-            hyperpoint v2 = may_kleinize(hpc[s+t+1]) - fctr;
+
+            hyperpoint v1 = cgi.emb->actual_to_logical(hpc[s+t]);
+            hyperpoint v2 = cgi.emb->actual_to_logical(hpc[s+t+1]);
+
             texture_order([&] (ld x, ld y) { 
-              hyperpoint a = fctr + v1 * x + v2 * y;
-              hyperpoint b = normalize_flat(a);
-              hyperpoint c = orthogonal_move(b, dfloor_table[k]);
+              hyperpoint a = v1 * x + v2 * y;
+              a[2] = dfloor_table[k];
+              auto c = cgi.emb->logical_to_actual(a);
               cgi.hpcpush(c);
               });
             }
@@ -728,24 +720,16 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
         last->texture_offset = 0;
         ld h = (FLOOR - WALL) / (co+1);
         ld top = co ? (FLOOR + WALL) / 2 : WALL;
-        #if CAP_BT
-        if(bt::in())
-          for(int t=0; t<c->type; t++)
-            texture_order([&] (ld x, ld y) {
-              hyperpoint left = bt::get_corner_horo_coordinates(c, t);
-              hyperpoint right = bt::get_corner_horo_coordinates(c, t+1);
-              hpcpush(orthogonal_move(bt::get_horopoint(left * x + right * y), top + h * (x+y)));
-              });
-        else
-        #endif
         if(1) {
           int s = fsh.b[id].s;
           int e = fsh.b[id].e-1;        
           for(int t=0; t<e-s; t++) {
-            auto TC0 = tile_center();
-            hyperpoint v1 = may_kleinize(hpc[s+t]) - TC0;
-            hyperpoint v2 = may_kleinize(hpc[s+t+1]) - TC0;
-            texture_order([&] (ld x, ld y) { hpcpush(orthogonal_move(normalize_flat(TC0 + v1 * x + v2 * y), top + h * (x+y))); });
+            hyperpoint v1 = cgi.emb->actual_to_logical(hpc[s+t]);
+            hyperpoint v2 = cgi.emb->actual_to_logical(hpc[s+t+1]);
+            texture_order([&] (ld x, ld y) {
+              hyperpoint a = v1 * x + v2 * y; a[2] = top + h * (x+y);
+              hpcpush(cgi.emb->logical_to_actual(a));
+              });
             }
           }
 

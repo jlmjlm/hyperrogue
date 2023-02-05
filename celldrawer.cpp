@@ -667,7 +667,7 @@ int celldrawer::getSnakelevColor(int i, int last) {
   }
 
 void celldrawer::draw_wallshadow() {
-  if(!noshadow) {
+  if(!noshadow && qfi.fshape) {
     dynamicval<color_t> p(poly_outline, OUTLINE_TRANS);
     draw_shapevec(c, V, qfi.fshape->shadow, SHADOW_WALL, GDIM == 3 ? PPR::TRANSPARENT_SHADOW : PPR::WALLSHADOW);
     }
@@ -1414,7 +1414,7 @@ void celldrawer::draw_features() {
     case waLadder:
       if(GDIM == 3) {
         #if MAXMDIM >= 4
-        draw_shapevec(c, V * zpush(-cgi.human_height/20), cgi.shMFloor.levels[0], 0x804000FF, PPR::FLOOR+1);
+        draw_shapevec(c, V * lzpush(-cgi.human_height/20), cgi.shMFloor.levels[0], 0x804000FF, PPR::FLOOR+1);
         #endif
         }
       else if(euclid) {
@@ -1482,8 +1482,8 @@ void celldrawer::draw_features() {
       if(wmescher && geosupport_football() == 2 && pseudohept(c) && c->land == laPalace) V2 = V * spin(M_PI / c->type);
       if(GDIM == 3) {
         #if MAXMDIM >= 4
-        draw_shapevec(c, V2 * zpush(-cgi.human_height/40), cgi.shMFloor.levels[0], darkena(winf[c->wall].color, 0, 0xFF));
-        draw_shapevec(c, V2 * zpush(-cgi.human_height/35), cgi.shMFloor2.levels[0], (!wmblack) ? darkena(fcol, 1, 0xFF) : darkena(0,1,0xFF));
+        draw_shapevec(c, V2 * lzpush(-cgi.human_height/40), cgi.shMFloor.levels[0], darkena(winf[c->wall].color, 0, 0xFF));
+        draw_shapevec(c, V2 * lzpush(-cgi.human_height/35), cgi.shMFloor2.levels[0], (!wmblack) ? darkena(fcol, 1, 0xFF) : darkena(0,1,0xFF));
         #endif
         }
       else {
@@ -1567,7 +1567,7 @@ void celldrawer::draw_features() {
       #if MAXMDIM >= 4
       if(GDIM == 3)
         for(int a=0; a<10; a++)
-        queuepoly(V * zpush(cgi.FLOOR + (cgi.WALL - cgi.FLOOR) * a/10.) * spin(a *degree) * spintick(PURE ? -1000 : -500, 1/12.), cgi.shFan, darkena(wcol, 0, 0xFF));
+        queuepoly(V * lzpush(cgi.FLOOR + (cgi.WALL - cgi.FLOOR) * a/10.) * spin(a *degree) * spintick(PURE ? -1000 : -500, 1/12.), cgi.shFan, darkena(wcol, 0, 0xFF));
       else
       #endif
         queuepoly(V * spintick(PURE ? -1000 : -500, 1/12.), cgi.shFan, darkena(wcol, 0, 0xFF));
@@ -1583,8 +1583,8 @@ void celldrawer::draw_features() {
 
       if(GDIM == 3) {
         #if MAXMDIM >= 4
-        draw_shapevec(c, V * zpush(-cgi.human_height/40), cgi.shMFloor.levels[0], darkena(0xC00000, 0, 0xFF));
-        draw_shapevec(c, V * zpush(-cgi.human_height/20), cgi.shMFloor2.levels[0], darkena(0x600000, 0, 0xFF));
+        draw_shapevec(c, V * lzpush(-cgi.human_height/40), cgi.shMFloor.levels[0], darkena(0xC00000, 0, 0xFF));
+        draw_shapevec(c, V * lzpush(-cgi.human_height/20), cgi.shMFloor2.levels[0], darkena(0x600000, 0, 0xFF));
         #endif
         }
       else {
@@ -1919,7 +1919,7 @@ void celldrawer::check_rotations() {
       else
         ds.total += unshift(tC0(V));
       ds.qty++;
-      ds.point = normalize_flat(ds.total);
+      ds.point = cgi.emb->normalize_flat(ds.total);
       if(mproduct) ds.point = orthogonal_move(ds.point, ds.depth / ds.qty);
       if(side == 2) for(int i=0; i<3; i++) ds.point[i] = -ds.point[i];
       if(side == 1) ds.point = spin(-90._deg) * ds.point;
@@ -2309,7 +2309,7 @@ void celldrawer::draw_wall_full() {
       (c->land == laClearing && !BITRUNCATED))) {
       #if MAXMDIM >= 4
       if(GDIM == 3 && WDIM == 2)
-        queuepoly(Vd*zpush(cgi.FLOOR), cgi.shHeptaMarker, wmblack ? 0x80808080 : 0x00000080);
+        queuepoly(Vd*lzpush(cgi.FLOOR), cgi.shHeptaMarker, wmblack ? 0x80808080 : 0x00000080);
       else
       #endif
         queuepoly(Vd, cgi.shHeptaMarker, wmblack ? 0x80808080 : 0x00000080);
@@ -2397,7 +2397,7 @@ void celldrawer::draw_wall_full() {
             dbot = false;
             if(GDIM == 2)
               draw_qfi(c, orthogonal_move_fol(V, cgi.BOTTOM), 0x080808FF, PPR::LAKEBOTTOM);
-            else
+            else if(qfi.fshape)
               draw_shapevec(c, V, qfi.fshape->levels[SIDE_BTOI], 0x0F0808FF, PPR::LAKEBOTTOM);
             }
           if(placeSidewall(c, i, SIDE_BTOI, V, D(.6))) break;
@@ -2781,6 +2781,8 @@ void celldrawer::draw() {
     
     asciichar = winf[c->wall].glyph;
     asciicol = wcol;
+
+    if(c->wall == waNone || isWatery(c)) asciicol = fcol;
 
     asciichar1 = asciichar;
     asciicol1 = asciicol;

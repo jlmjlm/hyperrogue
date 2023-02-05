@@ -3,13 +3,11 @@ namespace hr {
 
 #if MAXMDIM >= 4
 pair<bool, hyperpoint> makeradar(shiftpoint h) {
-  if(embedded_plane) h.h = current_display->radar_transform * h.h;
-
-  ld d = hdist0(h);
 
   hyperpoint h1;
-  
-  if(sol && nisot::geodesic_movement && !embedded_plane) {
+
+  if(embedded_plane) h1 = current_display->radar_transform * unshift(h);
+  else if(sol && nisot::geodesic_movement) {
     hyperpoint h1 = inverse_exp(h, pQUICK);
     ld r = hypot_d(3, h1);
     if(r < 1) h1 = h1 * (atanh(r) / r);
@@ -18,75 +16,30 @@ pair<bool, hyperpoint> makeradar(shiftpoint h) {
   else if(mproduct) h1 = product::inverse_exp(unshift(h));
   else if(sl2) h1 = slr::get_inverse_exp(h);
   else h1 = unshift(h);
-  
+
   if(nisot::local_perspective_used && !embedded_plane) {
     h1 = NLP * h1;
     }
   
   if(WDIM == 3) {
+    ld d = hdist0(h);
     if(d >= vid.radarrange) return {false, h1};
     if(d) h1 = h1 * (d / vid.radarrange / hypot_d(3, h1));
     }
-  else if(mhyperbolic) {
-    if(geom3::hyp_in_solnih()) {
-      geom3::light_flip(true);
-      h1 = parabolic1(h1[1]) * xpush0(h1[0]);
-      geom3::light_flip(false);
-      h1[3] = h1[2]; h1[2] = 0;
-      // h1 = current_display->radar_transform * h1;
-      }
-    for(int a=0; a<LDIM; a++) h1[a] = h1[a] / (1 + h1[LDIM]);
-    }
-  else if(msphere) {
-    if(geom3::same_in_same()) h1[2] = h1[LDIM];
-    if(geom3::sph_in_hyp()) h1 /= sinh(1);
-    }
   else {
-    if(geom3::euc_in_hyp()) {
-      for(int a=0; a<3; a++) h1[a] = h1[a] / (1 + h1[3]);
-      h1[2] -= 1;
-      h1 *= 2 / sqhypot_d(3, h1);
-      d = hypot_d(2, h1);
+    h1 = cgi.emb->actual_to_base(h1);
+    h1 = current_display->radar_transform_post * h1;
+    if(mhyperbolic) {
+      h1[LDIM] = h1[2]; if(!gproduct) h1[2] = 0;
+      for(int a=0; a<LDIM; a++) h1[a] = h1[a] / (1 + h1[LDIM]);
+      h1[LDIM] *= 2;
+      }
+    if(meuclid) {
+      ld d = hypot_d(2, h1);
       if(d > vid.radarrange) return {false, h1};
       if(d) h1 = h1 / (vid.radarrange + cgi.scalefactor/4);
       }
-    else if(geom3::same_in_same()) {
-      if(d > vid.radarrange) return {false, h1};
-      if(d) h1 = h1 * (d / (vid.radarrange + cgi.scalefactor/4) / hypot_d(3, h1));
-      }
-    else if(geom3::euc_in_sph()) {
-      h1[0] = atan2(h.h[0], h.h[2]);
-      h1[1] = atan2(h.h[1], h.h[3]);
-      h1[2] = 0;
-      h1 = cgi.intermediate_to_logical * h1;
-      d = hypot_d(2, h1);
-      if(d > vid.radarrange) return {false, h1};
-      if(d) h1 = h1 / (vid.radarrange + cgi.scalefactor/4);
-      }
-    else if(geom3::euc_in_sl2()) {
-      h1 = cgi.intermediate_to_logical * esl2_ati(unshift(h)); h1[1] = -h1[1];
-      d = hypot_d(2, h1);
-      if(d > vid.radarrange) return {false, h1};
-      if(d) h1 = h1 / (vid.radarrange + cgi.scalefactor/4);
-      }
-    else if(geom3::euc_in_product()) {
-      if(in_h2xe())
-        h1[0] = atanh(h.h[0] / h.h[2]);
-      else
-        h1[0] = atan2(h.h[2], h.h[0]);
-      h1[2] = - zlevel(h.h) - h.shift;
-      h1[1] = 0;
-      h1[3] = 0;
-      h1 = cgi.intermediate_to_logical * h1;
-      d = hypot_d(2, h1);
-      if(d > vid.radarrange) return {false, h1};
-      if(d) h1 = h1 / (vid.radarrange + cgi.scalefactor/4);
-      }
-    else {
-      d = hypot_d(2, h1);
-      if(d > vid.radarrange) return {false, h1};
-      if(d) h1 = h1 / (vid.radarrange + cgi.scalefactor/4);
-      }
+    /* no change for sphere! */
     }
   if(invalid_point(h1)) return {false, h1};
   return {true, h1};
@@ -203,13 +156,16 @@ EX void draw_radar(bool cornermode) {
     compassdir('D', point3(0,  0,-1));
     }
 
+  ld f = cgi.scalefactor;
+  if(cgi.emb->is_euc_in_hyp()) f /= exp(vid.depth);
+
   auto locate = [&] (hyperpoint h) {
     if(sph)
       return point3(cx + (rad-10) * h[0], cy + (rad-10) * h[2] * si + (rad-10) * h[1] * co, +h[1] * si > h[2] * co ? 8 : 16);
     else if(hyp) 
       return point3(cx + rad * h[0], cy + rad * h[1], 1/(1+h[ldim]) * cgi.scalefactor * current_display->radius / (inHighQual ? 10 : 6));
     else
-      return point3(cx + rad * h[0], cy + rad * h[1], rad * cgi.scalefactor / (vid.radarrange + cgi.scalefactor/4) * 0.8);
+      return point3(cx + rad * h[0], cy + rad * h[1], rad * f / (vid.radarrange + f/4) * 0.8);
     };
   
   for(auto& r: cd->radarlines) {

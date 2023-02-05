@@ -13,7 +13,7 @@
 namespace hr {
 
 EX hyperpoint final_coords(hyperpoint h) {
-  if(sn::in() || !bt::in()) 
+  if(sn::in() || !bt::in())
     return ultra_normalize(h);
   #if CAP_BT
   if(bt::in() && !mproduct)
