@@ -434,7 +434,7 @@ EX int fieldval_uniq(cell *c) {
     else if(IRREGULAR) return irr::cellindex[c];
     #endif
     #if CAP_GP
-    else if(GOLDBERG_INV) return (get_code(gp::get_local_info(c)) << 8) | (c->master->fieldval / S7);
+    else if(GOLDBERG_INV) return (get_code(gp::get_local_info(c)) << 8) | (sphere ? c->master->fieldval : c->master->fieldval / S7);
     #endif
     if(ctof(c)) return c->master->fieldval;
     else return createMov(c, 0)->master->fieldval + 256 * createMov(c,2)->master->fieldval + (1<<16) * createMov(c,4)->master->fieldval;
@@ -2069,7 +2069,7 @@ EX namespace patterns {
 
     dialog::addBreak(100);
 
-    dialog::addBoolItem_action(XLAT("display the inner walls"), innerwalls, '5');
+    dialog::addBoolItem_action(XLAT("display the inner walls"), innerwalls, '1');
     
     if(geosupport_threecolor() == 2) {    
       dialog::addBoolItem(XLAT("display only hexagons"), (whichShape == '6'), '6');
@@ -2083,6 +2083,8 @@ EX namespace patterns {
       }
 
     dialog::addBoolItem(XLAT("display full floors"), (whichShape == '9'), '9');
+    dialog::addBoolItem(XLAT("display small floors"), (whichShape == '5'), '5');
+
     add_edit(global_boundary_ratio);
     dialog::addSelItem(XLAT("floor type"), XLATN(winf[canvas_default_wall].name), 'i');
 
@@ -2130,7 +2132,7 @@ EX namespace patterns {
           }
         }
       
-      else if(uni == '6' || uni == '7' || uni == '8' || uni == '9') {
+      else if((uni >= '2' && uni <= '9')) {
         if(whichShape == uni) whichShape = 0;
         else whichShape = uni;
         }

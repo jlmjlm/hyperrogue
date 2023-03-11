@@ -15,7 +15,7 @@ ld eyepos;
 #if MAXMDIM >= 4
 
 #define S (cgi.scalefactor / 0.805578)
-#define SH (cgi.scalefactor / 0.805578 * vid.height_width / 1.5)
+#define SH (embedded_plane ? cgi.human_height : (cgi.scalefactor / 0.805578 * (vid.height_width / 1.5)))
 
 #define revZ ((WDIM == 2 || gproduct) ? -1 : 1)
 
@@ -390,7 +390,9 @@ void geometry_information::make_foot_3d(hpcshape& sh) {
   add_cone(zc(0.4), leg5, zc(0.45));
   add_texture(sh);
   // shift_last(-LEG0);
-  for(int i=last->s; i<isize(hpc); i++) hpc[i] = cpush(0, -0.0125*S) * hpc[i];
+  ld sc = 1;
+  if(cgi.emb->is_euc_in_hyp()) sc *= exp(-vid.depth);
+  for(int i=last->s; i<isize(hpc); i++) hpc[i] = lxpush(-0.0125*S) * hpc[i];
   }
 
 void geometry_information::make_head_only() {
@@ -508,6 +510,7 @@ hyperpoint yzspin(ld alpha, hyperpoint h) {
   if(embedded_plane) {
     h = cgi.emb->actual_to_logical(h);
     h = cspin(1, 2, alpha) * h;
+    h[2] *= cgi.human_height;
     h = cgi.emb->logical_to_actual(h);
     return h;
     }
@@ -641,6 +644,7 @@ void geometry_information::animate_bird(hpcshape& orig, hpcshape_animated& anima
       if(abs(h[1]) > body) {
         ld off = h[1] > 0 ? body : -body;
         h[2] += abs(h[1] - off) * sin(alpha);
+        if(embedded_plane) h[2] *= cgi.human_height;
         h[1] = off + (h[1] - off) * cos(alpha);
         h = cgi.emb->logical_to_actual(h);
         h = normalize(h);
@@ -656,7 +660,7 @@ void geometry_information::slimetriangle(hyperpoint a, hyperpoint b, hyperpoint 
   dynamicval<int> d(vid.texture_step, 8);
   ld sca = 1;
   if(mhybrid) sca = .5;
-  if(cgi.emb->is_euc_in_noniso()) sca *= .3;
+  if(cgi.emb->is_euc_in_noniso()) sca *= .3 * geom3::euclid_embed_scale;
   texture_order([&] (ld x, ld y) {
     ld z = 1-x-y;
     ld r = scalefactor * hcrossf7 * (0 + pow(max(x,max(y,z)), .3) * 0.8) * sca;
@@ -741,13 +745,18 @@ void geometry_information::make_star(hpcshape& sh, ld rad) {
 void geometry_information::make_euclidean_sky() {
   bshape(cgi.shEuclideanSky, PPR::EUCLIDEAN_SKY);
   for(int x=-20; x<20; x++)
-  for(int y=-20; y<20; y++)
+  for(int y=-20; y<20; y++) {
+    auto x0 = x * cgi.LOWSKY;
+    auto x1 = (x+1) * cgi.LOWSKY;
+    auto y0 = y * cgi.LOWSKY;
+    auto y1 = (y+1) * cgi.LOWSKY;
     hpcsquare(
-      lzpush(cgi.WALL) * hpxy(x, y),
-      lzpush(cgi.WALL) * hpxy(x, y+1),
-      lzpush(cgi.WALL) * hpxy(x+1, y),
-      lzpush(cgi.WALL) * hpxy(x+1, y+1)
+      lzpush(cgi.LOWSKY) * hpxy(x0, y0),
+      lzpush(cgi.LOWSKY) * hpxy(x0, y1),
+      lzpush(cgi.LOWSKY) * hpxy(x1, y0),
+      lzpush(cgi.LOWSKY) * hpxy(x1, y1)
       );
+    }
   }
 
 /** res[0] and res[1] place H on the plane, while res[2] is the altitude */
@@ -1114,13 +1123,10 @@ void geometry_information::make_3d_models() {
   make_ball(shDisk, orbsize*.2, 2);
   make_ball(shHeptaMarker, zhexf*.2, 1);
   make_ball(shSnowball, zhexf*.1, 1);
-  if(euclid) {
-    make_ball(shSun, 0.5, 2);
-    make_euclidean_sky();
-    }
-  else
-    make_star(shSun, 3);
-  make_star(shNightStar, euclid ? 0.05 : 0.75);
+  make_ball(shSkyboxSun, 8 * zhexf, 2);
+  if(euclid) make_euclidean_sky();
+  make_star(shSun, vid.sun_size * zhexf);
+  make_star(shNightStar, vid.star_size * zhexf);
   
   if(WDIM == 2) {
     for(int i=0; i<3; i++) {

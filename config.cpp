@@ -140,6 +140,12 @@ struct float_setting : public setting {
   void load_from(const string& s) override;
   };
 
+struct float_setting_dft : public float_setting {
+  void show_edit_option(int key) override;
+  function<ld()> get_hint;
+  float_setting_dft* set_hint(const function<ld()>& f) { get_hint = f; return this; }
+  };
+
 struct int_setting : public setting {
   int *value;
   int dft;
@@ -325,12 +331,33 @@ void non_editable() {
 void float_setting::show_edit_option(int key) {
   if(modify_me) modify_me(this);
   dialog::addSelItem(XLAT(menu_item_name), fts(*value) + unit, key);
+  if(*value == use_the_default_value) dialog::lastItem().value = XLAT("default");
   dialog::add_action([this] () {
     add_to_changed(this);
     dialog::editNumber(*value, min_value, max_value, step, dft, XLAT(menu_item_name), help_text); 
     if(sets) sets();
     if(reaction) dialog::reaction = reaction;
     if(!is_editable) dialog::extra_options = non_editable;
+    });
+  }
+
+void float_setting_dft::show_edit_option(int key) {
+  if(modify_me) modify_me(this);
+  dialog::addSelItem(XLAT(menu_item_name), fts(*value) + unit, key);
+  if(*value == use_the_default_value) dialog::lastItem().value = XLAT("default: ") + fts(get_hint());
+  dialog::add_action([this] () {
+    add_to_changed(this);
+    if(*value == use_the_default_value) *value = get_hint();
+    dialog::editNumber(*value, min_value, max_value, step, dft, XLAT(menu_item_name), help_text);
+    if(sets) sets();
+    if(reaction) dialog::reaction = reaction;
+    if(!is_editable) dialog::extra_options = non_editable;
+    auto eo = dialog::extra_options;
+    dialog::extra_options = [eo, this] {
+      dialog::addSelItem(XLAT("use the default value"), "", 'D');
+      dialog::add_action([this] { *value = use_the_default_value; });
+      if(eo) eo();
+      };
     });
   }
 
@@ -371,6 +398,24 @@ EX float_setting *param_f(ld& val, const string p, const string s, ld dft) {
     u->max_value = 2 * dft;
     }
   u->step = dft / 10;
+  u->dft = dft;
+  val = dft;
+  u->add_as_saver();
+  auto f = &*u;
+  params[u->parameter_name] = std::move(u);
+  return f;
+  }
+
+EX float_setting_dft *param_fd(ld& val, const string s, ld dft IS(use_the_default_value) ) {
+  unique_ptr<float_setting_dft> u ( new float_setting_dft );
+  u->parameter_name = s;
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->value = &val;
+  u->last_value = dft;
+  u->min_value = -100;
+  u->max_value = +100;
+  u->step = 1;
   u->dft = dft;
   val = dft;
   u->add_as_saver();
@@ -840,16 +885,16 @@ EX void initConfig() {
   param_f(geom3::euclid_embed_scale, "euclid_embed_scale", "euclid_embed_scale")
   -> editable(0, 2, 0.05, "Euclidean embedding scale", "How to scale the Euclidean map, relatively to the 3D absolute unit.", 'X')
   -> set_sets([] { dialog::bound_low(0.05); })
-  -> set_reaction([] { if(vid.always3) { for(auto m: allmaps) m->on_dim_change(); }});
+  -> set_reaction(geom3::apply_settings_full);
 
   param_f(geom3::euclid_embed_scale_y, "euclid_embed_scale_y", "euclid_embed_scale_y")
   -> editable(0, 2, 0.05, "Euclidean embedding scale Y/X", "This scaling factor affects only the Y coordinate.", 'Y')
   -> set_sets([] { dialog::bound_low(0.05); })
-  -> set_reaction([] { if(vid.always3) { for(auto m: allmaps) m->on_dim_change(); }});
+  -> set_reaction(geom3::apply_settings_full);
 
   param_f(geom3::euclid_embed_rotate, "euclid_embed_rotate", "euclid_embed_rotate")
   -> editable(0, 360, 15, "Euclidean embedding rotation", "How to rotate the Euclidean embedding, in degrees.", 'F')
-  -> set_reaction([] { if(vid.always3) { for(auto m: allmaps) m->on_dim_change(); }});
+  -> set_reaction(geom3::apply_settings_full);
 
   param_enum(embedded_shift_method_choice, "embedded_shift_method", "embedded_shift_method", smcBoth)
   -> editable({
@@ -863,23 +908,15 @@ EX void initConfig() {
 
   param_b(geom3::inverted_embedding, "inverted_3d", false)
   -> editable("invert convex/concave", 'I')
-  -> set_reaction([] { if(vid.always3) { geom3::switch_fpp(); geom3::switch_fpp(); } });
+  -> set_reaction(geom3::apply_settings_full);
 
   param_b(geom3::flat_embedding, "flat_3d", false)
   -> editable("flat, not equidistant", 'F')
-  -> set_reaction([] { if(vid.always3) { geom3::switch_fpp(); geom3::switch_fpp(); } });
+  -> set_reaction(geom3::apply_settings_full);
 
   param_enum(geom3::spatial_embedding, "spatial_embedding", "spatial_embedding", geom3::seDefault)
   ->editable(geom3::spatial_embedding_options, "3D embedding method", 'E')
-  ->set_reaction([] {
-    if(vid.always3) {
-      geom3::switch_fpp();
-      geom3::switch_fpp();
-      delete_sky();
-      // not sure why this is needed...
-      resetGL();
-      }
-    });
+  ->set_reaction(geom3::apply_settings_full);
   
   param_b(memory_saving_mode, "memory_saving_mode", (ISMOBILE || ISPANDORA || ISWEB) ? 1 : 0);
   param_i(reserve_limit, "memory_reserve", 128);
@@ -2280,11 +2317,12 @@ EX void display_embedded_errors() {
         T0[1][0] = geometry == gEuclid ? 10 : 0;
         euc::eu_input.twisted = false;
         euc::build_torus3();
-        geom3::switch_fpp(); geom3::switch_fpp(); start_game(); }); });
+        geom3::apply_settings_full(); start_game(); }); });
       return;
       }
     }
   if(meuclid && spatial_embedding == seProductS) {
+    #if CAP_RUG
     rug::clifford_torus ct;
     bool err = sqhypot_d(2, ct.xh) < 1e-3 && sqhypot_d(2, ct.yh) < 1e-3;
     if(err) {
@@ -2295,9 +2333,12 @@ EX void display_embedded_errors() {
         T0[0][1] = T0[1][0] = T0[1][1] = 0;
         euc::eu_input.twisted = false;
         euc::build_torus3();
-        geom3::switch_fpp(); geom3::switch_fpp(); start_game(); }); });
+        geom3::apply_settings_full(); start_game(); }); });
       return;
       }
+    #else
+    dialog::addInfo(XLAT("error: not supported"), 0xC00000);
+    #endif
     }
   if(msphere && !among(spatial_embedding, seNone, seDefault, seLowerCurvature, seMuchLowerCurvature, seProduct, seProductS)) {
     dialog::addInfo(XLAT("error: this method does not work in spherical geometry"), 0xC00000);
@@ -2338,6 +2379,7 @@ EX void show_spatial_embedding() {
     if(emb == geom3::seNone) {
       dialog::addBoolItem(XLAT("third-person perspective"), in_tpp(), 'T');
       dialog::add_action(geom3::switch_tpp);
+      #if CAP_RUG
       dialog::addBoolItem(XLAT("Hypersian Rug"), rug::rugged, 'u');
       dialog::add_action([] {
         if(in_tpp()) geom3::switch_tpp();
@@ -2346,6 +2388,7 @@ EX void show_spatial_embedding() {
           }
         else rug::close();
         });
+      #endif
       dialog::addBreak(100);
       }
     else {
@@ -2367,6 +2410,59 @@ EX void show_spatial_embedding() {
   dialog::addBreak(100);
   dialog::addBack();
 
+  dialog::display();
+  }
+
+EX void show3D_height_details() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("3D detailed settings"));
+
+  add_edit(vid.wall_height);
+
+  dialog::addBreak(50);
+
+  add_edit(vid.rock_wall_ratio);
+  add_edit(vid.human_wall_ratio);
+  add_edit(vid.lake_top);
+  add_edit(vid.lake_shallow);
+  add_edit(vid.lake_bottom);
+
+  dialog::addBreak(50);
+
+  if(embedded_plane) {
+    add_edit(auto_remove_roofs);
+    add_edit(vid.wall_height2);
+    add_edit(vid.wall_height3);
+    add_edit(draw_sky);
+    add_edit(vid.lowsky_height);
+    add_edit(vid.sky_height);
+    add_edit(vid.star_height);
+    add_edit(vid.infdeep_height);
+    add_edit(vid.sun_size);
+    add_edit(vid.star_size);
+    add_edit(star_prob);
+    add_edit(vid.height_limits);
+    if(euclid && msphere) add_edit(use_euclidean_infinity);
+
+    dialog::addBreak(100);
+    dialog::addHelp(lalign(0, "absolute altitudes:\n\n"
+      "depth ", cgi.INFDEEP,
+      " water ", tie(cgi.BOTTOM, cgi.SHALLOW, cgi.LAKE),
+      " floor ", cgi.FLOOR,
+      " eye ", vid.eye,
+      " walls ", tie(cgi.WALL, cgi.HIGH, cgi.HIGH2),
+      " star ", cgi.STAR,
+      " sky ", cgi.SKY,
+      "\n\n",
+      "recommended: ", cgi.emb->height_limit(-1), " to ", cgi.emb->height_limit(1)
+      ));
+    }
+  else dialog::addInfo(XLAT("more options in 3D engine"));
+
+  dialog::addBreak(100);
+
+  dialog::addBack();
   dialog::display();
   }
 
@@ -2413,11 +2509,9 @@ EX void show3D() {
     
     dialog::addBreak(50);
     add_edit(vid.wall_height);
+    dialog::addSelItem("height details", "", 'D');
+    dialog::add_action_push(show3D_height_details);
     
-    add_edit(vid.rock_wall_ratio);
-    add_edit(vid.human_wall_ratio);
-    add_edit(vid.lake_top);
-    add_edit(vid.lake_bottom);
     if(scale_used())
       add_edit(vid.creature_scale);
     }
@@ -2471,10 +2565,12 @@ EX void show3D() {
     dialog::addSelItem(XLAT("projection"), current_proj_name(), 'M');
     dialog::add_action_push(models::model_menu);  
     }
+  #if CAP_RUG
   if(GDIM == 2) {
     dialog::addItem(XLAT("configure Hypersian Rug"), 'u');
     dialog::add_action_push(rug::show);
     }
+  #endif
 
   #if MAXMDIM >= 4
   if(GDIM == 3) add_edit_fov('f');
@@ -2552,7 +2648,7 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     ->editable(-5, 5, .1, "eye level", "", 'E')
     ->set_extra([] {
       dialog::dialogflags |= sm::CENTER;
-      vid.tc_depth = ticks;
+      vid.tc_camera = ticks;
     
       dialog::addHelp(XLAT("In the FPP mode, the camera will be set at this altitude (before applying shifts)."));
 
@@ -2584,7 +2680,10 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   param_b(numerical_minefield, "numerical_minefield")
   ->editable("display mine counts numerically", 'n');
   param_b(dont_display_minecount, "dont_display_minecount");
-  param_b(draw_sky, "draw sky", true);
+  param_enum(draw_sky, "draw_sky", "draw_sky", skyAutomatic)
+  -> editable({{"NO", "do not draw sky"}, {"automatic", ""}, {"skybox", "works only in Euclidean"}, {"always", "might be glitched in some settings"}}, "sky rendering", 's');
+  param_b(use_euclidean_infinity, "use_euclidean_infinity", true)
+  -> editable("infinite sky", 'i');
   param_f(linepatterns::parallel_count, "parallel_count")
     ->editable(0, 24, 1, "number of parallels drawn", "", 'n');
   param_f(linepatterns::parallel_max, "parallel_max")
@@ -2626,6 +2725,13 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
               "with parameter %2.", fts(current_camera_level), fts(tan_auto(vid.depth) / tan_auto(current_camera_level)));
           }
         dialog::addHelp(help);
+        })
+    ->set_reaction([] {
+        bool b = vid.tc_alpha < vid.tc_camera;
+        if(vid.tc_alpha >= vid.tc_depth) vid.tc_alpha = vid.depth - 1;
+        if(vid.tc_camera >= vid.tc_depth) vid.tc_camera = vid.depth - 1;
+        if(vid.tc_alpha == vid.tc_camera) (b ? vid.tc_alpha : vid.tc_camera)--;
+        geom3::apply_settings_light();
         });
   param_f(vid.camera, "camera", "3D camera level", 1)
     ->editable(0, 5, .1, "", "", 'c')
@@ -2660,7 +2766,8 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
         dialog::add_action([] () {
           vid.gp_autoscale_heights = !vid.gp_autoscale_heights;
           });
-        });
+        })
+    ->set_reaction(geom3::apply_settings_light);
   param_f(vid.rock_wall_ratio, "rock_wall_ratio", "3D rock-wall ratio", .9)
     ->editable(0, 1, .1, "Rock-III to wall ratio", "", 'r')
     ->set_extra([] { dialog::addHelp(XLAT(
@@ -2680,10 +2787,46 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
         fts(cosh(vid.depth - vid.wall_height * vid.human_wall_ratio) / cosh(vid.depth)))
         );
         });
-  param_f(vid.lake_top, "lake_top", "3D lake top", .25)
-    ->editable(0, 1, .1, "Level of water surface", "", 'l');
-  param_f(vid.lake_bottom, "lake_bottom", "3D lake bottom", .9)
-    ->editable(0, 1, .1, "Level of water bottom", "", 'k');
+  string unitwarn =
+    "The unit this is value is given in is wall height. "
+    "Note that, in exponentially expanding spaces, too high values could cause rendering issues. So "
+    "if you want infinity, values of 5 or similar should be used -- there is no visible difference "
+    "from infinity and glitches are avoided.";
+  param_f(vid.lake_top, "lake_top", "3D lake top", .25 / 0.3)
+    ->editable(0, 1, .1, "Level of water surface", unitwarn, 'l');
+  param_f(vid.lake_shallow, "lake_shallow", "3D lake shallow", .4 / 0.3)
+    ->editable(0, 1, .1, "Level of shallow water", unitwarn, 's');
+  param_f(vid.lake_bottom, "lake_bottom", "3D lake bottom", .9 / 0.3)
+    ->editable(0, 1, .1, "Level of water bottom", unitwarn, 'k');
+  param_f(vid.wall_height2, "wall_height2", "wall_height2", 2)
+    ->editable(0, 5, .1, "ratio of high walls to normal walls", unitwarn, '2');
+  param_f(vid.wall_height3, "wall_height3", "wall_height3", 3)
+    ->editable(0, 5, .1, "ratio of very high walls to normal walls", unitwarn, '3');
+  param_f(vid.lowsky_height, "lowsky_height", "lowsky_height", 2)
+    ->editable(0, 5, .1, "sky fake height", "Sky is rendered at the distance computed based on "
+      "the sky height, which might be beyond the range visible in fog. To prevent this, "
+      "the intensity of the fog effect depends on the value here rather than the actual distance. "
+      "Stars are affected similarly.", '4');
+  param_fd(vid.sky_height, "sky_height")
+    ->set_hint([] { return geom3::to_wh(cgi.SKY); })
+    ->editable(0, 10, .1, "altitude of the sky", unitwarn, '5')
+    ->set_reaction(delete_sky);
+  param_fd(vid.star_height, "star_height")
+    ->set_hint([] { return geom3::to_wh(cgi.STAR); })
+    ->editable(0, 10, .1, "altitude of the stars", unitwarn, '6');
+  param_fd(vid.infdeep_height, "infdeep_height")
+    ->set_hint([] { return geom3::to_wh(cgi.INFDEEP); })
+    ->editable(0, 10, .1, "infinite depth", unitwarn, '7');
+  param_f(vid.sun_size, "sun_size", "sun_size", 8)
+    ->editable(0, 10, .1, "sun size (relative to item sizes)", "", '8');
+  param_f(vid.star_size, "star_size", "star_size", 0.75)
+    ->editable(0, 10, .1, "night star size (relative to item sizes)", "", '9');
+  param_f(star_prob, "star_prob", 0.3)
+    ->editable(0, 1, .01, "star probability", "probability of star per tile", '*');
+  param_b(vid.height_limits, "height_limits", true)
+    ->editable("prevent exceeding recommended altitudes", 'l');
+  param_b(auto_remove_roofs, "auto_remove_roofs", true)
+    ->editable("do not render higher levels if camera too high", 'r');
   addsaver(vid.tc_depth, "3D TC depth", 1);
   addsaver(vid.tc_camera, "3D TC camera", 2);
   addsaver(vid.tc_alpha, "3D TC alpha", 3);
@@ -2707,7 +2850,7 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     "separate mirror images or different football types.", 'd');
   param_f(global_boundary_ratio, "global_boundary_ratio")
   ->editable(0, 5, 0.1, "Width of cell boundaries",
-    "How wide should the cell boundaries be.", 'b');
+    "How wide should the cell boundaries be.", '0');
   addsaver(vid.gp_autoscale_heights, "3D Goldberg autoscaling", true);  
   addsaver(scorefile, "savefile");
   param_b(savefile_selection, "savefile_selection")

@@ -236,7 +236,7 @@ struct geometry_information {
     BODY, BODY1, BODY2, BODY3,
     NECK1, NECK, NECK3, HEAD, HEAD1, HEAD2, HEAD3,
     ALEG0, ALEG, ABODY, AHEAD, BIRD, LOWSKY, SKY, HIGH, HIGH2,
-    SHALLOW;
+    HELL, STAR, SHALLOW;
   ld human_height, slev;
 
   ld eyelevel_familiar, eyelevel_human, eyelevel_dog;
@@ -308,7 +308,7 @@ hpcshape
   shKnife, shTongue, shFlailMissile, shTrapArrow,
   shPirateHook, shSmallPirateHook, shPirateHood, shEyepatch, shPirateX,
   // shScratch, 
-  shHeptaMarker, shSnowball, shHugeDisk, shSun, shNightStar, shEuclideanSky,
+  shHeptaMarker, shSnowball, shHugeDisk, shSkyboxSun, shSun, shNightStar, shEuclideanSky,
   shSkeletonBody, shSkull, shSkullEyes, shFatBody, shWaterElemental,
   shPalaceGate, shFishTail,
   shMouse, shMouseLegs, shMouseEyes,
@@ -789,6 +789,11 @@ void geometry_information::prepare_basics() {
   if(scale_used()) zhexf *= vid.creature_scale;
   if(WDIM == 2 && GDIM == 3) zhexf *= 1.5, orbsize *= 1.2;
 
+  if(cgi.emb->is_euc_in_hyp()) {
+    zhexf *= exp(-vid.depth);
+    orbsize *= exp(-vid.depth);
+    }
+
   floorrad0 = hexvdist* (GDIM == 3 ? 1 : 1 - 0.08 * global_boundary_ratio);
   floorrad1 = rhexf * (GDIM == 3 ? 1 : 1 - 0.06 * global_boundary_ratio);
   
@@ -896,8 +901,13 @@ EX namespace geom3 {
     }
   EX ld factor_to_lev(ld fac) { 
     if(mproduct) return -fac;
-    if(GDIM == 3) return fac;
+    if(WDIM == 3) return fac;
+    if(GDIM == 3) return vid.depth - fac;
     return vid.depth - projection_to_abslev(factor_to_projection(fac)); 
+    }
+
+  EX ld to_wh(ld val) {
+    return factor_to_lev(val / actual_wall_height());
     }
   
   EX void do_auto_eye() {
@@ -918,6 +928,7 @@ EX namespace geom3 {
     }
   
   EX string invalid;
+  EX bool changing_embedded_settings;
   
   EX ld actual_wall_height() {
       if(mhybrid) return cgi.plevel;
@@ -935,7 +946,7 @@ EX namespace geom3 {
     // tanh(depth) / tanh(camera) == pconf.alpha
     invalid = "";
     
-    if(GDIM == 3 || flipped) ;
+    if(GDIM == 3 || flipped || changing_embedded_settings);
     else if(vid.tc_alpha < vid.tc_depth && vid.tc_alpha < vid.tc_camera)
       pconf.alpha = tan_auto(vid.depth) / tan_auto(vid.camera);
     else if(vid.tc_depth < vid.tc_alpha && vid.tc_depth < vid.tc_camera) {
@@ -985,10 +996,9 @@ EX namespace geom3 {
       BIRD = 1.20;
       SHALLOW = .95;
       STUFF = 1;
-      LOWSKY = SKY = HIGH = HIGH2 = 1;
+      LOWSKY = SKY = HIGH = HIGH2 = STAR = 1;
       }
     else {
-      INFDEEP = GDIM == 3 ? (sphere ? 90._deg : +5) : (euclid || sphere) ? 0.01 : lev_to_projection(0) * tanh(vid.camera);
       ld wh = actual_wall_height();
       WALL = lev_to_factor(wh);
       FLOOR = lev_to_factor(0);
@@ -1035,40 +1045,57 @@ EX namespace geom3 {
       slev = vid.rock_wall_ratio * wh / 3;
       for(int s=0; s<=3; s++)
         SLEV[s] = lev_to_factor(vid.rock_wall_ratio * wh * s/3);
-      LAKE = lev_to_factor(sgn * -vid.lake_top);
-      SHALLOW = lev_to_factor(sgn * -.4);
+      LAKE = lev_to_factor(sgn * wh * -vid.lake_top);
+      SHALLOW = lev_to_factor(sgn * wh * -vid.lake_shallow);
       HELLSPIKE = lev_to_factor(sgn * -(vid.lake_top+vid.lake_bottom)/2);
       BOTTOM = lev_to_factor(sgn * -vid.lake_bottom);
-      LOWSKY = lev_to_factor(2 * wh);
-      HIGH = LOWSKY;
-      HIGH2 = lev_to_factor(3 * wh);
-      SKY = LOWSKY - sgn * 5;
+      LOWSKY = lev_to_factor(vid.lowsky_height * wh);
+      HIGH = lev_to_factor(vid.wall_height2 * wh);
+      HIGH2 = lev_to_factor(vid.wall_height3 * wh);
+      SKY = vid.sky_height == use_the_default_value ? cgi.emb->height_limit(-sgn) : lev_to_factor(vid.sky_height * wh);
+      STAR = vid.star_height == use_the_default_value ? lerp(FLOOR, SKY, 0.95) : lev_to_factor(vid.star_height * wh);
+      HELL = -SKY;
+      if(embedded_plane)
+        INFDEEP = vid.infdeep_height == use_the_default_value ? cgi.emb->height_limit(sgn) : lev_to_factor(vid.infdeep_height * wh);
+       else
+        INFDEEP = (euclid || sphere) ? 0.01 : lev_to_projection(0) * tanh(vid.camera);
 
       /* in spherical/cylindrical case, make sure that the high stuff does not go through the center */
 
-      if(cgi.emb->is_depth_limited()) {
-        ld max_high = lerp(-FLOOR, -1, 0.8);
-        ld max_high2 = lerp(-FLOOR, -1, 0.9);
-        if(HIGH < max_high) HIGH = max_high;
-        if(HIGH2 < max_high2) HIGH2 = max_high2;
-        if(LOWSKY < max_high) LOWSKY = max_high;
-        if(SKY < max_high) SKY = max_high;
-        if(vid.wall_height < 0) {
-          SKY = -3 * vid.wall_height;
-          LOWSKY = 1.75 * SKY;
-          }
-        if(SHALLOW < max_high) SHALLOW = max_high;
-        if(LAKE < max_high) LAKE = max_high;
-        if(BOTTOM < max_high2) BOTTOM = max_high2;
-        if(HELLSPIKE < max_high) HELLSPIKE = max_high;
-        if(sgn < 0) INFDEEP = -1;
+      if(vid.height_limits) {
+        auto hp = cgi.emb->height_limit(1);
+        auto hn = cgi.emb->height_limit(-1);
+        auto adjust = [&] (ld& val, ld& guide, ld lerpval) {
+          if(val > hp)
+            val = lerp(guide, hp, lerpval);
+          else if(val < hn)
+            val = lerp(guide, hn, lerpval);
+          };
+        adjust(HIGH, FLOOR, 0.8);
+        adjust(HIGH2, HIGH, 0.5);
+        adjust(SKY, FLOOR, 1);
+        adjust(STAR, FLOOR, 0.9);
+        adjust(LAKE, FLOOR, 0.8);
+        adjust(SHALLOW, LAKE, 0.9);
+        adjust(BOTTOM, SHALLOW, 0.5);
+        adjust(INFDEEP, FLOOR, 1);
         }
-
-      if(cgi.emb->is_euc_in_hyp() && sgn < 0) INFDEEP = FLOOR - 5;
       }
     }    
 
 EX namespace geom3 {
+
+  /** direction of swapping: +1 => from 2D to 3D; -1 => from 3D to 2D; 0 => make everything right */
+  EX int swap_direction;
+
+  EX void swapdim(int dir) {
+    swap_direction = dir;
+    decide_lpu();
+    swapmatrix_view(NLP, View);
+    swapmatrix_view(NLP, current_display->which_copy);
+    callhooks(hooks_swapdim);
+    for(auto m: allmaps) m->on_dim_change();
+    }
 
   #if MAXMDIM >= 4
   EX void switch_always3() {
@@ -1076,11 +1103,11 @@ EX namespace geom3 {
     #if CAP_GL && CAP_RUG
     if(rug::rugged) rug::close();
     #endif
-    swapper = &cgi;
+    if(vid.always3) swapdim(-1);
     vid.always3 = !vid.always3;
     apply_always3();
-    swapmatrix(View);
-    callhooks(hooks_swapdim);
+    check_cgi(); cgi.prepare_basics();
+    if(vid.always3) swapdim(+1);
     }
   #endif
 
@@ -1105,15 +1132,17 @@ EX namespace geom3 {
       vid.fixed_facing_dir = 90;
       }
     }
-    
+  
   EX void switch_fpp() {
 #if MAXMDIM >= 4
     #if CAP_GL && CAP_RUG
     if(rug::rugged) rug::close();
     #endif
     if(dual::split(switch_fpp)) return;
-    check_cgi(); cgi.require_basics();
-    View = iso_inverse(models::rotmatrix()) * View;
+
+    if(!changing_embedded_settings)
+      View = inverse(models::rotmatrix()) * View;
+
     if(!vid.always3) {
       vid.always3 = true;
       apply_always3();
@@ -1121,28 +1150,46 @@ EX namespace geom3 {
       emb->auto_configure();
       check_cgi();
       cgi.prepare_basics();
-      swapper = &cgi;
-      swapmatrix(View);
-      swapmatrix(current_display->which_copy);
-      callhooks(hooks_swapdim);
-      for(auto m: allmaps) m->on_dim_change();
+      swapdim(+1);
       }
     else {
-      swapper = &cgi;
+      swapdim(-1);
       vid.always3 = false;
       apply_always3();
-      vid.wall_height = .3;
-      vid.human_wall_ratio = .7;
-      vid.camera = 1;
-      vid.depth = 1;
+      if(!changing_embedded_settings) {
+        vid.wall_height = .3;
+        vid.human_wall_ratio = .7;
+        vid.camera = 1;
+        vid.depth = 1;
+        }
       if(among(pmodel, mdPerspective, mdGeodesic)) pmodel = mdDisk;
-      swapmatrix(View);
-      swapmatrix(current_display->which_copy);
-      callhooks(hooks_swapdim);
-      for(auto m: allmaps) m->on_dim_change();
+      swapdim(0);
       }
-    View = models::rotmatrix() * View;
+
+    if(!changing_embedded_settings)
+      View = models::rotmatrix() * View;
 #endif
+    }
+
+  EX void apply_settings_full() {
+    if(vid.always3) {
+      changing_embedded_settings = true;
+      geom3::switch_fpp();
+      delete_sky();
+      // not sure why this is needed...
+      resetGL();
+      geom3::switch_fpp();
+      changing_embedded_settings = false;
+      }
+    }
+
+  EX void apply_settings_light() {
+    if(vid.always3) {
+      changing_embedded_settings = true;
+      geom3::switch_always3();
+      geom3::switch_always3();
+      changing_embedded_settings = false;
+      }
     }
 
   EX }
@@ -1231,6 +1278,15 @@ EX string cgi_string() {
     V("LB", fts(vid.lake_bottom));
     if(GDIM == 3 && vid.pseudohedral)
       V("PS", fts(vid.depth_bonus));
+    V("LS", fts(vid.lake_shallow));
+    V("SSu", fts(vid.sun_size));
+    V("SSt", fts(vid.star_size));
+    V("WH2", fts(vid.wall_height2));
+    V("WH3", fts(vid.wall_height3));
+    V("WHL", fts(vid.lowsky_height));
+    if(vid.sky_height != use_the_default_value) V("SHe", fts(vid.sky_height));
+    if(vid.star_height != use_the_default_value) V("StH", fts(vid.star_height));
+    if(vid.infdeep_height != use_the_default_value) V("ID", fts(vid.infdeep_height));
     }
 
   V("3D", ONOFF(vid.always3));
