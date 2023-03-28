@@ -822,7 +822,14 @@ EX void initConfig() {
 
   param_f(vid.binary_width, "bwidth", "binary-tiling-width", 1);
   param_custom(vid.binary_width, "binary tiling width", menuitem_binary_width, 'v');
- 
+
+  param_f(hat::hat_param, "hat_param", "hat_param", 1)
+  -> editable(0, 2, 0.1, "hat parameter",
+    "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\n"
+    "This controls the parameter discussed in Section 6.", 'v'
+    )
+  -> set_reaction(hat::reshape);
+
   addsaver(vid.particles, "extra effects", 1);
   param_i(vid.framelimit, "frame limit", 999);
 
@@ -1202,8 +1209,10 @@ EX void initConfig() {
   param_f(camera_rot_speed, "camrot", "camera-rot-speed", 1);
   param_f(third_person_rotation, "third_person_rotation", 0);
 
-  param_f(panini_alpha, "panini_alpha", 0);
-  param_f(stereo_alpha, "stereo_alpha", 0);
+  param_f(panini_alpha, "panini_alpha", 0)
+  ->set_reaction(reset_all_shaders);
+  param_f(stereo_alpha, "stereo_alpha", 0)
+  ->set_reaction(reset_all_shaders);
 
   callhooks(hooks_configfile);
   
@@ -1952,6 +1961,8 @@ EX void configureInterface() {
       XLAT("Maximum number of messages on screen."));
     dialog::bound_low(0);
     });
+
+  add_edit(nohelp);
   
   add_edit(vid.msgleft);
   
@@ -2662,6 +2673,13 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   
   addsaver(vid.auto_eye, "auto-eyelevel", false);
 
+  param_enum(nohelp, "help_messages", "help_messages", 0)
+  -> editable({
+    {"all", "all context help/welcome messages"},
+    {"none", "no context help/welcome messages"},
+    {"automatic", "I know I can press F1 for help"},
+    }, "context help", 'H');
+
   param_f(vid.creature_scale, "creature_scale", "3d-creaturescale", 1)
     ->editable(0, 1, .1, "Creature scale", "", 'C');
   param_f(vid.height_width, "heiwi", "3d-heightwidth", 1.5)
@@ -2688,6 +2706,21 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     ->editable(0, 24, 1, "number of parallels drawn", "", 'n');
   param_f(linepatterns::parallel_max, "parallel_max")
     ->editable(0, TAU, 15*degree, "last parallel drawn", "", 'n');
+  param_f(linepatterns::mp_ori, "mp_ori")
+    ->editable(0, TAU, 15*degree, "parallel/meridian orientation", "", 'n');
+  param_f(linepatterns::meridian_max, "meridian_max");
+  param_f(linepatterns::meridian_count, "meridian_count");
+  param_f(linepatterns::meridian_length, "meridian_length");
+  param_f(linepatterns::meridian_prec, "meridian_prec");
+  param_f(linepatterns::meridian_prec2, "meridian_prec2");
+
+  param_f(linepatterns::dual_length, "dual_length");
+  param_f(linepatterns::dual_angle, "dual_angle");
+
+  param_f(twopoint_xscale, "twopoint_xscale");
+  param_i(twopoint_xshape, "twopoint_xshape");
+  param_f(twopoint_xwidth, "twopoint_xwidth");
+
   param_f(vid.depth_bonus, "depth_bonus", 0)
     ->editable(-5, 5, .1, "depth bonus in pseudohedral", "", 'b');
   param_b(vid.pseudohedral, "pseudohedral", false)

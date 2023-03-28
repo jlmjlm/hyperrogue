@@ -429,6 +429,7 @@ EX void initcells() {
   else if(arcm::in()) currentmap = arcm::new_map();
   #endif
   else if(euc::in()) currentmap = euc::new_map();
+  else if(hat::in()) currentmap = hat::new_map();
   #if CAP_BT
   else if(kite::in()) currentmap = kite::new_map();
   #endif
@@ -597,8 +598,9 @@ EX int celldist(cell *c) {
   if(mhybrid)
     return hybrid::celldistance(c, currentmap->gamestart());
   if(nil && !quotient) return DISTANCE_UNKNOWN;
+  if(hat::in()) return clueless_celldistance(currentmap->gamestart(), c);
   if(euc::in()) return celldistance(currentmap->gamestart(), c);
-  if(sphere || bt::in() || WDIM == 3 || cryst || sn::in() || kite::in() || closed_manifold) return celldistance(currentmap->gamestart(), c);
+  if(sphere || bt::in() || WDIM == 3 || cryst || sn::in() || aperiodic || closed_manifold) return celldistance(currentmap->gamestart(), c);
   #if CAP_IRR
   if(IRREGULAR) return irr::celldist(c, false);
   #endif
@@ -1298,7 +1300,7 @@ EX int celldistance(cell *c1, cell *c2) {
     return euc::cyldist(euc2_coordinates(c1), euc2_coordinates(c2));
     }
 
-  if(arcm::in() || quotient || sn::in() || (kite::in() && euclid) || experimental || sl2 || nil || arb::in()) 
+  if(arcm::in() || quotient || sn::in() || (aperiodic && euclid) || experimental || sl2 || nil || arb::in()) 
     return clueless_celldistance(c1, c2);
    
    if(S3 >= OINF) return inforder::celldistance(c1, c2);
@@ -1431,6 +1433,7 @@ EX array<map<cell*, vector<adj_data>>, 2> adj_memo;
 
 EX bool geometry_has_alt_mine_rule() {
   if(S3 >= OINF) return false;
+  if(aperiodic) return true;
   if(WDIM == 2) return valence() > 3;
   if(WDIM == 3) return !among(geometry, gHoroHex, gCell5, gBitrunc3, gCell8, gECell8, gCell120, gECell120);
   return true;
@@ -1491,11 +1494,16 @@ EX vector<cell*> adj_minefield_cells(cell *c) {
   vector<cell*> res;
   auto ori = adj_minefield_cells_full(c);
   for(auto p: ori) res.push_back(p.c);
+  if(hat::in()) {
+    // reduce repetitions
+    sort(res.begin(), res.end());
+    res.erase(std::unique(res.begin(), res.end()), res.end());
+    }
   return res;
   }
 
 EX vector<int> reverse_directions(cell *c, int dir) {
-  if(PURE && !(kite::in() && WDIM == 2)) return reverse_directions(c->master, dir);
+  if(PURE && !(aperiodic && WDIM == 2)) return reverse_directions(c->master, dir);
   int d = c->degree();
   if(d & 1)
     return { gmod(dir + c->type/2, c->type), gmod(dir + (c->type+1)/2, c->type) };
@@ -1547,7 +1555,7 @@ EX vector<int> reverse_directions(heptagon *c, int dir) {
   }
 
 EX bool standard_tiling() {
-  return !arcm::in() && !kite::in() && !bt::in() && !arb::in() && (WDIM == 2 || !nonisotropic) && !mhybrid;
+  return !arcm::in() && !aperiodic && !bt::in() && !arb::in() && (WDIM == 2 || !nonisotropic) && !mhybrid;
   }
 
 EX int valence() {

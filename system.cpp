@@ -77,6 +77,7 @@ EX hookset<bool()> hooks_welcome_message;
 /** \brief Print the welcome message during the start of game. Depends on the current mode and other settings. */
 EX void welcomeMessage() {
   if(callhandlers(false, hooks_welcome_message)) return;
+  if(nohelp == 1) return;
   if(embedded_plane) return IPF(welcomeMessage());
 #if CAP_TOUR
   else if(tour::on) return; // displayed by tour
@@ -140,6 +141,7 @@ EX void welcomeMessage() {
       addMessage(XLAT(lv.msg));
     }
 
+  if(nohelp == 2) return;
 #if ISMAC
   addMessage(XLAT("Press F1 or right-shift-click things for help."));
 #elif !ISMOBILE
@@ -1410,7 +1412,7 @@ EX void set_geometry(eGeometry target) {
     if(DUAL && geometry != gArchimedean && !mhybrid)
       variation = ginf[geometry].default_variation;
     #if CAP_BT
-    if(bt::in() || WDIM == 3 || kite::in() || arb::in()) if(!mhybrid) variation = eVariation::pure;
+    if(bt::in() || WDIM == 3 || aperiodic || arb::in()) if(!mhybrid) variation = eVariation::pure;
     #endif
     if(S3 >= OINF) variation = eVariation::pure;
     if(INVERSE && !mhybrid) variation = gp::variation_for(gp::param);
@@ -1444,7 +1446,7 @@ EX void set_variation(eVariation target) {
       return;
       }
     if(target != eVariation::pure) {
-      if(bt::in() || sol || kite::in() || WDIM == 3) if(!mproduct) geometry = gNormal;
+      if(bt::in() || sol || aperiodic || WDIM == 3) if(!mproduct) geometry = gNormal;
       }
     auto& cd = ginf[gCrystal];
     if(target == eVariation::bitruncated && cryst && cd.sides == 8 && cd.vertex == 4) {

@@ -153,10 +153,12 @@ EX void fix_land_structure_choice() {
     land_structure = lsChaos;
   if(walls_not_implemented() && among(land_structure, lsChaos, lsNoWalls))
     land_structure = lsSingle;
-  if(land_structure == lsPatchedChaos && !(stdeuc || nil || cryst || (euclid && WDIM == 3)))
+  if(land_structure == lsPatchedChaos && !(stdeuc || nil || cryst || (euclid && WDIM == 3) || aperiodic))
     land_structure = lsSingle;
   if(closed_or_bounded && !among(land_structure, lsChaosRW, lsTotalChaos, lsSingle))
     land_structure = lsSingle;
+  if(aperiodic && !among(land_structure, lsChaosRW, lsTotalChaos, lsPatchedChaos, lsSingle))
+    land_structure = lsPatchedChaos;
   }
 
 EX bool landUnlockedRPM(eLand n) {
@@ -740,6 +742,26 @@ EX land_validity_t& land_validity(eLand l) {
   if(euclid && quotient) stdeucx = false;
 
   using namespace lv;
+
+  if(hat::in()) {
+    if(l == laKraken) return dont_work;
+    if(l == laWineyard) return dont_work;
+    if(l == laReptile) return bad_graphics;
+    if(l == laBull) return ok;
+    if(l == laHaunted) return dont_work;
+    if(l == laHive) return not_in_full_game;
+    if(l == laRedRock) return ok;
+    if(l == laStorms) return ok;
+    if(l == laDice) return dont_work;
+    if(l == laVolcano) return dont_work;
+    if(l == laBlizzard) return dont_work;
+    if(l == laBurial) return dont_work;
+    if(l == laEclectic) return dont_work;
+    if(l == laCursed) return dont_work;
+    if(l == laElementalWall) return dont_work;
+    if(l == laFrog) return dont_work;
+    if(l == laDragon) return not_in_full_game;
+    }
   
   if(l == laDice && geometry == gNormal && PURE)
     return dont_work;
@@ -891,7 +913,7 @@ EX land_validity_t& land_validity(eLand l) {
     return dont_work;
 
   // mirrors do not work in kite and sol
-  if(among(l, laMirror, laMirrorOld) && (kite::in() || sol))
+  if(among(l, laMirror, laMirrorOld) && (aperiodic || sol))
     return dont_work;
   
   if(isCrossroads(l) && geometry == gBinary4)
@@ -1033,7 +1055,7 @@ EX land_validity_t& land_validity(eLand l) {
         return special_chaos;
       return not_in_chaos;
       }
-    if(arcm::in() || kite::in()) return not_implemented;
+    if(arcm::in() || aperiodic) return not_implemented;
     if(closed_or_bounded) return unbounded_only;
     if(INVERSE) return not_implemented;
     }
@@ -1193,7 +1215,7 @@ EX land_validity_t& land_validity(eLand l) {
     return great_walls_missing;
 
   // highlight Crossroads on Euclidean
-  if(euclid && !quotient && (l == laCrossroads || l == laCrossroads4) && !kite::in())
+  if(euclid && !quotient && (l == laCrossroads || l == laCrossroads4) && !aperiodic)
     return full_game; 
 
   if(sol && among(l, laCrossroads, laCrossroads4))
@@ -1261,6 +1283,13 @@ EX land_validity_t& land_validity(eLand l) {
   return ok;
   }
 
+auto ar = arg::add3("-land-info",
+  [] {
+    for(int li=0; li<landtypes; li++) {
+      eLand l = eLand(li);
+      println(hlog, dnameof(l), " : ", land_validity(l).msg);
+      }
+    });
 /*
 int checkLands() {
   for(int i=0; i<landtypes; i++) {

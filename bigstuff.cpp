@@ -1370,6 +1370,7 @@ EX int wallchance(cell *c, bool deepOcean) {
 /** \brief should we generate the horocycles in the current geometry? */
 EX bool horo_ok() {  
   if(INVERSE) return false;  
+  if(hat::in()) return false;
   if(currentmap->strict_tree_rules()) return true;
   if(reg3::in_hrmap_h3() && !PURE) return false;
   return mhyperbolic && !bt::in() && !arcm::in() && !kite::in() && !experimental && !mhybrid && !arb::in() && !quotient;
@@ -1487,7 +1488,7 @@ EX bool good_for_wall(cell *c) {
 
 EX bool walls_not_implemented() {
   // if(WDIM == 3 && !PURE) return true;
-  if(sphere || quotient || nonisotropic || (kite::in() && !bt::in()) || experimental) return true;
+  if(sphere || quotient || nonisotropic || aperiodic || experimental) return true;
   return WDIM == 3 && (cgflags & qIDEAL);
   }
 

@@ -211,7 +211,7 @@ bool hypot_zlev(ld zlev, ld& d, ld& df, ld& zf) {
 int twopoint_sphere_flips;
 bool twopoint_do_flips;
 
-ld find_zlev(hyperpoint& H) {
+EX ld find_zlev(hyperpoint& H) {
 
   if(spatial_graphics) {
     ld zlev = zlevel(H);
@@ -501,6 +501,108 @@ EX void threepoint_projection(const hyperpoint& H, hyperpoint& ret) {
 
 EX vector<hr::function<void(shiftpoint& H_orig, hyperpoint& H, hyperpoint& ret)>> extra_projections;
 
+EX void make_axial(hyperpoint H, hyperpoint& ret, const hr::function<ld(hyperpoint)>& f) {
+  models::apply_orientation_yz(H[1], H[2]);
+  models::apply_orientation(H[0], H[1]);
+
+  ret[0] = f(H);
+  ld axi = pconf.axial_angle;
+  bool ax = GDIM == 3 || (axi/180 - floor(axi/180)) == 0.5;
+
+  if(ax) {
+    ret[1] = f(cspin90(0, 1) * H);
+    ret[2] = 0;
+    if(GDIM == 3) ret[2] = f(cspin90(2, 1) * H);
+    }
+  else {
+    ld alpha = axi * degree;
+    ld val = f(cspin(0, 1, alpha) * H);
+    // ret[0] * cos(alpha) + ret[1] * sin(alpha) == val
+    ret[1] = (val - ret[0] * cos(alpha)) / sin(alpha);
+    ret[2] = 0;
+    }
+
+  ret[3] = 1;
+
+  models::apply_orientation(ret[1], ret[0]);
+  models::apply_orientation_yz(ret[2], ret[1]);
+  }
+
+// according to https://github.com/cspersonal/peirce-quincuncial-projection/blob/master/peirceQuincuncialProjection.R
+
+ld ellRF(ld x, ld y, ld z) {
+  ld delx = 1, dely = 1, delz = 1;
+  const ld eps = 0.0025;
+  ld mean;
+  while(abs(delx) > eps || abs(dely) > eps || abs(delz) > eps) {
+    ld sx = sqrt(x);
+    ld sy = sqrt(y);
+    ld sz = sqrt(z);
+    ld len = sx * (sy+sz) + sy * sz;
+    x = .25 * (x+len);
+    y = .25 * (y+len);
+    z = .25 * (z+len);
+    mean = (x+y+z)/3;
+    delx = (mean-x) / mean;
+    dely = (mean-y) / mean;
+    delz = (mean-z) / mean;
+    }
+  ld e2 = delx * dely - delz * delz;
+  ld e3 = delx * dely * delz;
+  return ((1.0 + (e2 / 24.0 - 0.1 - 3.0 * e3 / 44.0) * e2+ e3 / 14) / sqrt(mean));
+  }
+
+ld ellFaux(ld cos_phi, ld sin_phi, ld k) {
+  ld x = cos_phi * cos_phi;
+  ld y = 1 - k * k * sin_phi * sin_phi;
+  return sin_phi * ellRF(x, y, 1);
+  }
+
+ld sqrt_clamp(ld x) { if(x<0) return 0; return sqrt(x); }
+
+hyperpoint to_square(hyperpoint H) {
+
+  ld d = hypot_d(2, H);
+  ld x = d / (H[2] + 1);
+  x *= pconf.model_transition;
+
+  ld cos_phiosqrt2 = sqrt(2) / (x + 1/x);
+  ld cos_lambda = -H[1] / d;
+  ld sin_lambda = H[0] / d;
+  ld cos_a = cos_phiosqrt2 * (sin_lambda + cos_lambda);
+  ld cos_b = cos_phiosqrt2 * (sin_lambda - cos_lambda);
+  ld sin_a = sqrt(1 - cos_a * cos_a);
+  ld sin_b = sqrt(1 - cos_b * cos_b);
+  ld cos_a_cos_b = cos_a * cos_b;
+  ld sin_a_sin_b = sin_a * sin_b;
+  ld sin2_m = 1.0 + cos_a_cos_b - sin_a_sin_b;
+  ld sin2_n = 1.0 - cos_a_cos_b - sin_a_sin_b;
+  ld sin_m = sqrt_clamp(sin2_m);
+  ld cos_m = sqrt_clamp(1 - sin2_m);
+  if(sin_lambda < 0) sin_m = -sin_m;
+  ld sin_n = sqrt_clamp(sin2_n);
+  ld cos_n = sqrt_clamp(1.0 - sin2_n);
+  if(cos_lambda > 0.0) sin_n = -sin_n;
+
+  hyperpoint res;
+  ld divby = 0.53935260118837935472;
+  res[0] = ellFaux(cos_m,sin_m,sqrt(2)/2.) * divby;
+  res[1] = ellFaux(cos_n,sin_n,sqrt(2)/2.) * divby;
+  res[2] = 0; res[3] = 1;
+
+  if(x > 1) {
+    if(abs(res[0]) > abs(res[1])) {
+      if(res[0] > 0) res[0] = 2 - res[0]; else res[0] = -2 - res[0];
+      }
+    else {
+      if(res[1] > 0) res[1] = 2 - res[1]; else res[1] = -2 - res[1];
+      }
+    }
+
+  res /= pconf.model_transition;
+  return res;
+  }
+
 EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
 
   hyperpoint H = H_orig.h;
@@ -680,48 +782,31 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
         ret[1] += height * pconf.depth_scaling;
       break;
       }
-    
-    case mdAxial: {
-      models::apply_orientation_yz(H[1], H[2]);
-      models::apply_orientation(H[0], H[1]);
-      
-      ld& mt = pconf.model_transition;
-      
-      ld z = H[LDIM];
-      if(mt != 1) z += (1-mt) * pconf.alpha;
 
-      ret[0] = H[0] / z;
-      ret[1] = H[1] / z;
-      if(GDIM == 3) ret[2] = H[2] / z;
-      else ret[2] = 0;
-      ret[3] = 1;
-      
-      if(mt) for(int i=0; i<LDIM; i++)  {
-        if(mt < 1) 
-          ret[i] *= mt;
-        ret[i] = atan_auto(ret[i]);
-        if(mt < 1) 
-          ret[i] /= mt;
-        }
-      
+    case mdAxial: {
+      make_axial(H, ret, [] (hyperpoint H) {
+        ld& mt = pconf.model_transition;
+
+        ld z = H[LDIM];
+        if(mt != 1) z += (1-mt) * pconf.alpha;
+
+        ld res = H[0] / z;
+
+        if(mt) {
+          if(mt < 1) res *= mt;
+          res = atan_auto(res * mt);
+          if(mt > 1) res /= mt;
+          }
+        return res;
+        });
+
       if(sphere) ret[0] += axial_x * M_PI, ret[1] += axial_y * M_PI;
 
-      models::apply_orientation(ret[1], ret[0]);
-      models::apply_orientation_yz(ret[2], ret[1]);
       break;
       }
     
     case mdAntiAxial: {
-      models::apply_orientation_yz(H[1], H[2]);
-      models::apply_orientation(H[0], H[1]);
-      
-      ret[0] = asin_auto(H[0]);
-      ret[1] = asin_auto(H[1]);
-
-      ret[2] = 0; ret[3] = 1;
-
-      models::apply_orientation(ret[1], ret[0]);
-      models::apply_orientation_yz(ret[2], ret[1]);
+      make_axial(H, ret, [] (hyperpoint H) { return asin_auto(H[0]); });
       break;
       }
     
@@ -777,6 +862,36 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       
       if(!vrhr::rendering()) ret = lp_apply(ret);
 
+      break;
+      }
+
+    case mdHorocyclicEqa: {
+
+      if(hyperbolic) {
+        models::apply_orientation_yz(H[1], H[2]);
+        models::apply_orientation(H[0], H[1]);
+        }
+
+      ret = hyperbolic ? deparabolic13(H) : H;
+      ret[0] = exp(-ret[0]) - 1;
+      ret *= .5;
+      ret[LDIM] = 1;
+
+      if(hyperbolic) {
+        models::apply_orientation(ret[1], ret[0]);
+        models::apply_orientation_yz(ret[2], ret[1]);
+        }
+
+      break;
+      }
+
+    case mdConformalSquare: {
+      find_zlev(H);
+      models::apply_orientation_yz(H[1], H[2]);
+      models::apply_orientation(H[0], H[1]);
+      ret = to_square(H);
+      models::apply_orientation(ret[1], ret[0]);
+      models::apply_orientation_yz(ret[2], ret[1]);
       break;
       }
 
@@ -2396,6 +2511,24 @@ EX color_t periodcolor = 0x00FF0080;
 EX color_t ringcolor = 0xFFFF;
 EX color_t modelcolor = 0;
 
+EX ld twopoint_xscale = 1;
+EX ld twopoint_xwidth = 1;
+EX int twopoint_xshape = 0;
+
+EX void put_x(shiftmatrix S, color_t col) {
+  switch(twopoint_xshape) {
+    case 0:
+      queuestr(S * C0, twopoint_xscale * vid.xres / 100, "X", ringcolor >> 8);
+      break;
+    case 1:
+      vid.linewidth *= twopoint_xwidth;
+      queueline(S * xpush0(twopoint_xscale / 10.), S * xpush0(-twopoint_xscale / 10.), ringcolor, 3);
+      queueline(S * ypush0(twopoint_xscale / 10.), S * ypush0(-twopoint_xscale / 10.), ringcolor, 3);
+      vid.linewidth /= twopoint_xwidth;
+      break;
+    }
+  }
+
 #if CAP_QUEUE
 EX void draw_model_elements() {
 
@@ -2462,8 +2595,8 @@ EX void draw_model_elements() {
     case mdTwoPoint: case mdSimulatedPerspective: fallthrough: {
       if(set_multi) return; /* no need */
       ld a = -pconf.model_orientation * degree;
-      queuestr(shiftless(xspinpush0(a, +pconf.twopoint_param)), vid.xres / 100, "X", ringcolor >> 8);
-      queuestr(shiftless(xspinpush0(a, -pconf.twopoint_param)), vid.xres / 100, "X", ringcolor >> 8);
+      put_x(shiftless(xspinpush(a, +pconf.twopoint_param)), ringcolor >> 8);
+      put_x(shiftless(xspinpush(a, -pconf.twopoint_param)), ringcolor >> 8);
       return;
       }
     
@@ -2575,7 +2708,7 @@ void queuestraight(hyperpoint X, int style, color_t lc, color_t fc, PPR p) {
 EX void draw_boundary(int w) {
 
   if(w == 1) return;
-  if(nonisotropic || euclid || gproduct) return;
+  if(nonisotropic || (euclid && pmodel != mdFisheye) || gproduct) return;
   #if CAP_VR
   if(vrhr::active() && pmodel == mdHyperboloid) return;
   #endif

@@ -1179,7 +1179,7 @@ EX namespace mirror {
   #endif
   
   EX bool build(cell *c) {
-    if(kite::in() || sol) return false;
+    if(aperiodic || sol) return false;
     #if CAP_GP
     if(GOLDBERG) {
       if(c == c->master->c7) {
@@ -1311,7 +1311,7 @@ EX namespace mirror {
   
   EX void createMirrors(cellwalker cw, int cpid) {
   
-    if(kite::in() || sol) return;
+    if(aperiodic || sol) return;
     
     #if CAP_ARCM
     if(arcm::in()) {
@@ -3581,6 +3581,7 @@ EX namespace windmap {
   EX void create() {
     if(disable_bigstuff) return;
     if(cgflags & qPORTALSPACE) return;
+    if(hat::in()) return;
     samples.clear();
     neighbors.clear();
     getid.clear();

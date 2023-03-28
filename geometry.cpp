@@ -1261,6 +1261,7 @@ EX string cgi_string() {
   if(nil) V("NIL", its(S7));
   
   if(bt::in()) V("BT", fts(vid.binary_width));
+  if(hat::in()) V("H", fts(hat::hat_param));
 
   if(nil) V("NILW", fts(nilv::nilwidth));
   

@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "12.1i"
-#define VERNUM_HEX 0xA929
+#define VER "12.1l"
+#define VERNUM_HEX 0xA92C
 
 #include "sysconfig.h"
 
@@ -200,6 +200,7 @@ void addMessage(string s, char spamtype = 0);
 
 #define INVERSE among(variation, eVariation::unrectified, eVariation::warped, eVariation::untruncated )
 
+#define aperiodic (cgflags & qAPERIODIC)
 #define UNRECTIFIED (variation == eVariation::unrectified)
 #define WARPED (variation == eVariation::warped)
 #define UNTRUNCATED (variation == eVariation::untruncated)
@@ -257,7 +258,7 @@ enum eModel : int;
 struct projection_configuration {
   eModel model;            /**< which projection, see classes.cpp */
   ld xposition, yposition; /**< move the center to another position */
-  ld scale, alpha, camera_angle, fisheye_param, twopoint_param, stretch, ballangle, ballproj, euclid_to_sphere;
+  ld scale, alpha, camera_angle, fisheye_param, twopoint_param, axial_angle, stretch, ballangle, ballproj, euclid_to_sphere;
   ld clip_min, clip_max;
   ld model_orientation, halfplane_scale, model_orientation_yz;  
   ld collignon_parameter; 
@@ -308,6 +309,7 @@ struct projection_configuration {
     vr_scale_factor = 1;
     back_and_front = 0;
     dualfocus_autoscale = false;
+    axial_angle = 90;
     }
   };
 

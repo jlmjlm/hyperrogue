@@ -2399,8 +2399,8 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
     case moRedTroll: {
       const shiftmatrix VBS = VBODY * otherbodyparts(V, darkena(col, 0, 0xFF), m, footphase);
       ShadowV(V, cgi.shYeti);
-      queuepoly(VBS, cgi.shYeti, darkena(col, 0, 0xC0));
-      queuepoly(VHEAD1, cgi.shPHead, darkena(0xFF8000, 0, 0XFF));
+      queuepoly(VBS, cgi.shYeti, darkena(0xFF8000, 0, 0XFF));
+      queuepoly(VHEAD1, cgi.shPHead, darkena(col, 0, 0xC0));
       queuepoly(VHEAD, cgi.shPFace, 0xFFFFFF80 | UNTRANS);
       humanoid_eyes(V, 0x000000FF, darkena(col, 0, 0xFF));
       return true;
@@ -5436,6 +5436,8 @@ EX bool permaside;
 
 EX bool old_center;
 
+EX ld min_scale = 1e-6;
+
 EX void calcparam() {
 
   DEBBI(DF_GRAPH, ("calc param"));
@@ -5450,7 +5452,7 @@ EX void calcparam() {
   cd->xcenter = cd->xtop + cd->xsize / 2;
   cd->ycenter = cd->ytop + cd->ysize / 2;
 
-  if(pconf.scale > -1e-2 && pconf.scale < 1e-2) pconf.scale = 1;
+  if(abs(pconf.scale) < min_scale) pconf.scale = 1;
   
   ld realradius = min(cd->xsize / 2, cd->ysize / 2);
   
@@ -5688,7 +5690,7 @@ EX void emptyscreen() {
   drawqueue();
   }
 
-EX bool nohelp;
+EX int nohelp;
 EX bool no_find_player;
 
 EX void normalscreen() {
@@ -5834,7 +5836,7 @@ EX void drawscreen() {
   color_t col = linf[cwt.at->land].color;
   if(cwt.at->land == laRedRock) col = 0xC00000;
   if(titlecolor) col = titlecolor;
-  if(!nohelp)
+  if(nohelp != 1)
     displayfr(vid.xres/2, vid.fsize,   2, vid.fsize, mouseovers, col, 8);
 #endif
 

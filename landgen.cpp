@@ -269,6 +269,12 @@ EX void gen_eclectic_monster(cell *c) {
     }
   }
 
+EX void place_random_gate_continuous(cell *c) {
+  c->wall = pick(waClosedGate, waOpenGate);
+  if(c->wall == waClosedGate) toggleGates(c, waClosePlate, 1);
+  else toggleGates(c, waOpenPlate, 1);
+  }
+
 EX void giantLandSwitch(cell *c, int d, cell *from) {
   bool fargen = d == min(BARLEV, 9);
   switch(c->land) {
@@ -338,7 +344,28 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     
     case laPalace: // -------------------------------------------------------------
     
-      if(nil) {
+      if(hat::in()) {
+        if(fargen) {
+          set<heptagon*> hs;
+          forCellCM(c1, c) if(c1->master != c->master) hs.insert(c1->master);
+          if(isize(hs) == 3)
+            c->wall = waPalace;
+          else if(isize(hs) == 2 && hrand(100) < 30)
+            c->wall = waPalace;
+          else if(isize(hs) == 2 && hrand(100) < 50)
+            place_random_gate_continuous(c);
+          else {
+            int i = hrand(100);
+              if(i < 10)
+                c->wall = waTrapdoor;
+              else if(i < 15)
+                c->wall = waClosePlate;
+              else if(i < 20)
+                c->wall = waOpenPlate;
+            }
+          }
+        }
+      else if(nil) {
         if(fargen) {
           int i = hrand(100);
           if(c->master->zebraval % 4 == 2 || c->master->emeraldval % 4 == 2) {
@@ -399,11 +426,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           if(gs == 1)
             c->wall = waPalace;
           if(gs == 3) {
-            if(mhybrid) {
-              c->wall = pick(waClosedGate, waOpenGate);
-              if(c->wall == waClosedGate) toggleGates(c, waClosePlate, 1);
-              else toggleGates(c, waOpenPlate, 1);
-              }
+            if(mhybrid) place_random_gate_continuous(c);
             else
               c->wall = PURE ? waOpenGate : waClosedGate;
             }
@@ -1327,6 +1350,11 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       bool randstorm = PIU(hyperbolic_not37 || NONSTDVAR || (quotient && geometry != gZebraQuotient && !euc::in(2)));
       if(fargen) {
       
+        if(hat::in()) {
+          int id = hat::get_hat_id(c);
+          if(id == 0) c->wall = pick(waCharged, waGrounded);
+          if(id == 1 && hrand(100) < 50) c->wall = waSandstone;
+          }
         if(euc::in(2) && smallbounded) {
           auto s = euc::sdxy();
           gp::loc st {s.first/3, s.second/3};
@@ -2198,7 +2226,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           int hardchance = items[itRuby] + yendor::hardness();
           if(hardchance > 25) hardchance = 25;
           bool hardivy = hrand(100) < hardchance;
-          if((hardivy ? buildIvy(c, 1, 9) : buildIvy(c, 0, c->type)) && !peace::on)
+          if(hat::in() ?  buildIvy(c, 0, 4) : (hardivy ? buildIvy(c, 1, 9) : buildIvy(c, 0, c->type)) && !peace::on)
             c->item = itRuby;
           }
         }
@@ -2804,21 +2832,36 @@ EX void setland_randomwalk(cell *c) {
     }
   }
 
+EX eLand random_land() {
+  return hrand_elt(isize(cheatdest_list) ? cheatdest_list : currentlands);
+  }
+
 EX void set_land_for_geometry(cell *c) {
 
   if(!c->land && isize(currentlands)) {
     if(land_structure == lsTotalChaos) {
-      setland(c, currentlands[hrand(isize(currentlands))]);
+      setland(c, random_land());
       return;
       }
-    if(ls::patched_chaos() && stdeuc) { /* note: Nil pached chaos done in setLandNil */
+     /* note: Nil patched chaos done in setLandNil */
+    if(ls::patched_chaos() && stdeuc) {
       cell *c2 = c;
       while(true) {
         forCellCM(c3, c2) if(cdist50(c3) < cdist50(c2)) { c2 = c3; goto again; }
         break;
         again: ;
         }
-      if(!c2->land) setland(c2, currentlands[hrand(isize(currentlands))]);
+      if(!c2->land) setland(c2, random_land());
+      c->land = c2->land;
+      return;
+      }
+    if(ls::patched_chaos() && aperiodic) {
+      cell *c2;
+      if(hat::in())
+        c2 = c->master->cmove(0)->cmove(0)->cmove(1)->cmove(1)->c7;
+      else
+        c2 = c->master->cmove(0)->cmove(0)->cmove(0)->cmove(0)->cmove(0)->cmove(1)->cmove(1)->cmove(1)->cmove(1)->cmove(1)->c7;
+      if(!c2->land) setland(c2, random_land());
       c->land = c2->land;
       return;
       }
