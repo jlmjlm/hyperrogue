@@ -1578,7 +1578,7 @@ void celldrawer::draw_features() {
       break;
     
     case waArrowTrap:
-      if(c->wparam >= 1)
+      if(c->wparam >= 1 || hat::in())
         queuepoly(orthogonal_move_fol(V, cgi.FLOOR), cgi.shDisk, darkena(trapcol[c->wparam&3], 0, 0xFF));
       if(isCentralTrap(c)) arrowtraps.push_back(c);
       break;
@@ -1751,6 +1751,22 @@ void celldrawer::draw_features_and_walls_3d() {
 #if MAXMDIM >= 4
   color_t dummy;
   int ofs = currentmap->wall_offset(c);
+
+  if((cgflags & qFRACTAL) && c->wall == waChasm && c->land == laMemory) {
+    for(int a=0; a<c->type; a++) if(c->move(a) && c->move(a)->land != laMemory) {
+      if(anyshiftclick) {
+        auto& poly = queuepoly(V, cgi.shPlainWall3D[ofs+a], 0xFFFFFFFF - 0xF0F0F00 * get_darkval(c, a));
+        poly.tinf = &floor_texture_vertices[cgi.shFullFloor.id];
+        ensure_vertex_number(*poly.tinf, poly.cnt);
+        }
+      else {
+        auto& poly = queuepoly(V, cgi.shWireframe3D[ofs + a], 0);
+        poly.outline = 0xFFFFFFFF;
+        }
+      }
+    if(anyshiftclick) return;
+    }
+
   if(isWall3(c, wcol)) {
     if(!no_wall_rendering) {
     if(c->wall == waChasm && c->land == laMemory && !in_perspective()) {
@@ -2960,6 +2976,8 @@ void celldrawer::set_towerfloor(const cellfunction& cf) {
   }
 
 void celldrawer::set_zebrafloor() {
+
+  if(hat::in() || kite::in()) { set_floor(cgi.shFloor); return; }
 
   if(euclid) { set_floor(cgi.shTower[10]); return; }
   if(weirdhyperbolic) {

@@ -401,6 +401,24 @@ struct hrmap_hat : hrmap {
   // vertices of each type of hat
   vector<hyperpoint> hatcorners[2];
 
+  struct memo_matrix : transmatrix {
+    bool known;
+    transmatrix& get() { return (transmatrix&) (*this); }
+    void clear() { known = false; }
+    void set(const transmatrix& T) { known = true; get() = T; }
+    };
+
+  memo_matrix adj_memo[2][2][14][14];
+  vector<vector<memo_matrix>> long_transformations;
+
+  void clear_adj_memo() {
+    for(int a=0; a<2; a++)
+    for(int b=0; b<2; b++)
+    for(int c=0; c<14; c++)
+    for(int d=0; d<14; d++)
+      adj_memo[a][b][c][d].clear();
+    }
+
   void init() {
 
     transmatrix T = Id;
@@ -408,9 +426,13 @@ struct hrmap_hat : hrmap {
     hc.clear();
     hatcorners[1].clear();
 
+    bool f = geom3::flipped;
+    bool emb = embedded_plane;
+    if(emb) geom3::light_flip(true);
+
     auto move = [&] (ld angle, ld dist) {
       hc.push_back(T * C0);
-      T = T * spin(angle * degree);
+      T = T * cspin(0, 1, angle * degree);
       T = T * xpush(dist);
       };
 
@@ -459,17 +481,66 @@ struct hrmap_hat : hrmap {
     for(auto& h: hatcorners[1]) h = MirrorX * h;
     reverse(hatcorners[1].begin(), hatcorners[1].end());
 
+    clear_adj_memo();
     if(q == 6) {
-      transmatrix T = spintox(
+      hyperpoint hfar = 
         adj(1,9,0,7) * adj(0,11,0,10) * adj(0,1,0,2) * adj(0,8,0,5) * adj(0,11,0,10) *
         adj(0,1,0,2) * adj(0,8,0,5) * adj(0,11,0,2) * adj(0,8,0,5) * adj(0,11,0,10) *
         adj(0,1,0,2) * adj(0,8,0,5) * adj(0,11,0,10) * adj(0,1,0,2) * adj(0,8,0,5) *
-        adj(0,11,0,2) * adj(0,8,0,5) * C0
-        );
+        adj(0,11,0,2) * adj(0,8,0,5) * C0;
+      transmatrix T = spintox(hfar);
       for(auto& h: hc) h = inverse(T) * h;
       for(auto& h: hatcorners[1]) h = T * h;
       }
 
+    if(emb) {
+      geom3::light_flip(f);
+      for(auto i:{0, 1}) for(auto& p: hatcorners[i]) {
+        println(hlog, p, " -> ", cgi.emb->base_to_actual(p));
+        p = cgi.emb->base_to_actual(p);
+        }
+      }
+
+    clear_adj_memo();
+
+    auto& lt = long_transformations;
+    lt.clear();
+    lt.resize(1);
+    lt[0].resize(relations+1);
+    for(auto& t: lt[0]) t.clear();
+    lt[0][0].set(Id);
+    lt[0][1].set(Id);
+
+    lt.resize(30, lt[0]);
+
+    while(true) {
+      int chg = 0;
+      int unknown = 0;
+      int errors = 0;
+
+      auto products_equal = [&] (memo_matrix& A, memo_matrix& B, memo_matrix& C, memo_matrix& D) {
+        if(A.known && B.known && C.known && D.known) {
+          if(!eqmatrix(A*B, C*D)) errors++;
+          }
+        else if(B.known && C.known && D.known) chg++, A.set( C * D * inverse(B) );
+        else if(A.known && C.known && D.known) chg++, B.set( inverse(A) * C * D );
+        else if(A.known && B.known && D.known) chg++, C.set( A * B * inverse(D) );
+        else if(A.known && B.known && C.known) chg++, D.set( inverse(C) * A * B );
+        else unknown++;
+        };
+
+      for(auto& b: rules_base) {
+        products_equal(lt[0][b.id0+1], adj(b.id0==0, fix(b.edge0), b.id1==0, fix(b.edge1)), lt[1][b.master_connection+1], lt[0][b.id1+1]);
+        }
+
+      for(int k=1; k<29; k++) for(auto& b: rules_recursive) {
+        products_equal(lt[k+1][b.id0+1], lt[k][b.child+1], lt[k+1][b.parent+1], lt[k+1][b.id1+1]);
+        }
+
+      if(debugflags & DF_GEOM) println(hlog, "changed = ", chg, " unknown = ", unknown, " errors = ", errors);
+
+      if(!chg) break;
+      }
     }
 
   constexpr static int relations = 34;
@@ -580,20 +651,30 @@ struct hrmap_hat : hrmap {
     return adj(t0, d0, t1, d1);
     }
 
-  transmatrix adj(int t0, int d0, int t1, int d1) {
+  memo_matrix& adj(int t0, int d0, int t1, int d1) {
+    auto& mm = adj_memo[t0][t1][d0][d1];
+    if(mm.known) return mm;
+
     int n = isize(hatcorners[0]);
 
     hyperpoint vl = hatcorners[t0][d0];
     hyperpoint vr = hatcorners[t0][(d0+1)%n];
 
-    hyperpoint vm = mid(vl, vr);
-
-    transmatrix rm = gpushxto0(vm);
-
     hyperpoint xvl = hatcorners[t1][d1];
     hyperpoint xvr = hatcorners[t1][(d1+1)%n];
-    hyperpoint xvm = mid(xvl, xvr);
 
+    bool emb = embedded_plane;
+    if(emb) {
+      vl = cgi.emb->actual_to_base(vl);
+      vr = cgi.emb->actual_to_base(vr);
+      xvl = cgi.emb->actual_to_base(xvl);
+      xvr = cgi.emb->actual_to_base(xvr);
+      geom3::light_flip(true);
+      }
+
+    hyperpoint vm = mid(vl, vr);
+    transmatrix rm = gpushxto0(vm);
+    hyperpoint xvm = mid(xvl, xvr);
     transmatrix xrm = gpushxto0(xvm);
 
     if(abs(hdist(vl, vr) - hdist(xvl, xvr)) > 1e-3)
@@ -601,7 +682,13 @@ struct hrmap_hat : hrmap {
 
     transmatrix T = rgpushxto0(vm) * rspintox(rm*vr) * spintox(xrm*xvl) * xrm;
 
-    return T;
+    if(emb) {
+      T = cgi.emb->base_to_actual(T);
+      geom3::light_flip(false);
+      }
+
+    mm.set(T);
+    return mm;
     }
 
   void build_cells(heptagon *h) {
@@ -621,6 +708,18 @@ struct hrmap_hat : hrmap {
     build_cells(origin);
     }
 
+  transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
+    if(h1 == h2) return Id;
+    int d = h2->distance + 2;
+    return iso_inverse(long_transformations[d][h1->c.spin(0)]) * relative_matrixh(h2->move(0), h1->move(0), hint) * long_transformations[d][h2->c.spin(0)];
+    }
+
+  transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) override {
+    if(c1 == c2) return Id;
+    transmatrix T = iso_inverse(long_transformations[0][hat_id(c1)+1]) * relative_matrixh(c2->master, c1->master, hint) * long_transformations[0][hat_id(c2)+1];
+    return T;
+    }
+
   ~hrmap_hat() {
     clearfrom(origin);
     }
@@ -632,12 +731,12 @@ EX hrmap *new_map() { return new hrmap_hat; }
 hrmap_hat* hat_map() { return dynamic_cast<hrmap_hat*>(currentmap); }
 
 EX bool pseudohept(cell *c) {
-  int id = hat_map()->hat_id(c);
+  int id = get_hat_id(c);
   return id == 0 || id == 6;
   }
 
 EX int get_hat_id(cell *c) {
-  return hat_map()->hat_id(c);
+  return FPIU(hat_map())->hat_id(c);
   }
 
 EX void reshape() {
@@ -661,6 +760,8 @@ EX color_t hatcolor(cell *c, int mode) {
     }
   return col;
   }
+
+auto hooksw = addHook(hooks_swapdim, 100, [] { auto h = hat_map(); if(h) h->init(); });
 
 }}
 

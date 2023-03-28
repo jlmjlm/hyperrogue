@@ -159,6 +159,8 @@ EX void fix_land_structure_choice() {
     land_structure = lsSingle;
   if(aperiodic && !among(land_structure, lsChaosRW, lsTotalChaos, lsPatchedChaos, lsSingle))
     land_structure = lsPatchedChaos;
+  if((cgflags & qFRACTAL) && !among(land_structure, lsChaosRW, lsTotalChaos, lsPatchedChaos, lsSingle))
+    land_structure = lsPatchedChaos;
   }
 
 EX bool landUnlockedRPM(eLand n) {
@@ -759,7 +761,6 @@ EX land_validity_t& land_validity(eLand l) {
     if(l == laEclectic) return dont_work;
     if(l == laCursed) return dont_work;
     if(l == laElementalWall) return dont_work;
-    if(l == laFrog) return dont_work;
     if(l == laDragon) return not_in_full_game;
     }
   
