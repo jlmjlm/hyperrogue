@@ -14,6 +14,10 @@
 #define CAP_RVSLIDES (CAP_TOUR && !ISWEB)
 #endif
 
+#ifndef CAP_MODELS
+#define CAP_MODELS (!ISWEB)
+#endif
+
 namespace rogueviz {
   using namespace hr;
   
@@ -290,6 +294,7 @@ namespace objmodels {
 
   struct object {
     hpcshape sh;
+    string mtlname;
     basic_textureinfo tv;
     color_t color;
     };
@@ -301,39 +306,35 @@ namespace objmodels {
     void render(const shiftmatrix& V);
     };
   
-  inline tf_result default_transformer(hyperpoint h) { return {0, direct_exp(h) };}
-  
-  inline int default_subdivider(vector<hyperpoint>& hys) { 
-    if(euclid) return 1;
-    ld maxlen = prec * max(hypot_d(3, hys[1] - hys[0]), max(hypot_d(3, hys[2] - hys[0]), hypot_d(3, hys[2] - hys[1])));
-    return int(ceil(maxlen));
-    }
-  
   #if CAP_TEXTURE
   struct model {
   
     string path, fname;
-    reaction_t preparer;
-    transformer tf;
-    subdivider sd;
   
     bool is_available, av_checked;
 
-    model(string path = "", string fn = "", 
-      transformer tf = default_transformer,
-      reaction_t prep = [] {},
-      subdivider sd = default_subdivider
-      ) : path(path), fname(fn), preparer(prep), tf(tf), sd(sd) { av_checked = false; }
+    model(string path = "", string fn = "") : path(path), fname(fn) { av_checked = false; }
   
     map<string, texture::texture_data> materials;
     map<string, color_t> colors;
     
     /* private */
-    void load_obj(model_data& objects);
+    virtual void load_obj(model_data& objects);
     
-    model_data& get();
+    virtual model_data& get();
 
-    void render(const shiftmatrix& V) { get().render(V); }
+    virtual void prepare() {}
+    virtual void postprocess() {}
+
+    virtual color_t read_color(ld a, ld b, ld c);
+
+    virtual hyperpoint transform(hyperpoint h);
+
+    virtual int subdivision(vector<hyperpoint>& hys);
+
+    virtual void render(const shiftmatrix& V) { get().render(V); }
+
+    virtual void process_triangle(vector<hyperpoint>& hys, vector<hyperpoint>& tot, bool textured, object *co);
     
     bool available();
     };
@@ -371,8 +372,23 @@ namespace objmodels {
     for(Res r: results) res += r;
     return res;
     }
+  #else
+  template<class T> auto parallelize(long long N, T action) -> decltype(action(0,0)) {
+    return action(0, N);
+    }
   #endif
 
+namespace smoothcam {
+  void save_animation(hstream& f);
+  void load_animation(hstream& f);
+  void handle_animation(ld);
+  void enable();
+  extern bool animate_on;
+  extern ld last_time;
+  void enable_and_show();
+  void backup();
+  void append_backup();
   }
+}
 
 #endif

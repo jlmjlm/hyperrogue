@@ -14,6 +14,7 @@ enum eSkyMode { skyNone, skyAutomatic, skySkybox, skyAlways };
 EX eSkyMode draw_sky;
 
 EX bool auto_remove_roofs;
+EX bool simple_sky;
 
 EX bool camera_over(ld x) {
   if(!auto_remove_roofs) return false;
@@ -24,6 +25,7 @@ EX bool camera_over(ld x) {
 #if MAXMDIM >= 4 && CAP_GL
 
 EX int get_skybrightness(int mul IS(1)) {
+  if(simple_sky) return 255;
   ld s = 1 - mul * (camera_level - cgi.WALL) / -2;
   if(s > 1) return 255;
   if(s < 0) return 0;
@@ -118,8 +120,8 @@ void compute_skyvertices(const vector<sky_item>& sky) {
         darkena(si.skycolor, 0, 0xFF)
         );
   
-  hyperpoint skypoint = cpush0(2, cgi.SKY);
-  hyperpoint hellpoint = cpush0(2, cgi.HELL);
+  hyperpoint skypoint = cpush0(2, cgi.SKY + cgi.emb->center_z());
+  hyperpoint hellpoint = cpush0(2, cgi.HELL + cgi.emb->center_z());
   
   vector<glhr::colored_vertex> this_poly;
 
@@ -298,7 +300,7 @@ void compute_skyvertices(const vector<sky_item>& sky) {
       }
     }
 
-  for(auto& v: skyvertices) for(int i=0; i<3; i++) v.color[i] *= 2;
+  if(!simple_sky) for(auto& v: skyvertices) for(int i=0; i<3; i++) v.color[i] *= 2;
   }
 
 void dqi_sky::draw() {
@@ -325,9 +327,18 @@ void dqi_sky::draw() {
       glapplymatrix(s);
       }
     glhr::prepare(skyvertices);
-    glhr::set_fogbase(1.0 + abs(cgi.SKY - cgi.LOWSKY) / sightranges[geometry]);
-    glhr::set_depthtest(model_needs_depth() && prio < PPR::SUPERLINE);
-    glhr::set_depthwrite(model_needs_depth() && prio != PPR::TRANSPARENT_SHADOW && prio != PPR::EUCLIDEAN_SKY);
+    glhr::color2(0xFFFFFFFF);
+    if(simple_sky) {
+      glhr::set_fogbase(1);
+      glhr::set_depthtest(true);
+      glhr::set_depthwrite(true);
+      }
+    else {
+      glhr::set_fogbase(1.0 + abs(cgi.SKY - cgi.LOWSKY) / sightranges[geometry]);
+      glhr::set_depthtest(model_needs_depth() && prio < PPR::SUPERLINE);
+      glhr::set_depthwrite(model_needs_depth() && prio != PPR::TRANSPARENT_SHADOW && prio != PPR::EUCLIDEAN_SKY);
+      }
+
     glDrawArrays(GL_TRIANGLES, 0, isize(skyvertices));
     }
   }
@@ -347,14 +358,15 @@ EX void be_euclidean_infinity(transmatrix& V) {
     for(int i=0; i<3; i++) V[i][3] = 0;
   }
 
-void draw_star(const shiftmatrix& V, const hpcshape& sh, color_t col, ld rev = false) {
+EX void draw_star(const shiftmatrix& V, const hpcshape& sh, color_t col, ld rev IS(false)) {
   if(!do_draw_stars(rev)) return;
 
   ld val = cgi.STAR;
-  if(rev) val = -val;
+  if(rev) val = cgi.FLOOR * 2 - val;
+  val += cgi.emb->center_z();
 
   auto V1 = V; be_euclidean_infinity(V1.T);
-  queuepolyat(V1 * zpush(val), sh, col, PPR::SKY);
+  queuepolyat(V1 * lzpush(val), sh, col, PPR::SKY);
   }
 
 EX ld star_prob = 0.33;
@@ -368,10 +380,18 @@ EX bool star_for(int i) {
   return stars[i] < star_prob;
   }
 
+EX hookset<bool(celldrawer *cd)> hooks_ceiling;
+
+EX void g_add_to_sky(cell *c, shiftmatrix& V, color_t col, color_t col2) {
+  if(sky) sky->sky.emplace_back(c, V, col, col2);
+  };
+
 void celldrawer::draw_ceiling() {
 
-  if(!models::is_perspective(pmodel) || sphere) return;
+  if(!models::is_perspective(pmodel)) return;
   
+  if(callhandlers(false, hooks_ceiling, this)) return;
+
   auto add_to_sky = [this] (color_t col, color_t col2) {
     if(sky) sky->sky.emplace_back(c, V, col, col2);
     };
@@ -633,7 +653,7 @@ EX void make_air() {
     geom3::apply_always3();
     check_cgi();
     missing = !(cgi.state & 2);
-    cgi.prepare_basics();
+    cgi.require_basics();
     geom3::swap_direction = -1;
     if(missing) {
       swap(cgi.emb, cgi1->emb);

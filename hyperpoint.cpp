@@ -459,13 +459,18 @@ EX transmatrix to_other_side(hyperpoint h1, hyperpoint h2) {
     h1 = normalize(h1);
     h2 = normalize(h2);
     transmatrix T = to_other_side(h1, h2);
-    for(int i=0; i<4; i++) T[i][3] = T[3][i] = i == 3;
+    fix4(T);
     geom3::light_flip(false);
     return T;
     }
 
-  ld d = hdist(h1, h2);
+  if(sol && meuclid) {
+    /* works in 4x4... */
+    return gpushxto0(h1) * gpushxto0(h2);
+    }
   
+  ld d = hdist(h1, h2);
+
   hyperpoint v;  
   if(euclid)
     v = (h2 - h1) / d;    
@@ -487,7 +492,9 @@ EX transmatrix to_other_side(hyperpoint h1, hyperpoint h2) {
 EX ld material(const hyperpoint& h) {
   if(sphere || in_s2xe()) return intval(h, Hypc);
   else if(hyperbolic || in_h2xe()) return -intval(h, Hypc);
+  #if MAXMDIM >= 4
   else if(sl2) return h[2]*h[2] + h[3]*h[3] - h[0]*h[0] - h[1]*h[1];
+  #endif
   else return h[LDIM];
   }
 
@@ -790,8 +797,12 @@ EX transmatrix parabolic13(ld u, ld v) {
   }
 
 EX hyperpoint kleinize(hyperpoint h) {
+  #if MAXMDIM == 3
+  return point3(h[0]/h[2], h[1]/h[2], 1);
+  #else
   if(GDIM == 2) return point3(h[0]/h[2], h[1]/h[2], 1);
   else return point31(h[0]/h[3], h[1]/h[3], h[2]/h[3]);
+  #endif
   }
 
 EX hyperpoint deparabolic13(hyperpoint h) {
@@ -1316,7 +1327,9 @@ EX shiftmatrix orthogonal_move(const shiftmatrix& t, double level) {
 
 /** fix a 3x3 matrix into a 4x4 matrix */
 EX transmatrix fix4(transmatrix t) {
+  #if MAXMDIM > 3
   for(int i=0; i<4; i++) t[3][i] = t[i][3] = i == 3;
+  #endif
   return t;
   }
 
@@ -1379,6 +1392,7 @@ EX hyperpoint mid_at_actual(hyperpoint h, ld v) {
   return rspintox(h) * xpush0(hdist0(h) * v);
   }
 
+#if MAXMDIM >= 4
 /** in 3D, an orthogonal projection of C0 on the given triangle */
 EX hyperpoint orthogonal_of_C0(hyperpoint h0, hyperpoint h1, hyperpoint h2) {
   h0 /= h0[3];
@@ -1393,6 +1407,7 @@ EX hyperpoint orthogonal_of_C0(hyperpoint h0, hyperpoint h1, hyperpoint h2) {
   hyperpoint h = w * denom + d1 * a1 + d2 * a2;
   return normalize(h);
   }
+#endif
 
 EX hyperpoint hpxd(ld d, ld x, ld y, ld z) {
   hyperpoint H = hpxyz(d*x, d*y, z);
@@ -1674,8 +1689,10 @@ EX ld raddif(ld a, ld b) {
   return d;
   }
 
+EX int bucket_scale = 10000;
+
 EX unsigned bucketer(ld x) {
-  return unsigned((long long)(x * 10000 + 100000.5) - 100000);
+  return (unsigned) (long long) (floor(x * bucket_scale + .5));
   }
 
 EX unsigned bucketer(hyperpoint h) {
@@ -1800,6 +1817,7 @@ EX ld inner3(hyperpoint h1, hyperpoint h2) {
     h1[0] * h2[0] + h1[1] * h2[1];
   }
 
+#if MAXMDIM >= 4
 /** circumscribe for H3 and S3 (not for E3 yet!) */
 EX hyperpoint circumscribe(hyperpoint a, hyperpoint b, hyperpoint c, hyperpoint d) {
   
@@ -1829,6 +1847,7 @@ EX hyperpoint circumscribe(hyperpoint a, hyperpoint b, hyperpoint c, hyperpoint 
 
   return h;
   }
+#endif
 
 /** the point in distance dist from 'material' to 'dir' (usually an (ultra)ideal point) */
 EX hyperpoint towards_inf(hyperpoint material, hyperpoint dir, ld dist IS(1)) {

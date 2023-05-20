@@ -3754,6 +3754,8 @@ EX bool placeSidewall(cell *c, int i, int sidepar, const shiftmatrix& V, color_t
   else if(sidepar == SIDE_ASHA) prio = PPR::ASHALLOW;
   else if(sidepar == SIDE_BSHA) prio = PPR::BSHALLOW;
   else prio = PPR::REDWALL-2+4*(sidepar-SIDE_SLEV);
+
+  if((col & 255) < 255) prio = PPR::TRANSPARENT_WALL;
   
   if(cgi.emb->is_in_noniso()) {
     draw_shapevec(c, V, qfi.fshape->gpside[sidepar][i], col, prio);
@@ -3770,6 +3772,14 @@ EX bool placeSidewall(cell *c, int i, int sidepar, const shiftmatrix& V, color_t
     #endif
     if(currentmap->strict_tree_rules()) {
       i = rulegen::get_arb_dir(c, i);
+      }
+    if(sidepar >= SIDEPARS) {
+      println(hlog, "ERROR: sidepar >= SIDEPARS", make_pair(sidepar, SIDEPARS));
+      return false;
+      }
+    if(i >= isize(qfi.fshape->gpside[sidepar])) {
+      println(hlog, "ERROR: i >= gpside[sidepar]", make_tuple(sidepar, i, isize(qfi.fshape->gpside[sidepar])));
+      return false;
       }
     draw_shapevec(c, V2, qfi.fshape->gpside[sidepar][i], col, prio);
     return false;
@@ -5438,6 +5448,8 @@ EX bool old_center;
 
 EX ld min_scale = 1e-6;
 
+EX int forced_center_down = ISANDROID ? 2 : ISIOS ? 40 : 40;
+
 EX void calcparam() {
 
   DEBBI(DF_GRAPH, ("calc param"));
@@ -5456,7 +5468,8 @@ EX void calcparam() {
   
   ld realradius = min(cd->xsize / 2, cd->ysize / 2);
   
-  cd->scrsize = realradius - (inHighQual ? 0 : ISANDROID ? 2 : ISIOS ? 40 : 40);
+  cd->scrsize = realradius;
+  if(!inHighQual) cd->scrsize -= forced_center_down;
 
   current_display->sidescreen = permaside;
   

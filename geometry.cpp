@@ -1045,10 +1045,10 @@ EX namespace geom3 {
       slev = vid.rock_wall_ratio * wh / 3;
       for(int s=0; s<=3; s++)
         SLEV[s] = lev_to_factor(vid.rock_wall_ratio * wh * s/3);
-      LAKE = lev_to_factor(sgn * wh * -vid.lake_top);
-      SHALLOW = lev_to_factor(sgn * wh * -vid.lake_shallow);
-      HELLSPIKE = lev_to_factor(sgn * -(vid.lake_top+vid.lake_bottom)/2);
-      BOTTOM = lev_to_factor(sgn * -vid.lake_bottom);
+      LAKE = lev_to_factor(wh * -vid.lake_top);
+      SHALLOW = lev_to_factor(wh * -vid.lake_shallow);
+      HELLSPIKE = lev_to_factor(wh * -(vid.lake_top+vid.lake_bottom)/2);
+      BOTTOM = lev_to_factor(wh * -vid.lake_bottom);
       LOWSKY = lev_to_factor(vid.lowsky_height * wh);
       HIGH = lev_to_factor(vid.wall_height2 * wh);
       HIGH2 = lev_to_factor(vid.wall_height3 * wh);
@@ -1106,7 +1106,7 @@ EX namespace geom3 {
     if(vid.always3) swapdim(-1);
     vid.always3 = !vid.always3;
     apply_always3();
-    check_cgi(); cgi.prepare_basics();
+    check_cgi(); cgi.require_basics();
     if(vid.always3) swapdim(+1);
     }
   #endif
@@ -1175,7 +1175,9 @@ EX namespace geom3 {
     if(vid.always3) {
       changing_embedded_settings = true;
       geom3::switch_fpp();
+      #if MAXMDIM >= 4
       delete_sky();
+      #endif
       // not sure why this is needed...
       resetGL();
       geom3::switch_fpp();
@@ -1184,12 +1186,14 @@ EX namespace geom3 {
     }
 
   EX void apply_settings_light() {
+  #if MAXMDIM >= 4
     if(vid.always3) {
       changing_embedded_settings = true;
       geom3::switch_always3();
       geom3::switch_always3();
       changing_embedded_settings = false;
       }
+  #endif
     }
 
   EX }
@@ -1262,6 +1266,7 @@ EX string cgi_string() {
   
   if(bt::in()) V("BT", fts(vid.binary_width));
   if(hat::in()) V("H", fts(hat::hat_param));
+  if(hat::in() && hat::hat_param_imag) V("HI", fts(hat::hat_param_imag));
 
   if(nil) V("NILW", fts(nilv::nilwidth));
   
@@ -1311,7 +1316,7 @@ EX string cgi_string() {
   return s;
   }
 
-#if MAXMDIM >= 4 && CAP_RAY
+#if CAP_PORTALS
 #define IFINTRA(x,y) x
 #else
 #define IFINTRA(x,y) y

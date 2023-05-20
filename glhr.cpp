@@ -124,10 +124,13 @@ struct glmatrix {
       color[2] = b;
       color[3] = 1;
       }
-    colored_vertex(hyperpoint h, color_t col) {
-      coords = pointtogl(h);
+    void set_color(color_t col) {
       for(int i=0; i<4; i++)
         color[i] = part(col, 3-i) / 255.0;
+      }
+    colored_vertex(hyperpoint h, color_t col) {
+      coords = pointtogl(h);
+      set_color(col);
       }
     };
   
@@ -245,10 +248,8 @@ EX glmatrix& as_glmatrix(GLfloat o[16]) {
   return tmp;
   }
 
-#if HDR
-constexpr ld vnear_default = 1e-3;
-constexpr ld vfar_default = 1e9;
-#endif
+EX ld vnear_default = 1e-3;
+EX ld vfar_default = 1e9;
 
 EX glmatrix frustum(ld x, ld y, ld vnear IS(vnear_default), ld vfar IS(vfar_default)) {
   GLfloat frustum[16] = {
@@ -663,7 +664,10 @@ EX void full_enable(shared_ptr<GLprogram> p) {
     current_projection[0][0] = -1e8;
     }, {})
   id_modelview();
+  #if MINIMIZE_GL_CALLS
+  #else
   current_linewidth = -1;
+  #endif
   /* if(current_depthwrite) glDepthMask(GL_TRUE);
   else glDepthMask(GL_FALSE);
   if(current_depthtest) glEnable(GL_DEPTH_TEST);

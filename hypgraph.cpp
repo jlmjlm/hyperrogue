@@ -378,7 +378,14 @@ EX ld signed_sqrt(ld x) { return x > 0 ? sqrt(x) : -sqrt(-x); }
 
 EX int axial_x, axial_y;
 
+/** in perspective projections, compute inverse_exp (or similar) on CPU, but perspective on GPU (needs consider_shader_projection off) */
+EX bool semidirect_rendering = false;
+
+/** flag for semidirect_rendering */
+EX bool computing_semidirect = false;
+
 EX void apply_perspective(const hyperpoint& H, hyperpoint& ret) {
+  if(computing_semidirect) { ret = H; ret[3] = 1; return; }
   if(H[2] == 0) { ret[0] = 1e6; ret[1] = 1e6; ret[2] = 0; return; }
   ld ratio = vid.xres / current_display->tanfov / current_display->radius / 2;
   ret[0] = H[0]/H[2] * ratio;
@@ -620,13 +627,14 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
     case mdPerspective: {
       if(gproduct) H = product::inverse_exp(H);
       apply_nil_rotation(H);
-      H = lp_apply(H);
+      if(!computing_semidirect) H = lp_apply(H);
       apply_perspective(H, ret);
       return;      
       }
 
     case mdGeodesic: {
-      auto S = lp_apply(inverse_exp(H_orig, pNORMAL | pfNO_DISTANCE));
+      auto S = inverse_exp(H_orig, pNORMAL | pfNO_DISTANCE);
+      if(!computing_semidirect) S = lp_apply(S);
       apply_perspective(S, ret);
       return;
       }
@@ -642,8 +650,10 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
         /* x wanes as z grows! */
         }
       hyperpoint S = lie_log_correct(H_orig, H);
+      #if MAXMDIM >= 4
       S[3] = 1;
-      S = lp_apply(S);
+      #endif
+      if(!computing_semidirect) S = lp_apply(S);
       if(hyperbolic) {
         models::apply_orientation(ret[1], ret[0]);
         models::apply_orientation_yz(ret[2], ret[1]);
@@ -652,12 +662,14 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       return;
       }
 
+    #if MAXMDIM >= 4
     case mdRelPerspective: {
       auto S = rel_log(H_orig, true); S[3] = 1;
-      S = lp_apply(S);
+      if(!computing_semidirect) S = lp_apply(S);
       apply_perspective(S, ret);
       return;
       }
+    #endif
 
     case mdPixel:
       ret = H / current_display->radius;
@@ -889,6 +901,7 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       find_zlev(H);
       models::apply_orientation_yz(H[1], H[2]);
       models::apply_orientation(H[0], H[1]);
+      if(euclid) H[0] /= pconf.fisheye_param, H[1] /= pconf.fisheye_param;
       ret = to_square(H);
       models::apply_orientation(ret[1], ret[0]);
       models::apply_orientation_yz(ret[2], ret[1]);
@@ -911,6 +924,7 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       break;
       }
 
+    #if MAXMDIM >= 4
     case mdRelOrthogonal: {
 
       ret = rel_log(H_orig, true);
@@ -920,6 +934,7 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       if(!vrhr::rendering()) ret = lp_apply(ret);
       break;
       }
+    #endif
 
     case mdHemisphere: {
   
@@ -2112,6 +2127,8 @@ EX void spinEdge(ld aspd) {
   rotate_view(cspin(0, 1, downspin));
   }
 
+EX void spinEdge_full() { spinEdge(999999); }
+
 /** \brief convert a shiftmatrix to the coordinate system of View 
  *  usually used to set which_copy
  */
@@ -2497,7 +2514,9 @@ void circle_around_center(ld radius, color_t linecol, color_t fillcol, PPR prio)
     }  
   #endif
   #if CAP_QUEUE
-  for(int i=0; i<=360; i++) curvepoint(xspinpush0(i * degree, 10));
+  ld rad = 10;
+  if(euclid) rad = 1000;
+  for(int i=0; i<=360; i++) curvepoint(xspinpush0(i * degree, rad));
   auto& c = queuecurve(shiftless(Id), linecol, fillcol, prio);
   if(pmodel == mdDisk && hyperbolic && pconf.alpha <= -1)
     c.flags |= POLY_FORCE_INVERTED;
@@ -2510,6 +2529,7 @@ void circle_around_center(ld radius, color_t linecol, color_t fillcol, PPR prio)
 EX color_t periodcolor = 0x00FF0080;
 EX color_t ringcolor = 0xFFFF;
 EX color_t modelcolor = 0;
+EX ld periodwidth = 1;
 
 EX ld twopoint_xscale = 1;
 EX ld twopoint_xwidth = 1;
@@ -2539,6 +2559,7 @@ EX void draw_model_elements() {
   dynamicval<ld> lw(vid.linewidth, vid.linewidth * vid.multiplier_ring);
   switch(pmodel) {
   
+    #if MAXMDIM >= 4
     case mdRelOrthogonal:
     case mdRelPerspective: {
       constexpr ld cc = 3;
@@ -2562,6 +2583,7 @@ EX void draw_model_elements() {
         }
       return;
       }
+    #endif
 
     case mdRotatedHyperboles: {
       queuestr(current_display->xcenter, current_display->ycenter + current_display->radius * pconf.alpha, 0, vid.fsize, "X", ringcolor, 1, 8);
@@ -2708,7 +2730,7 @@ void queuestraight(hyperpoint X, int style, color_t lc, color_t fc, PPR p) {
 EX void draw_boundary(int w) {
 
   if(w == 1) return;
-  if(nonisotropic || (euclid && pmodel != mdFisheye) || gproduct) return;
+  if(nonisotropic || (euclid && !among(pmodel, mdFisheye, mdConformalSquare)) || gproduct) return;
   #if CAP_VR
   if(vrhr::active() && pmodel == mdHyperboloid) return;
   #endif
@@ -2729,11 +2751,14 @@ EX void draw_boundary(int w) {
   dynamicval<ld> dw(vid.linewidth, vid.linewidth * (svg::in ? svg::divby : 1));
   #endif
 
-  if(elliptic && !among(pmodel, mdBand, mdBandEquidistant, mdBandEquiarea, mdSinusoidal, mdMollweide, mdCollignon))
+  if(elliptic && !among(pmodel, mdBand, mdBandEquidistant, mdBandEquiarea, mdSinusoidal, mdMollweide, mdCollignon)) {
+    dynamicval<ld> d(vid.linewidth, vid.linewidth * periodwidth);
     circle_around_center(90._deg, periodcolor, 0, PPR::CIRCLE);
+    }
   
   int broken_coord = models::get_broken_coord(pmodel);
   if(broken_coord) {
+    dynamicval<ld> d(vid.linewidth, vid.linewidth * periodwidth);
     int unbroken_coord = 3 - broken_coord;
     const ld eps = 1e-3;
     const ld rem = sqrt(1-eps*eps);
@@ -2790,9 +2815,11 @@ EX void draw_boundary(int w) {
         queuestraight(T * ypush0(hyperbolic ? 10 : right), 2, lc, fc, p);
       ld xperiod = elliptic ? fakeinf/2 : fakeinf;
       if(sphere && !bndband) {
+        dynamicval<ld> d(vid.linewidth, vid.linewidth * periodwidth);
         queuestraight(T * xpush0(xperiod), 2, periodcolor, 0, PPR::CIRCLE);
         }
       if(sphere && bndband) {
+        dynamicval<ld> d(vid.linewidth, vid.linewidth * periodwidth);
         ld adegree = degree-1e-6;
         for(ld a=-90; a<90+1e-6; a+=pow(.5, vid.linequality)) {
           curvepoint(T * xpush(xperiod) * ypush0(a * adegree));
@@ -3296,6 +3323,7 @@ EX shiftpoint lie_exp(hyperpoint h1) {
 /** Compute the Lie logarithm in SL(2,R), which corresponds to a geodesic in AdS; or a geodesic in de Sitter space.
  **/
 
+#if MAXMDIM >= 4
 EX hyperpoint rel_log(shiftpoint h, bool relativistic_length) {
   if(sl2) {
     optimize_shift(h);
@@ -3304,8 +3332,8 @@ EX hyperpoint rel_log(shiftpoint h, bool relativistic_length) {
     ld choice = h1[2] * h1[2] - h1[0] * h1[0] - h1[1] * h1[1];
     ld r, z;
     if(choice > 0) {
-      ld r = sqrt(choice);
-      ld z = asin_clamp(r);
+      r = sqrt(choice);
+      z = asin_clamp(r);
       if(h1[3] < 0) z = M_PI - z;
       z += cycles * TAU;
       }
@@ -3338,6 +3366,7 @@ EX hyperpoint rel_log(shiftpoint h, bool relativistic_length) {
     }
   throw hr_exception("rel_log in wrong geometry");
   }
+#endif
 
 /** Is Lie movement available? Depends on map geometry, not ambient geometry. */
 EX bool lie_movement_available() {
@@ -3348,7 +3377,9 @@ EX bool lie_movement_available() {
 
 EX hyperpoint lie_log(const shiftpoint h1) {
   hyperpoint h = unshift(h1);
-  if(nil) {
+  if(0) ;
+  #if MAXMDIM >= 4
+  else if(nil) {
     h[3] = 0;
     h[2] -= h[0] * h[1] / 2;
     }
@@ -3377,6 +3408,10 @@ EX hyperpoint lie_log(const shiftpoint h1) {
       h[1] *= z / (exp(+z) - 1);
       }
     }
+  else if(sl2) {
+    return rel_log(h1, false);
+    }
+  #endif
   else if(euclid) {
     h[LDIM] = 0;
     }
@@ -3385,9 +3420,6 @@ EX hyperpoint lie_log(const shiftpoint h1) {
     if(abs(h[0]) > 1e-6)
       for(int i=1; i<LDIM; i++)
         h[i] *= h[0] / (exp(h[0])-1);
-    }
-  else if(sl2) {
-    return rel_log(h1, false);
     }
   else {
     /* not implemented */
@@ -3444,7 +3476,7 @@ EX void shift_view(hyperpoint H, eShiftMethod sm IS(shift_method(smaManualCamera
   static bool recursive = false;
   if(!recursive && intra::in) {
     dynamicval<bool> r(recursive, true);
-    #if MAXMDIM >= 4 && CAP_RAY
+    #if CAP_PORTALS
     intra::shift_view_portal(H);
     #endif
     return;

@@ -504,9 +504,14 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
         }
       if(area < 0) dist = -dist;
 
-      int id = arb::id_of(c->master);
-      auto& sh = ac.shapes[id];
-      apeirogonal = arb::in() && sh.apeirogonal;
+      apeirogonal = false;
+      int id = 0;
+      arb::shape *sh = nullptr;
+      if(arb::in()) {
+        int id = arb::id_of(c->master);
+        sh = &ac.shapes[id];
+        apeirogonal = sh->apeirogonal;
+        }
       
       for(int j=0; j<cor; j++) {
         hyperpoint last = actual[j?j-1:cor-1];
@@ -516,7 +521,7 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
         if(apeirogonal) {
           if(j == 0) last = arb::get_adj(arb::current_or_slided(), id, cor-1, id, cor-2, false) * actual[cor-3];
           if(j == cor-2) next = arb::get_adj(arb::current_or_slided(), id, cor-2, id, cor-1, false) * actual[1];
-          if(j == cor-1) { cornerlist.push_back(sh.vertices.back()); continue; }
+          if(j == cor-1) { cornerlist.push_back(sh->vertices.back()); continue; }
           }
 
         auto T = gpushxto0(current);
@@ -777,6 +782,8 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
   #endif
   }
 
+EX hookset<bool(cell*)> hooks_floorshapes;
+
 void geometry_information::generate_floorshapes() {
 
   DEBBI(DF_POLY, ("generate_floorshapes"));
@@ -799,7 +806,9 @@ void geometry_information::generate_floorshapes() {
 
   model.type = modelh.type = S7;
 
-  if(WDIM == 3) ;
+  if(callhandlers(false, hooks_floorshapes, &model)) ;
+
+  else if(WDIM == 3) ;
   
   #if CAP_IRR
   else if(IRREGULAR) {
@@ -1079,7 +1088,6 @@ int hrmap_standard::shvid(cell *c) {
       cgi.crossf = cgi.tessf;
       
       cgi.require_shapes();
-      println(hlog, "generating floorshapes for ", t);
       cgi.generate_floorshapes_for(t, &model, 0, 0);
       cgi.finishshape();
       cgi.extra_vertices();

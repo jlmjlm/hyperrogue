@@ -1,8 +1,8 @@
 // Hyperbolic Rogue -- Kite-and-dart tiling
 // Copyright (C) 2011-2019 Zeno Rogue, see 'hyper.cpp' for details
 
-/** \file apeirodic-hat.cpp
- *  \brief Apeirodic Hat tiling, based on https://arxiv.org/pdf/2303.10798.pdf
+/** \file aperiodic-hat.cpp
+ *  \brief Aperiodic Hat tiling, based on https://arxiv.org/pdf/2303.10798.pdf
  */
 
 #include "hyper.h"
@@ -383,6 +383,7 @@ vector<rule_recursive> rules_recursive = {
   };
 
 EX ld hat_param = 1;
+EX ld hat_param_imag = 0;
 
 struct hrmap_hat : hrmap {
 
@@ -439,14 +440,13 @@ struct hrmap_hat : hrmap {
           };
 
         if(clev == 1) for(auto& b: rules_base) {
-          products_equal(lt[0][b.id0+1], adj(b.id0==0, fix(b.edge0), b.id1==0, fix(b.edge1)), lt[1][b.master_connection+1], lt[0][b.id1+1]);
+          products_equal(lt[0][b.id0+1], adj2(b.id0==0, fix(b.edge0), b.id1==0, fix(b.edge1)), lt[1][b.master_connection+1], lt[0][b.id1+1]);
           }
 
         if(clev >= 2) for(auto& b: rules_recursive) {
           products_equal(lt[clev][b.id0+1], lt[clev-1][b.child+1], lt[clev][b.parent+1], lt[clev][b.id1+1]);
           }
 
-        if(debugflags & DF_GEOM) println(hlog, "changed = ", chg, " unknown = ", unknown, " errors = ", errors);
         if(!chg) break;
         }
 
@@ -473,22 +473,20 @@ struct hrmap_hat : hrmap {
     bool emb = embedded_plane;
     if(emb) geom3::light_flip(true);
 
-    auto move = [&] (ld angle, ld dist) {
-      hc.push_back(T * C0);
-      T = T * cspin(0, 1, angle * degree);
-      T = T * xpush(dist);
-      };
-
     ld q = 6;
     ld eshort = 0.3;
     ld elong = sqrt(3) * eshort;
     if(fake::in()) q = fake::around;
+
+    ld eshorti = 0, elongi = 0;
 
     if(q != 6) {
       eshort = edge_of_triangle_with_angles(M_PI / q, 60._deg, 90._deg);
       elong = edge_of_triangle_with_angles(60._deg, M_PI / q, 90._deg);
       }
     else {
+      eshorti = eshort * hat_param_imag;
+      elongi = elong * -hat_param_imag;
       eshort *= hat_param;
       elong *= 2 - hat_param;
       // 0-length edges cause problems...
@@ -496,41 +494,73 @@ struct hrmap_hat : hrmap {
       if(abs(elong) < 1e-6) elong = .0001;
       }
 
-    ld i60 = (M_PI - TAU*2/q)/degree;
-    ld n60 = (M_PI - TAU*4/q)/degree;
+    auto hat = [&] (vector<hyperpoint>& hc) {
 
-    move(-90, eshort); move( 60, eshort); move(  0, eshort);
-    move( 60, eshort); move( 90, elong);  move(n60, elong);
-    move( 90, eshort); move(-60, eshort); move( 90, elong);
-    move(i60, elong);  move(-90, eshort); move( 60, eshort);
-    move( 90, elong);  move(i60, elong);
+      auto move = [&] (ld angle, ld dist, ld disti) {
+        hc.push_back(T * C0);
+        T = T * cspin(0, 1, angle * degree);
+        T = T * xpush(dist);
+        T = T * ypush(disti);
+        };
 
-    if(q == 6) {
+      auto moves = [&] (ld angle) { move(angle, eshort, eshorti); };
+      auto movel = [&] (ld angle) { move(angle, elong, elongi); };
+
+      ld i60 = (M_PI - TAU*2/q)/degree;
+      ld n60 = (M_PI - TAU*4/q)/degree;
+
+      moves(-90); moves( 60); moves(  0);
+      moves( 60); movel( 90); movel(n60);
+      moves( 90); moves(-60); movel( 90);
+      movel(i60); moves(-90); moves( 60);
+      movel( 90); movel(i60);
+      };
+
+    hat(hc);
+
+#undef eshort
+#undef elong
+
+    auto compute_area = [&] (vector<hyperpoint>& hc) {
       ld area = 0;
-      for(int i=0; i<14; i++) area += (hc[(i+1)%14] ^ hc[i]) [2];
-      println(hlog, "area = ", area);
-      area = abs(area);
-      ld scale = sqrt(2.5 / area);
-      for(auto& h: hc) h = h * scale + (C0) * (1-scale);
+      for(int i=0; i<14; i++) area += (hc[(i+1)%isize(hc)] ^ hc[i]) [2];
+      return abs(area);
+      };
+
+    auto recenter = [&] (vector<hyperpoint>& hc) {
+      hyperpoint ctr = Hypc;
+      for(auto h: hc) ctr += h;
+      ctr /= isize(hc);
+      ctr = normalize(ctr);
+      for(auto& h: hc) h = gpushxto0(ctr) * h;
+      };
+
+    if(hat_param_imag)  {
+      eshorti *= -1;
+      elongi *= -1;
+      hat(hatcorners[1]);
       }
-
-    hyperpoint ctr = Hypc;
-    for(auto h: hc) ctr += h;
-    ctr /= isize(hc);
-    ctr = normalize(ctr);
-    for(auto& h: hc) h = gpushxto0(ctr) * h;
-
-    hatcorners[1] = hc;
+    else hatcorners[1] = hc;
     for(auto& h: hc) h = MirrorX * h;
     reverse(hatcorners[1].begin(), hatcorners[1].end());
+
+    if(q == 6) {
+      ld phi = (1 + sqrt(5)) / 2;
+      ld phi4 = pow(phi, 4);
+      ld area = (compute_area(hatcorners[0]) * phi4 + compute_area(hatcorners[1]) * 1) / (phi4 + 1);
+      area = abs(area);
+      ld scale = sqrt(2.5 / area);
+      for(auto &hc: hatcorners) for(auto& h: hc) h = h * scale + (C0) * (1-scale);
+      }
+    for(auto &hc: hatcorners) recenter(hc);
 
     clear_adj_memo();
     if(q == 6) {
       hyperpoint hfar = 
-        adj(1,9,0,7) * adj(0,11,0,10) * adj(0,1,0,2) * adj(0,8,0,5) * adj(0,11,0,10) *
-        adj(0,1,0,2) * adj(0,8,0,5) * adj(0,11,0,2) * adj(0,8,0,5) * adj(0,11,0,10) *
-        adj(0,1,0,2) * adj(0,8,0,5) * adj(0,11,0,10) * adj(0,1,0,2) * adj(0,8,0,5) *
-        adj(0,11,0,2) * adj(0,8,0,5) * C0;
+        adj2(1,9,0,7) * adj2(0,11,0,10) * adj2(0,1,0,2) * adj2(0,8,0,5) * adj2(0,11,0,10) *
+        adj2(0,1,0,2) * adj2(0,8,0,5) * adj2(0,11,0,2) * adj2(0,8,0,5) * adj2(0,11,0,10) *
+        adj2(0,1,0,2) * adj2(0,8,0,5) * adj2(0,11,0,10) * adj2(0,1,0,2) * adj2(0,8,0,5) *
+        adj2(0,11,0,2) * adj2(0,8,0,5) * C0;
       transmatrix T = spintox(hfar);
       for(auto& h: hc) h = inverse(T) * h;
       for(auto& h: hatcorners[1]) h = T * h;
@@ -629,7 +659,7 @@ struct hrmap_hat : hrmap {
     throw hr_exception("not in hats");
     }
 
-  void find_cell_connection(cell *c, int d) {
+  void find_cell_connection(cell *c, int d) override {
     int id = hat_id(c);
     indenter ind(2);
     for(auto& ru: rules_base) {
@@ -652,10 +682,10 @@ struct hrmap_hat : hrmap {
     int t0 = c0 == c0->master->c7;
     int t1 = c1 == c1->master->c7;
     int d1 = c0->c.spin(d0);
-    return adj(t0, d0, t1, d1);
+    return adj2(t0, d0, t1, d1);
     }
 
-  memo_matrix& adj(int t0, int d0, int t1, int d1) {
+  memo_matrix& adj2(int t0, int d0, int t1, int d1) {
     auto& mm = adj_memo[t0][t1][d0][d1];
     if(mm.known) return mm;
 
@@ -754,6 +784,14 @@ EX void reshape() {
   hatmap = FPIU( hat_map() );
   if(!hatmap) return;
   hatmap->init();
+  }
+
+EX transmatrix get_long_transform(int level, int dir) {
+  hrmap_hat *hatmap;
+  hatmap = FPIU( hat_map() );
+  if(!hatmap) return Id;
+  hatmap->fill_transform_levels(max(level, 5));
+  return hatmap->long_transformations[level][dir];
   }
 
 EX color_t hatcolor(cell *c, int mode) {

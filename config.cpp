@@ -56,6 +56,7 @@ struct setting {
     return parameter_name + "|" + config_name + "|" + menu_item_name + "|" + help_text;
     }
   virtual cld get_cld() = 0;
+  virtual void set_cld(cld x) = 0;
   explicit setting() { restrict = auto_restrict; is_editable = false; }
   virtual void check_change() {
     cld val = get_cld();
@@ -111,6 +112,7 @@ template<class T> struct enum_setting : list_setting {
   bool affects(void* v) override { return v == value; }
   void add_as_saver() override;
   cld get_cld() override { return get_value(); }
+  virtual void set_cld(cld x) { set_value(floor(real(x)+.5)); }
   void load_from(const string& s) override {
     *value = (T) parseint(s);
     }
@@ -137,6 +139,7 @@ struct float_setting : public setting {
   bool affects(void *v) override { return v == value; }
   void show_edit_option(int key) override;
   cld get_cld() override { return *value; }
+  void set_cld(cld x) override { *value = real(x); }
   void load_from(const string& s) override;
   };
 
@@ -157,6 +160,7 @@ struct int_setting : public setting {
   bool affects(void *v) override { return v == value; }
   void show_edit_option(int key) override;
   cld get_cld() override { return *value; }
+  void set_cld(cld x) override { *value = floor(real(x)+.5); }
   int_setting *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, char key) {
     this->is_editable = true;
     this->min_value = min_value;
@@ -185,6 +189,7 @@ struct bool_setting : public setting {
   bool affects(void *v) override { return v == value; }
   void show_edit_option(int key) override;
   cld get_cld() override { return *value ? 1 : 0; }
+  void set_cld(cld x) override { *value = real(x) >= 0.5; }
   void load_from(const string& s) override {
     *value = parseint(s);
     }
@@ -196,6 +201,7 @@ struct custom_setting : public setting {
   function<bool(void*)> custom_affect;
   void show_edit_option(int key) override { custom_viewer(key); }
   cld get_cld() override { return custom_value(); }
+  void set_cld(cld x) override { }
   bool affects(void *v) override { return custom_affect(v); }
   };
   
@@ -631,6 +637,7 @@ saverlist savers;
 #endif
 
 #if !CAP_CONFIG
+#if HDR
 template<class T, class U, class V> void addsaver(T& i, U name, V dft) {
   i = dft;
   }
@@ -638,6 +645,7 @@ template<class T, class U, class V> void addsaver(T& i, U name, V dft) {
 template<class T, class U> void addsaver(T& i, U name) {}
 template<class T, class U> void addsaverenum(T& i, U name) {}
 template<class T, class U> void addsaverenum(T& i, U name, T dft) { i = dft; }
+#endif
 #endif
 
 EX void addsaver(charstyle& cs, string s) {
@@ -842,6 +850,13 @@ EX void initConfig() {
       })
   -> set_reaction(hat::reshape);
 
+  param_f(hat::hat_param_imag, "hat_param_imag", "hat_param_imag", 0)
+  -> editable(0, 2, 0.1, "hat parameter (imaginary)",
+    "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\n"
+    "This controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.", 'v'
+    )
+  -> set_reaction(hat::reshape);
+
   addsaver(vid.particles, "extra effects", 1);
   param_i(vid.framelimit, "frame limit", 999);
 
@@ -904,16 +919,16 @@ EX void initConfig() {
   param_f(geom3::euclid_embed_scale, "euclid_embed_scale", "euclid_embed_scale")
   -> editable(0, 2, 0.05, "Euclidean embedding scale", "How to scale the Euclidean map, relatively to the 3D absolute unit.", 'X')
   -> set_sets([] { dialog::bound_low(0.05); })
-  -> set_reaction(geom3::apply_settings_full);
+  -> set_reaction(geom3::apply_settings_light);
 
   param_f(geom3::euclid_embed_scale_y, "euclid_embed_scale_y", "euclid_embed_scale_y")
   -> editable(0, 2, 0.05, "Euclidean embedding scale Y/X", "This scaling factor affects only the Y coordinate.", 'Y')
   -> set_sets([] { dialog::bound_low(0.05); })
-  -> set_reaction(geom3::apply_settings_full);
+  -> set_reaction(geom3::apply_settings_light);
 
   param_f(geom3::euclid_embed_rotate, "euclid_embed_rotate", "euclid_embed_rotate")
   -> editable(0, 360, 15, "Euclidean embedding rotation", "How to rotate the Euclidean embedding, in degrees.", 'F')
-  -> set_reaction(geom3::apply_settings_full);
+  -> set_reaction(geom3::apply_settings_light);
 
   param_enum(embedded_shift_method_choice, "embedded_shift_method", "embedded_shift_method", smcBoth)
   -> editable({
@@ -1173,10 +1188,19 @@ EX void initConfig() {
   addsaver(mouseaim_sensitivity, "mouseaim_sensitivity", 0.01);
 
   param_b(vid.consider_shader_projection, "shader-projection", true);
+  param_b(semidirect_rendering, "semidirect_rendering", false)
+  ->editable("semidirect_rendering (perspective on GPU)", 'k');
+
+  param_i(forced_center_down, "forced_center_down")
+  -> editable(0, 100, 10, "forced center down", "make the center not the actual screen center", 'd');
   
   param_b(tortoise::shading_enabled, "tortoise_shading", true);
 
-  addsaver(bounded_mine_percentage, "bounded_mine_percentage");
+  param_f(bounded_mine_percentage, "bounded_mine_freq")
+  -> editable(0, 1, 0.01, "fraction of mine in bounded minefield", "", '%')
+  -> set_reaction([] {
+    if(game_active) { stop_game(); start_game(); }
+    });
 
   param_enum(nisot::geodesic_movement, "solv_geodesic_movement", "solv_geodesic_movement", true)
   -> editable({{"Lie group", "light, camera, and objects move in lines of constant direction, in the Lie group sense"}, {"geodesics", "light, camera, and objects always take the shortest path"}}, "straight lines", 'G')
@@ -1449,7 +1473,7 @@ EX void loadConfig() {
   geom3::apply_always3();
   polygonal::solve();
   check_cgi();
-  cgi.prepare_basics();
+  cgi.require_basics();
   }
 #endif
 
@@ -2464,9 +2488,11 @@ EX void show3D_height_details() {
     add_edit(vid.infdeep_height);
     add_edit(vid.sun_size);
     add_edit(vid.star_size);
+    #if MAXMDIM >= 4
     add_edit(star_prob);
     add_edit(vid.height_limits);
     if(euclid && msphere) add_edit(use_euclidean_infinity);
+    #endif
 
     dialog::addBreak(100);
     dialog::addHelp(lalign(0, "absolute altitudes:\n\n"
@@ -2511,7 +2537,7 @@ EX void show3D() {
     }
   
   if(WDIM == 2) {
-    if(cgi.emb->is_euc_in_noniso()) {
+    if(cgi.emb->is_euc_scalable()) {
       add_edit(geom3::euclid_embed_scale);
       add_edit(geom3::euclid_embed_scale_y);
       add_edit(geom3::euclid_embed_rotate);
@@ -2710,10 +2736,12 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   param_b(numerical_minefield, "numerical_minefield")
   ->editable("display mine counts numerically", 'n');
   param_b(dont_display_minecount, "dont_display_minecount");
+  #if MAXMDIM >= 4
   param_enum(draw_sky, "draw_sky", "draw_sky", skyAutomatic)
   -> editable({{"NO", "do not draw sky"}, {"automatic", ""}, {"skybox", "works only in Euclidean"}, {"always", "might be glitched in some settings"}}, "sky rendering", 's');
   param_b(use_euclidean_infinity, "use_euclidean_infinity", true)
   -> editable("infinite sky", 'i');
+  #endif
   param_f(linepatterns::parallel_count, "parallel_count")
     ->editable(0, 24, 1, "number of parallels drawn", "", 'n');
   param_f(linepatterns::parallel_max, "parallel_max")
@@ -2732,6 +2760,7 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   param_f(twopoint_xscale, "twopoint_xscale");
   param_i(twopoint_xshape, "twopoint_xshape");
   param_f(twopoint_xwidth, "twopoint_xwidth");
+  param_f(periodwidth, "periodwidth", 1);
 
   param_f(vid.depth_bonus, "depth_bonus", 0)
     ->editable(-5, 5, .1, "depth bonus in pseudohedral", "", 'b');
@@ -2852,10 +2881,12 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
       "the sky height, which might be beyond the range visible in fog. To prevent this, "
       "the intensity of the fog effect depends on the value here rather than the actual distance. "
       "Stars are affected similarly.", '4');
+  #if MAXMDIM >= 4
   param_fd(vid.sky_height, "sky_height")
     ->set_hint([] { return geom3::to_wh(cgi.SKY); })
     ->editable(0, 10, .1, "altitude of the sky", unitwarn, '5')
     ->set_reaction(delete_sky);
+  #endif
   param_fd(vid.star_height, "star_height")
     ->set_hint([] { return geom3::to_wh(cgi.STAR); })
     ->editable(0, 10, .1, "altitude of the stars", unitwarn, '6');
@@ -2866,8 +2897,10 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     ->editable(0, 10, .1, "sun size (relative to item sizes)", "", '8');
   param_f(vid.star_size, "star_size", "star_size", 0.75)
     ->editable(0, 10, .1, "night star size (relative to item sizes)", "", '9');
+  #if MAXMDIM >= 4
   param_f(star_prob, "star_prob", 0.3)
     ->editable(0, 1, .01, "star probability", "probability of star per tile", '*');
+  #endif
   param_b(vid.height_limits, "height_limits", true)
     ->editable("prevent exceeding recommended altitudes", 'l');
   param_b(auto_remove_roofs, "auto_remove_roofs", true)
@@ -3740,58 +3773,62 @@ EX int read_config_args() {
     auto& cs = vid.cs;
     shift();
     string s = args();
-    if(s == "dodek") {
-      cs.charid = 4;
-      cs.lefthanded = false;
-      cs.skincolor = 0x202020FF;
-      cs.eyecolor = 0x20C000FF;
-      cs.haircolor = 0x202020FF;
-      cs.dresscolor =0x424242FF;
-      cs.swordcolor = 0xF73333FF;      
-      }
-    else if(s == "rudy") {
-      cs.charid = 4;
-      cs.lefthanded = false;
-      cs.skincolor = 0xA44139FF;
-      cs.eyecolor = 0xD59533FF;
-      cs.haircolor = 0xC6634AFF;
-      cs.dresscolor =0xC6634AFF;
-      cs.swordcolor = 0x3CBB33FF;      
-      }
-    else if(s == "running") {
-      cs.charid = 6;
-      cs.lefthanded = false;
-      cs.skincolor = 0xFFFFFFFF;
-      cs.eyecolor = 0xFF;
-      cs.haircolor = 0xFFFFFFFF;
-      cs.dresscolor =0xFFFFFFFF;
-      cs.swordcolor = 0xFF0000FF;
-      }
-    else if(s == "princess") {
-      cs.charid = 3;
-      cs.lefthanded = true;
-      cs.skincolor  = 0xEFD0C9FF;
-      cs.haircolor  = 0x301800FF;
-      cs.eyecolor   = 0xC000FF;
-      cs.dresscolor = 0x408040FF;
-      cs.swordcolor = 0xFFFFFFFF;
-      }
-    else if(s == "worker") {
-      cs.charid = 2;
-      cs.skincolor = 0xC77A58FF;
-      cs.haircolor = 0x502810FF;
-      cs.dresscolor = 0xC0C000FF;
-      cs.eyecolor = 0x500040FF;
-      cs.swordcolor = 0x808080FF;
-      }
-    else {
-      cs.charid = argi();
-      cs.lefthanded = cs.charid >= 10;
-      cs.charid %= 10;
-      }
+    set_char_by_name(cs, s);
     }
   else return 1;
   return 0;
+  }
+
+EX void set_char_by_name(charstyle& cs, const string& s) {
+  if(s == "dodek") {
+    cs.charid = 4;
+    cs.lefthanded = false;
+    cs.skincolor = 0x202020FF;
+    cs.eyecolor = 0x20C000FF;
+    cs.haircolor = 0x202020FF;
+    cs.dresscolor =0x424242FF;
+    cs.swordcolor = 0xF73333FF;      
+    }
+  else if(s == "rudy") {
+    cs.charid = 4;
+    cs.lefthanded = false;
+    cs.skincolor = 0xA44139FF;
+    cs.eyecolor = 0xD59533FF;
+    cs.haircolor = 0xC6634AFF;
+    cs.dresscolor =0xC6634AFF;
+    cs.swordcolor = 0x3CBB33FF;      
+    }
+  else if(s == "running") {
+    cs.charid = 6;
+    cs.lefthanded = false;
+    cs.skincolor = 0xFFFFFFFF;
+    cs.eyecolor = 0xFF;
+    cs.haircolor = 0xFFFFFFFF;
+    cs.dresscolor =0xFFFFFFFF;
+    cs.swordcolor = 0xFF0000FF;
+    }
+  else if(s == "princess") {
+    cs.charid = 3;
+    cs.lefthanded = true;
+    cs.skincolor  = 0xEFD0C9FF;
+    cs.haircolor  = 0x301800FF;
+    cs.eyecolor   = 0xC000FF;
+    cs.dresscolor = 0x408040FF;
+    cs.swordcolor = 0xFFFFFFFF;
+    }
+  else if(s == "worker") {
+    cs.charid = 2;
+    cs.skincolor = 0xC77A58FF;
+    cs.haircolor = 0x502810FF;
+    cs.dresscolor = 0xC0C000FF;
+    cs.eyecolor = 0x500040FF;
+    cs.swordcolor = 0x808080FF;
+    }
+  else {
+    cs.charid = atoi(s.c_str());
+    cs.lefthanded = cs.charid >= 10;
+    cs.charid %= 10;
+    }
   }
 
 EX int read_param_args() {
