@@ -1140,6 +1140,9 @@ EX namespace geom3 {
     #endif
     if(dual::split(switch_fpp)) return;
 
+    check_cgi();
+    cgi.require_basics();
+
     if(!changing_embedded_settings)
       View = inverse(models::rotmatrix()) * View;
 
@@ -1149,7 +1152,7 @@ EX namespace geom3 {
       auto emb = make_embed();
       emb->auto_configure();
       check_cgi();
-      cgi.prepare_basics();
+      cgi.require_basics();
       swapdim(+1);
       }
     else {
@@ -1282,8 +1285,10 @@ EX string cgi_string() {
     V("ASH", ONOFF(vid.gp_autoscale_heights));
     V("LT", fts(vid.lake_top));
     V("LB", fts(vid.lake_bottom));
-    if(GDIM == 3 && vid.pseudohedral)
-      V("PS", fts(vid.depth_bonus));
+    if(GDIM == 3 && vid.pseudohedral) {
+      V("PSH", fts(vid.pseudohedral));
+      V("PSD", fts(vid.depth_bonus));
+      }
     V("LS", fts(vid.lake_shallow));
     V("SSu", fts(vid.sun_size));
     V("SSt", fts(vid.star_size));

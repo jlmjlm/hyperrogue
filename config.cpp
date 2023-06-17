@@ -832,16 +832,20 @@ EX void initConfig() {
   param_custom(vid.binary_width, "binary tiling width", menuitem_binary_width, 'v');
 
   param_f(hat::hat_param, "hat_param", "hat_param", 1)
-  -> editable(0, 2, 0.1, "hat parameter",
+  -> editable(0, 2, 0.1, "hat/spectre/turtle parameter",
     "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\n"
-    "This controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.", 'v'
+    "This controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.\n\n"
+    "Aperiodic spectre tiling based on: https://arxiv.org/abs/2305.17743\n\n"
+    "In the spectre tiling, set the parameter to 'spectre' value to make all tiles have the same shape."
+    ,
+    'v'
     )
   -> set_extra([] {
       dialog::addSelItem(XLAT("chevron (periodic)"), "0", 'C');
       dialog::add_action([] { dialog::ne.s = "0"; dialog::apply_edit(); });
       dialog::addSelItem(XLAT("hat"), "1", 'H');
       dialog::add_action([] { dialog::ne.s = "1"; dialog::apply_edit(); });
-      dialog::addSelItem(XLAT("all equal (periodic)"), "3-√3", 'T');
+      dialog::addSelItem(XLAT("spectre"), "3-√3", 'T');
       dialog::add_action([] { dialog::ne.s = "3 - sqrt(3)"; dialog::apply_edit(); });
       dialog::addSelItem(XLAT("turtle"), "1.5", 'T');
       dialog::add_action([] { dialog::ne.s = "1.5"; dialog::apply_edit(); });
@@ -852,8 +856,7 @@ EX void initConfig() {
 
   param_f(hat::hat_param_imag, "hat_param_imag", "hat_param_imag", 0)
   -> editable(0, 2, 0.1, "hat parameter (imaginary)",
-    "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\n"
-    "This controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.", 'v'
+    "Imaginary part of the hat parameter. This corresponds to the usual interpretation of complex numbers in Euclidean planar geometry: rather than shortened or lengthened, the edges are moved in the other dimension.", 'v'
     )
   -> set_reaction(hat::reshape);
 
@@ -2762,10 +2765,19 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   param_f(twopoint_xwidth, "twopoint_xwidth");
   param_f(periodwidth, "periodwidth", 1);
 
+  param_b(draw_plain_floors, "draw_plain_floors", false)
+  ->editable("draw plain floors in 3D", 'p');
+  param_i(default_flooralpha, "floor_alpha")
+  ->editable(0, 255, 15, "floor alpha", "255 = opaque", 'a');
+
   param_f(vid.depth_bonus, "depth_bonus", 0)
     ->editable(-5, 5, .1, "depth bonus in pseudohedral", "", 'b');
-  param_b(vid.pseudohedral, "pseudohedral", false)
-    ->editable("make the tiles flat", 'p');
+  param_enum(vid.pseudohedral, "pseudohedral", "pseudohedral", phOFF)
+    ->editable(
+    {{"OFF", "the tiles are curved"},
+    {"inscribed", "the tiles are inscribed"},
+    {"circumscribed", "the tiles are circumscribed"}},
+    "make the tiles flat", 'p');
   param_f(vid.depth, "depth", "3D depth", 1)
     ->editable(0, 5, .1, "Ground level below the plane", "", 'd')
     ->set_extra([] {

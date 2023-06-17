@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "12.1p"
-#define VERNUM_HEX 0xA930
+#define VER "12.1q"
+#define VERNUM_HEX 0xA931
 
 #include "sysconfig.h"
 
@@ -317,6 +317,8 @@ enum eThreatLevel { tlNoThreat, tlSpam, tlNormal, tlHighThreat };
 
 constexpr ld use_the_default_value = -20.0625;
 
+enum ePseudohedral { phOFF, phInscribed, phCircumscribed };
+
 struct videopar {
   projection_configuration projection_config, rug_config;
   ld yshift;
@@ -425,7 +427,7 @@ struct videopar {
   bool height_limits;
   ld rock_wall_ratio;
   ld human_wall_ratio;
-  bool pseudohedral; // in 3D modes
+  ePseudohedral pseudohedral;
   ld depth_bonus;   // to fiix the placement of 3D models in pseudogonal -- not working currently
 
   int tc_alpha, tc_depth, tc_camera;
@@ -882,6 +884,18 @@ template<class Map, class Key>
 const typename Map::mapped_type *at_or_null(const Map& map, const Key& key) {
   auto it = map.find(key);
   return (it == map.end()) ? nullptr : &it->second;
+  }
+
+int gmod(int i, int j);
+
+// vector::at(i) modulo its size (const version)
+template<class T> const T& atmod(const vector<T>& container, int index) {
+  return container[gmod(index, isize(container))];
+  }
+
+// vector::at(i) modulo its size (non-const version)
+template<class T> T& atmod(vector<T>& container, int index) {
+  return container[gmod(index, isize(container))];
   }
 
 namespace daily {
