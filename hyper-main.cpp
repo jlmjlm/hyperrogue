@@ -99,6 +99,10 @@ EX int hyper_main(int argc, char **argv) {
 int main(int argc, char **argv) {
 #if !JLM_NO_SHOW_ORBS
   using namespace hr;
+  char descr[] = "FDUGLVETOSPWCXHMAB";
+  if (strlen(descr) != 18)
+    return strlen(descr);
+
   for (int in = itGreenStone; in < ittypes; ++in) {
     itemtype it = iinf[in];
     if (it.glyph == 'o') {
@@ -110,7 +114,7 @@ int main(int argc, char **argv) {
         //landtype lt = linf[ln];
         eItem ei = (eItem)in;  eLand el = (eLand)ln;
         eOrbLandRelation olr = getOLR(ei, el);
-        printf("\t%d", olr);
+        printf("\t%c", descr[olr]);
       }
       putchar('\n');
     }
@@ -121,4 +125,4 @@ int main(int argc, char **argv) {
 #endif
   return hr::hyper_main(argc, argv);
   }
-#endif 
+#endif
