@@ -76,6 +76,8 @@ EX void hyper_loop() {
   mainloop();
   }
 
+#include <cstdio>
+
 EX int hyper_main(int argc, char **argv) {
   if(!hyper_init(argc, argv)) return 0;
 #if !ISWEB
@@ -95,6 +97,28 @@ EX int hyper_main(int argc, char **argv) {
 
 #ifndef NOMAIN
 int main(int argc, char **argv) {
+#if !JLM_NO_SHOW_ORBS
+  using namespace hr;
+  for (int in = itGreenStone; in < ittypes; ++in) {
+    itemtype it = iinf[in];
+    if (it.glyph == 'o') {
+      const char *cname = it.name;
+      if (strcmp(cname, "Dead Orb")) cname += 7;
+      if (!strncmp(cname, "the ", 4)) cname += 4;
+      printf("%s", cname);
+      for (int ln = laNone; ln < landtypes; ++ln) {
+        //landtype lt = linf[ln];
+        eItem ei = (eItem)in;  eLand el = (eLand)ln;
+        eOrbLandRelation olr = getOLR(ei, el);
+        printf("\t%d", olr);
+      }
+      putchar('\n');
+    }
+  }
+  puts("Showed orbs!");
+
+  return 0;
+#endif
   return hr::hyper_main(argc, argv);
   }
 #endif 
