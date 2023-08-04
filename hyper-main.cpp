@@ -77,6 +77,7 @@ EX void hyper_loop() {
   }
 
 #include <cstdio>
+#include <cctype>
 
 EX int hyper_main(int argc, char **argv) {
   if(!hyper_init(argc, argv)) return 0;
@@ -99,7 +100,7 @@ EX int hyper_main(int argc, char **argv) {
 int main(int argc, char **argv) {
 #if !JLM_NO_SHOW_ORBS
   using namespace hr;
-  char descr[] = "FDUGLVETOSPWCXHMAB";
+  char descr[] = "fduglVETOSPWCxHMAb";
   if (strlen(descr) != 18)
     return strlen(descr);
 
@@ -111,10 +112,16 @@ int main(int argc, char **argv) {
       if (!strncmp(cname, "the ", 4)) cname += 4;
       printf("%s", cname);
       for (int ln = laNone; ln < landtypes; ++ln) {
-        //landtype lt = linf[ln];
         eItem ei = (eItem)in;  eLand el = (eLand)ln;
         eOrbLandRelation olr = getOLR(ei, el);
-        printf("\t%c", descr[olr]);
+        char val = descr[olr];
+        if (val == 'l') {
+          //landtype lt = linf[ln];
+          if (isCrossroads(el) || el == laOcean)
+            val = 'L';
+        }
+        //printf("\t%c%c", isupper(val) ? 'Y' : 'N', toupper(val));
+        printf("\t%c", isupper(val) ? 'Y' : 'N');
       }
       putchar('\n');
     }
