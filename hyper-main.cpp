@@ -104,12 +104,12 @@ int main(int argc, char **argv) {
   if (strlen(descr) != 18)
     return strlen(descr);
 
-  for (int in = itGreenStone; in < ittypes; ++in) {
+  for (int in = itShard; in < ittypes; ++in) {
     itemtype it = iinf[in];
-    if (it.glyph == 'o') {
+    if (/*it.glyph == 'o'*/ in == itShard) {
       const char *cname = it.name;
-      if (strcmp(cname, "Dead Orb")) cname += 7;
-      if (!strncmp(cname, "the ", 4)) cname += 4;
+      //if (strcmp(cname, "Dead Orb")) cname += 7;
+      //if (!strncmp(cname, "the ", 4)) cname += 4;
       printf("%s", cname);
       for (int ln = laNone; ln < landtypes; ++ln) {
         eItem ei = (eItem)in;  eLand el = (eLand)ln;
