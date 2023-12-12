@@ -240,7 +240,7 @@ EX void buildCredits() {
     "Kojiguchi Kazuki, baconcow, Alan, SurelyYouJest, hotdogPi, DivisionByZero, xXxWeedGokuxXx, jpystynen, Dmitry Marakasov, Alexandre Moine, Arthur O'Dwyer, "
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
     "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
-    "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight, jennlbw, Kali Ranya, spiritbackup, Dylan, L_Lord"
+    "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight, jennlbw, Kali Ranya, spiritbackup, Dylan, L_Lord, AntiRogue"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -410,7 +410,7 @@ EX string generateHelpForItem(eItem it) {
      help += XLAT("You can press 'g' or click them in the list to drop a Dead Orb.");
 #endif
    if(it == itOrbLightning || it == itOrbFlash)
-     help += XLAT("\n\nThis Orb is triggered on your first attack or illegal move.");
+     help += XLAT("\n\nThis Orb is triggered on your first direct melee attack or illegal move.");
    if(it == itOrbShield)
      help += XLAT("\n\nThis Orb protects you from attacks, scents, and insulates you "
        "from electricity. It does not let you go through deadly terrain, but "

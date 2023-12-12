@@ -43,6 +43,7 @@ struct setting {
   string parameter_name;
   string config_name;
   string menu_item_name;
+  bool menu_item_name_modified;
   string help_text;
   reaction_t reaction;
   char default_key;
@@ -110,6 +111,7 @@ struct list_setting : setting {
     is_editable = true;
     options = o;
     this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
     default_key = key;
     return this;
     }
@@ -222,6 +224,7 @@ struct float_setting : public val_setting<ld> {
     this->min_value = min_value;
     this->max_value = max_value;
     this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
     this->help_text = help_text;
     this->step = step;
     default_key = key;
@@ -254,6 +257,7 @@ struct int_setting : public val_setting<int> {
     this->min_value = min_value;
     this->max_value = max_value;
     this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
     this->help_text = help_text;
     this->step = step;
     default_key = key;
@@ -280,6 +284,7 @@ struct color_setting : public val_setting<color_t> {
   color_setting *editable(string menu_item_name, string help_text, char key) {
     this->is_editable = true;
     this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
     this->help_text = help_text;
     default_key = key;
     return this;
@@ -295,6 +300,7 @@ struct matrix_setting : public val_setting<matrix_eq> {
   matrix_setting *editable(string menu_item_name, string help_text, char key) {
     this->is_editable = true;
     this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
     this->help_text = help_text;
     default_key = key;
     return this;
@@ -318,7 +324,9 @@ struct bool_setting : public val_setting<bool> {
   reaction_t switcher;
   bool_setting* editable(string cap, char key ) {
     is_editable = true;
-    menu_item_name = cap; default_key = key; return this; 
+    menu_item_name = cap; default_key = key;
+    menu_item_name_modified = true;
+    return this;
     } 
   void show_edit_option(int key) override;
 
@@ -682,6 +690,7 @@ EX int_setting *param_i(int& val, const string s, int dft) {
   u->parameter_name = param_esc(s);
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->value = &val;
   u->last_value = dft;
   u->dft = dft;
@@ -707,6 +716,7 @@ EX bool_setting *param_b(bool& val, const string s, bool dft) {
   u->parameter_name = param_esc(s);
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->value = &val;
   u->last_value = dft;
   u->dft = dft;
@@ -723,6 +733,7 @@ EX color_setting *param_color(color_t& val, const string s, bool has_alpha, colo
   u->parameter_name = param_esc(s);
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->value = &val;
   u->last_value = dft;
   u->dft = dft;
@@ -740,6 +751,7 @@ EX matrix_setting *param_matrix(transmatrix& val0, const string s, int dim) {
   u->parameter_name = param_esc(s);
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->value = &val;
   u->last_value = val;
   u->dft = val;
@@ -755,6 +767,7 @@ EX char_setting *param_char(char& val, const string s, char dft) {
   u->parameter_name = param_esc(s);
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->value = &val;
   u->last_value = dft;
   u->dft = dft;
@@ -782,6 +795,7 @@ template<class T> enum_setting<T> *param_enum(T& val, const string p, const stri
   u->parameter_name = p;
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->value = &val;
   u->dft = dft;
   val = dft;
@@ -813,6 +827,7 @@ custom_setting* param_custom(T& val, const string& s, function<void(char)> menui
   u->parameter_name = param_esc(s);
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->last_value = (int) val;
   u->custom_viewer = menuitem;
   u->custom_value = [&val] () { return (int) val; };
@@ -1345,11 +1360,13 @@ EX void initConfig() {
   addsaver(vid.desaturate, "desaturate", 0);
   
   param_enum(vid.stereo_mode, "stereo_mode", "stereo-mode", vid.stereo_mode)
-    ->editable({{"OFF", ""}, {"anaglyph", ""}, {"side-by-side", ""}
-    #if CAP_ODS
-    , {"ODS", ""}
-    #endif
-    }, "stereo mode", 'm');
+    ->editable({
+    {"OFF", "linear perspective"}, {"anaglyph", "for red-cyan glasses"}, {"side-by-side", "for mobile VR"},
+    {"ODS", "for rendering 360° VR videos (implemented only in raycaster and some other parts)"},
+    {"Panini", "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection."},
+    {"stereographic", "Stereographic projection allows very high FOV angles."},
+    {"equirectangular", "for rendering 360° videos (implemented only in raycaster)"}
+    }, "stereo/high-FOV mode", 'm');
 
   param_f(vid.plevel_factor, "plevel_factor", 0.7);
 
@@ -1560,6 +1577,11 @@ EX void initConfig() {
     -> set_need_confirm()
     -> set_value_to = [] (bow::eCrossbowStyle s) { bool b = game_active; if(s != bow::style) stop_game(); bow::style = s; if(b) start_game(); };
   param_b(bow::bump_to_shoot, "bump_to_shoot", true)->editable("bump to shoot", 'b');
+  param_enum(bow::mouse_fire_mode, "mouse_fire_mode", "mouse_fire_mode", bow::mfmPriority)
+     ->editable({{"explicit", "You need to click crossbow or be close to fire."},
+      {"priority", "Click on a faraway monster to fire if possible, or move if not."},
+      {"always", "Clicking on a faraway monster always means an attempt to fire."}},
+      "mouse auto-fire mode", 'm');
 
   param_enum(vid.msgleft, "message_style", "message style", 2)
     -> editable({{"centered", ""}, {"left-aligned", ""}, {"line-broken", ""}}, "message style", 'a');
@@ -1577,9 +1599,11 @@ EX void initConfig() {
   param_f(camera_rot_speed, "camrot", "camera-rot-speed", 1);
   param_f(third_person_rotation, "third_person_rotation", 0);
 
-  param_f(panini_alpha, "panini_alpha", 0)
-  ->set_reaction(reset_all_shaders);
-  param_f(stereo_alpha, "stereo_alpha", 0)
+  param_f(vid.stereo_param, "stereo_param", 0.9)
+  ->editable(-1, 1, 0.9, "stereographic/Panini parameter", "1 for full stereographic/Panini projection. Lower values reduce the effect.\n\n"
+        "HyperRogue uses "
+        "a quick implementation, so parameter values too close to 1 may "
+        "be buggy (outside of raycasting); try e.g. 0.9 instead.", 'd')
   ->set_reaction(reset_all_shaders);
 
   callhooks(hooks_configfile);
@@ -1854,7 +1878,7 @@ EX void menuitem_sightrange_bonus(char c) {
   }
 
 EX void edit_sightrange_3d(char key, bool fog) {
-  dialog::addSelItem(XLAT(fog ? "3D sight range for the fog effect" : "3D sight range"), fts(sightranges[geometry]), key);
+  dialog::addSelItem(fog ? XLAT("3D sight range for the fog effect") : ("3D sight range"), fts(sightranges[geometry]), key);
   dialog::add_action([] {
     dialog::editNumber(sightranges[geometry], 0, TAU, 0.5, M_PI, XLAT("3D sight range"),
       XLAT(
@@ -2472,7 +2496,7 @@ EX void explain_detail() {
   }
 
 EX ld max_fov_angle() {
-  auto& p = panini_alpha ? panini_alpha : stereo_alpha;
+  auto p = get_stereo_param();
   if(p >= 1 || p <= -1) return 360;
   return acos(-p) * 2 / degree;
   }
@@ -2480,7 +2504,7 @@ EX ld max_fov_angle() {
 EX void add_edit_fov(char key IS('f')) {
 
   string sfov = fts(vid.fov) + "°";
-  if(panini_alpha || stereo_alpha) {
+  if(get_stereo_param()) {
     sfov += " / " + fts(max_fov_angle()) + "°";
     }
   dialog::addSelItem(XLAT("field of view"), sfov, key);
@@ -2497,37 +2521,11 @@ EX void add_edit_fov(char key IS('f')) {
         );
     dialog::bound_low(1e-8);
     dialog::bound_up(max_fov_angle() - 0.01);
-    string quick = 
-      XLAT(
-        "HyperRogue uses "
-        "a quick implementation, so parameter values too close to 1 may "
-        "be buggy (outside of raycasting); try e.g. 0.9 instead."
-        );
-    dialog::get_di().extra_options = [quick] {
-      dialog::addSelItem(XLAT("Panini projection"), fts(panini_alpha), 'P');
-      dialog::add_action([quick] {
-        dialog::editNumber(panini_alpha, 0, 1, 0.1, 0, "Panini parameter", 
-          XLAT(
-            "The Panini projection is an alternative perspective projection "
-            "which allows very wide field-of-view values.\n\n") + quick
-            );
-        #if CAP_GL
-        dialog::get_di().reaction = reset_all_shaders;
-        #endif
-        dialog::get_di().extra_options = [] { add_edit_fov('F'); };
-        });
-      dialog::addSelItem(XLAT("spherical perspective projection"), fts(stereo_alpha), 'S');
-      dialog::add_action([quick] {
-        dialog::editNumber(stereo_alpha, 0, 1, 0.1, 0, "spherical perspective parameter", 
-          XLAT(
-            "Set to 1 to get stereographic projection, "
-            "which allows very wide field-of-view values.\n\n") + quick
-            );
-        #if CAP_GL
-        dialog::get_di().reaction = reset_all_shaders;
-        #endif
-        dialog::get_di().extra_options = [] { add_edit_fov('F'); };
-        });
+    dialog::get_di().extra_options = [] {
+      add_edit(vid.stereo_mode, 'M');
+      if(among(vid.stereo_mode, sPanini, sStereographic)) {
+        add_edit(vid.stereo_param, 'P');
+        }
       };
     });
   }
@@ -2552,6 +2550,9 @@ EX void showStereo() {
       break;
     case sLR:
       dialog::addSelItem(XLAT("distance between images"), fts(vid.lr_eyewidth), 'd');
+      break;
+    case sPanini: case sStereographic:
+      add_edit(vid.stereo_param);
       break;
     default:
       dialog::addBreak(100);
@@ -2854,7 +2855,7 @@ EX void show3D() {
 
 #if MAXMDIM >=4
   if(WDIM == 2) {
-    dialog::addSelItem("3D style", geom3::spatial_embedding_options[shown_spatial_embedding()].first, 'E');
+    dialog::addSelItem(XLAT("3D style"), XLAT(geom3::spatial_embedding_options[shown_spatial_embedding()].first), 'E');
     dialog::add_action_push(show_spatial_embedding);
 
     display_embedded_errors();
@@ -2890,7 +2891,7 @@ EX void show3D() {
     
     dialog::addBreak(50);
     add_edit(vid.wall_height);
-    dialog::addSelItem("height details", "", 'D');
+    dialog::addSelItem(XLAT("3D detailed settings"), "", 'D');
     dialog::add_action_push(show3D_height_details);
     
     if(scale_used())
@@ -3314,7 +3315,7 @@ EX void showCustomizeChar() {
   dialog::addColorItem(XLAT("hair color"), cs.haircolor, 'h');
   if(bow::crossbow_mode()) {
     dialog::addColorItem(XLAT("bow color"), cs.bowcolor, 'b');
-    dialog::addColorItem(XLAT("boswtring color"), cs.bowcolor2, 'c');
+    dialog::addColorItem(XLAT("bowstring color"), cs.bowcolor2, 'c');
     }
   
   if(cs.charid >= 1) dialog::addColorItem(XLAT("dress color"), cs.dresscolor, 'd');
@@ -3713,9 +3714,23 @@ EX void add_edit_ptr(void *val) {
   if(found != 1) println(hlog, "found = ", found);
   }
 
+EX void add_edit_ptr(void *val, char key) {
+  int found = 0;
+  for(auto& fs: params) {
+    fs.second->check_change();
+    if(fs.second->affects(val))
+      fs.second->show_edit_option(key), found++;
+    }
+  if(found != 1) println(hlog, "found = ", found);
+  }
+
 #if HDR
 template<class T> void add_edit(T& val) {
   add_edit_ptr(&val);
+  }
+
+template<class T> void add_edit(T& val, char key) {
+  add_edit_ptr(&val, key);
   }
 #endif
 
@@ -3806,7 +3821,8 @@ void list_setting::show_edit_option(int key) {
     dialog::addBreak(100);
 
     if(need_list >= 1 && options[get_value()].second != "") {
-      dialog::addHelp(XLAT(options[get_value()].second));
+      string text = options[get_value()].second;
+      dialog::addHelp(XLAT(text));
       dialog::addBreak(100);
       }
     dialog::addBack();

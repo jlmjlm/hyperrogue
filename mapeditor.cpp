@@ -184,10 +184,14 @@ EX namespace mapeditor {
     if(drawing_tool && (cmode & sm::DRAW)) {
       shiftpoint moh = full_mouseh();
       dynamicval<ld> lw(vid.linewidth, vid.linewidth * dtwidth * 100);
-      if(holdmouse && mousekey == 'c')
+      if(holdmouse && mousekey == 'c') {
+        torus_rug_jump(moh, lstart);
         queue_hcircle(rgpushxto0(lstart), hdist(lstart, moh));
-      else if(holdmouse && mousekey == 'l')
+        }
+      else if(holdmouse && mousekey == 'l') {
+        torus_rug_jump(moh, lstart);
         queueline(lstart, moh, dtcolor, 4 + vid.linequality, PPR::LINE);
+        }
       else if(!holdmouse) {
         shiftmatrix T = rgpushxto0(moh);
         queueline(T * xpush0(-.1), T * xpush0(.1), dtcolor);
@@ -208,6 +212,9 @@ EX namespace mapeditor {
     }
   
   EX void dt_add_line(shiftpoint h1, shiftpoint h2, int maxl) {
+
+    torus_rug_jump(h2, h1);
+
     if(hdist(h1, h2) > 1 && maxl > 0) {
       shiftpoint h3 = mid(h1, h2);
       dt_add_line(h1, h3, maxl-1);
@@ -216,18 +223,21 @@ EX namespace mapeditor {
       }
     cell *b = centerover;
     
-    auto xh1 = inverse_shift(ggmatrix(b), h1);
-    virtualRebase(b, xh1);
+    shiftmatrix T = rgpushxto0(h1);
+    auto T1 = inverse_shift(ggmatrix(b), T);
+    virtualRebase(b, T1);
+    hyperpoint xh1 = tC0(T1);
     
     auto l = new dtline;
     l->s = xh1;
-    l->e = inverse_shift(ggmatrix(b), h2);
+    l->e = inverse_shift(T*inverse(T1), h2);
     dt_add(b, l);
     }
 
   EX void dt_add_circle(shiftpoint h1, shiftpoint h2) {
     cell *b = centerover;
     
+    torus_rug_jump(h2, h1);
     auto d = hdist(h1, h2);
     
     auto xh1 = inverse_shift(ggmatrix(b), h1);
@@ -271,27 +281,46 @@ EX namespace mapeditor {
   
   dtfree *cfree;
   cell *cfree_at;
+  shiftmatrix cfree_old;
   
   EX void dt_finish() {
     cfree = nullptr;
     cfree_at = nullptr;
     }
-  
+
+  EX void torus_rug_jump(shiftpoint& h, shiftpoint last) {
+    if(!rug::rugged) return;
+    again:
+
+    auto C = ggmatrix(centerover);
+    auto T1 = inverse_shift(C, rgpushxto0(h));
+
+    for(int a=0; a<2; a++) for(int s: {-1, 1}) {
+      transmatrix T = eumove(s * euc::eu.optimal_axes[a]);
+      shiftpoint h1 = C * T * tC0(T1);
+      if(hdist(h1, last) < hdist(h, last) - 1e-6) { h = h1; goto again; }
+      }
+    }
+
   EX void dt_add_free(shiftpoint h) {
+
+    if(cfree) torus_rug_jump(h, cfree_old * cfree->lh.back());
 
     cell *b = centerover;
     shiftmatrix T = rgpushxto0(h);
     auto T1 = inverse_shift(ggmatrix(b), T);
     virtualRebase(b, T1);
     
-    if(cfree)
-      cfree->lh.push_back(inverse_shift(ggmatrix(cfree_at), tC0(T)));
+    if(cfree) {
+      cfree->lh.push_back(inverse_shift(cfree_old, tC0(T)));
+      }
     
     if(b != cfree_at && !(dtfill && cfree_at)) {
       cfree = new dtfree;
       dt_add(b, cfree);
       cfree->lh.push_back(tC0(T1));
       cfree_at = b;
+      cfree_old = T * inverse(T1);
       }
     }
   

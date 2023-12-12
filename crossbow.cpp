@@ -87,6 +87,7 @@ EX int bolt_score(cellwalker cw2) {
   if(inmirror(cw2.at)) cw2 = mirror::reflect(cw2);
   if(blocks(cw2.cpeek())) return -1;
   if(thruVine(cw2.at, cw2.cpeek())) return -1;
+  if(nonAdjacent(cw2.at, cw2.cpeek())) return -1;
 
   if(cw2.at->monst) {
     flagtype attackflags = AF_BOW;
@@ -324,6 +325,46 @@ EX void add_fire(cell *c) {
     }
   }
 
+#if HDR
+enum eMouseFireMode { mfmNone, mfmPriority, mfmAlways };
+#endif
+
+EX eMouseFireMode mouse_fire_mode = mfmPriority;
+
+EX bool fire_on_mouse(cell *c) {
+  if(!crossbow_mode()) return false;
+  if(mouse_fire_mode == mfmNone) return false;
+  if(!mouseover) return false;
+  if(!mouseover->monst) return false;
+  if(items[itCrossbow]) {
+    if(mouse_fire_mode == mfmAlways) {
+      addMessage(XLAT("Cannot fire again yet. Turns to reload: %1.", its(items[itCrossbow])));
+      return true;
+      }
+    return false;
+    }
+  target_at = {};
+  target_at[mouseover->cpdist] = mouseover;
+  int res = create_path();
+  if(res <= 0) {
+    if(mouse_fire_mode == mfmAlways) {
+      addMessage(XLAT("Shooting impossible."));
+      return true;
+      }
+    return false;
+    }
+  gen_bowpath_map();
+  checked_move_issue = miVALID;
+  pcmove pcm;
+  pcm.checkonly = false;
+  changes.init(false);
+  addMessage(XLAT("Fire!"));
+  bool b = pcm.try_shooting(false);
+  if(!b) changes.rollback();
+  if(mouse_fire_mode == mfmAlways) return true;
+  return b;
+  }
+
 EX void shoot() {
   flagtype attackflags = AF_BOW;
   if(items[itOrbSpeed]&1) attackflags |= AF_FAST;
@@ -346,6 +387,7 @@ EX void shoot() {
       if(logical_adjacent(c, moPlayer, c1)) stabthere = true;
 
       if(stabthere && canAttack(cf,who,c1,c1->monst,AF_STAB)) {
+        hit_anything = true;
         changes.ccell(c1);
         eMonster m = c->monst;
         if(attackMonster(c1, AF_STAB | AF_MSG, who))  {
@@ -358,17 +400,26 @@ EX void shoot() {
     mirror::breakMirror(mov.next, -1);
     eMonster m = c->monst;
     if(!m || isMimic(m)) continue;
+
     if(!canAttack(cf, who, c, m, attackflags)) {
-      pcmove pcm; pcm.mi = movei(mov.prev).rev();
-      pcm.tell_why_cannot_attack();
-      continue;
+      if(among(m, moSleepBull, moHerdBull)) {
+        addMessage(XLAT("%The1 is enraged!", m));
+        c->monst = moRagingBull;
+        hit_anything = true;
+        continue;
+        }
+      else {
+        pcmove pcm; pcm.mi = movei(mov.prev).rev();
+        pcm.tell_why_cannot_attack();
+        continue;
+        }
       }
     changes.ccell(c);
 
     bool push = (items[itCurseWeakness] || (isStunnable(c->monst) && c->hitpoints > 1));
     push = push && (!(mov.flags & bpLAST) && monsterPushable(c));
 
-    if(m) attackMonster(c, attackflags | AF_MSG, who);
+    if(m && attackMonster(c, attackflags | AF_MSG, who)) hit_anything = true;
 
     if(!c->monst || isAnyIvy(m)) {
       spread_plague(cf, c, movei(mov.prev).rev().d, moPlayer);
@@ -384,6 +435,7 @@ EX void shoot() {
     cell *ct = mov.next.cpeek();
     bool can_push = passable(ct, c, P_BLOW);
     if(can_push) {
+      hit_anything = true;
       changes.ccell(c);
       changes.ccell(ct);
       pushMonster(mov.next);
@@ -428,6 +480,7 @@ EX void showMenu() {
   if(crossbow_mode()) {
     add_edit(style);
     add_edit(bump_to_shoot);
+    add_edit(bow::mouse_fire_mode);
     }
   else dialog::addBreak(200);
   dialog::addBack();

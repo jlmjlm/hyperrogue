@@ -798,12 +798,10 @@ EX void take(string fname, const function<void()>& what IS(default_screenshot_co
       if(chg[i]) anims::aps[i].par->anim_restore();
     });
   
-  if(intra::in) what();
-
-  dynamicval<videopar> v(vid, vid);
+  dynamicval<bool> vn(nohud, nohud || hide_hud);
   dynamicval<bool> v2(inHighQual, true);
   dynamicval<bool> v6(auraNOGL, true);
-  dynamicval<bool> vn(nohud, nohud || hide_hud);
+  dynamicval<videopar> v(vid, vid);
 
   vid.smart_range_detail *= multiplier;
   darken = 0;
@@ -1390,11 +1388,14 @@ int numturns = 0;
 
 EX hookset<void(int, int)> hooks_record_anim;
 
+EX int record_frame_id = -1;
+
 EX bool record_animation_of(reaction_t content) {
   lastticks = 0;
   ticks = 0;
   int oldturn = -1;
   for(int i=0; i<noframes; i++) {
+    record_frame_id = i;
     if(i < min_frame || i > max_frame) continue;
     println(hlog, "record frame ",i, "/", noframes, " of ", videofile);
     callhooks(hooks_record_anim, i, noframes);
@@ -1433,6 +1434,7 @@ EX bool record_animation_of(reaction_t content) {
     shot::take(buf, content);
     }
   lastticks = ticks = SDL_GetTicks();
+  record_frame_id = -1;
   return true;
   }
 
