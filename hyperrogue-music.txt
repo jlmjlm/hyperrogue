@@ -155,7 +155,7 @@
 # Wetland
 [88] cMusMod/wetland.ogg
 # Frog Park
-[89] cmusmod/frogpark.ogg
+[89] cMusMod/frogpark.ogg
 # Eclectic City
 [90] cMusMod/eclecticcity.ogg
 # Cursed Canyon
