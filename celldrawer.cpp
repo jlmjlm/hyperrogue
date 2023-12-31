@@ -1253,7 +1253,8 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
       break;
 
     case laBull:
-      set_floor(cgi.shButterflyFloor);
+      //set_floor(cgi.shButterflyFloor);
+      set_floor(cgi.shFloor);
       break;
     
     case laCaribbean: case laOcean: case laOceanWall: case laWhirlpool:
