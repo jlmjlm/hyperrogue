@@ -1432,13 +1432,9 @@ EX void drawPlayer(eMonster m, cell *where, const shiftmatrix& V, color_t col, d
         queuepoly(VWPN, cgi.shFlailTrunk, fc(314, cs.swordcolor, 3));
         queuepoly(VWPN, cgi.shHammerHead, fc(314, cs.swordcolor, 3));
         }
-      else if(items[itCurseWeakness]) {
+      else {
         /* no weapon shown */
         }
-      else if(!shmup::on)
-        queuepoly(VWPN, cs.charid >= 2 ? cgi.shSabre : cgi.shPSword, fc(314, cs.swordcolor, 3)); // 3 not colored
-      else if(shmup::curtime >= shmup::getPlayer()->nextshot)
-        queuepoly(VWPN, cgi.shPKnife, fc(314, cs.swordcolor, 3)); // 3 not colored
       
       if(items[itOrbBeauty]) {
         if(cs.charid&1)
