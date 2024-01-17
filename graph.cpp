@@ -156,11 +156,6 @@ color_t fc(int ph, color_t col, int z) {
   if(items[itOrbAether]) col = (col &~0XFF) | (col&0xFF) / 2;
   for(cell *pc: player_positions()) 
     if(items[itOrbFish] && isWatery(pc) && z != 3) return watercolor(ph);
-  if(invismove) 
-    col = 
-      shmup::on ?
-        (col &~0XFF) | (int((col&0xFF) * .25))
-      : (col &~0XFF) | (int((col&0xFF) * (100+100*sintick(500)))/200);
   return col;
   }
 

@@ -734,7 +734,7 @@ bool pcmove::actual_move() {
     movecost(cwt.at, c2, 3);
     
     flipplayer = true; if(multi::players > 1) multi::flipped[multi::cpid] = true;
-    invismove = (turncount >= noiseuntil) && items[itOrbInvis] > 0;
+    invismove = (turncount >= noiseuntil);
     killFriendlyIvy();
     return perform_move_or_jump();
     }
@@ -1218,7 +1218,7 @@ bool pcmove::perform_actual_move() {
     camelot::roundTableMessage(c2);
   #endif
   
-  invismove = (turncount >= noiseuntil) && items[itOrbInvis] > 0;
+  invismove = (turncount >= noiseuntil);
   
   if(items[itOrbFire]) {
     invismove = false;
