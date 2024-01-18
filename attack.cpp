@@ -423,7 +423,11 @@ EX bool attackJustStuns(cell *c2, flagtype f, eMonster attacker) {
     return true;
   else if((f & AF_SWORD) && c2->monst == moSkeleton)
     return false;
-  else if(f & (AF_CRUSH | AF_MAGIC | AF_FALL | AF_EAT | AF_GUN | AF_PSI))
+  else if(f & (AF_MAGIC | AF_FALL | AF_EAT | AF_GUN | AF_PSI))
+    return false;
+  else if((f & AF_CRUSH) && isRaider(c2->monst))
+    return true;
+  else if(f & AF_CRUSH)
     return false;
   else
     return isStunnable(c2->monst) && c2->hitpoints > 1;
