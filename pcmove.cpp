@@ -1107,7 +1107,7 @@ bool pcmove::attack() {
 
   mip = movei(c2, nullptr, NO_SPACE);
   
-  if(items[itCurseWeakness] || (isStunnable(c2->monst) && c2->hitpoints > 1)) {
+  if(items[itCurseWeakness] || c2->monst == moGargoyle || (isStunnable(c2->monst) && c2->hitpoints > 1)) {
     if(monsterPushable(c2))
       mip = determinePush(cwt, subdir, [] (movei mi) { return passable(mi.t, mi.s, P_BLOW); });
     else
