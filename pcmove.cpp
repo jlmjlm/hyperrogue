@@ -1084,7 +1084,7 @@ bool pcmove::attack() {
   attackflags = AF_NORMAL;
   if(items[itOrbSpeed]&1) attackflags |= AF_FAST;
   if(items[itOrbSlaying]) attackflags |= AF_CRUSH;
-  attackflags |= AF_WEAK;
+  else attackflags |= AF_WEAK;
   
   bool ca = bow::crossbow_mode() ? good_tortoise : canAttack(cwt.at, moPlayer, c2, c2->monst, attackflags);
   
