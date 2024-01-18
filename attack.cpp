@@ -415,7 +415,7 @@ EX void stunMonster(cell *c2, eMonster killer, flagtype flags) {
   }
 
 EX bool attackJustStuns(cell *c2, flagtype f, eMonster attacker) {
-  if(f & AF_WEAK)
+  if((f & AF_WEAK) && c2->monst != moMutant)
     return true;
   if(f & AF_HORNS)
     return hornStuns(c2);
