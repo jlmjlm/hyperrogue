@@ -1,0 +1,257 @@
+Update 2/16/22
+
+- Changed tracks:
+	Living Caves
+	Camelot
+	Cocytus
+	R'Lyeh
+	Hell
+	Yendorian Forest
+		
+
+Track IDs:
+---
+Alchemist Lab: 
+"Giro's Lab" from Evoland 2
+
+Crossroads: 
+"Shaded Plains" from A Boy and His Blob (2009)
+
+Icy Land: 
+"Sky Peak Snowfield" from Pokémon Mystery Dungeon: Explorers of Time/Darkness
+
+Desert: 
+"Ancient Hollow" from Shipwreck
+
+Hunting Ground: 
+"Dreams in Red" OCRemix of Red Brinstar from Super Metroid
+
+Jungle: 
+"Twilight Terror" from Donkey Kong Country: Tropical Freeze
+
+Land of Eternal Motion: 
+Re-orchestration of "Mt. Thunder" from Pokémon Mystery Dungeon: Red Rescue Team
+
+Living Caves: 
+"Cirromon Caverns" from Dust: An Elysian Tail
+
+Palace
+"The Third Tower" from Shadowgate (2014)
+
+Caribbean:
+"Cursed" from Evoland 2
+
+Hall of Mirrors (Old):
+"Nostalgia" from Final Fantasy Fables: Chocobo's Dungeon
+
+Hall of Mirrors:
+Remix of "Face Shrine" from The Legend of Zelda: Link's Awakening
+(Bullet Philharmonic Orchestra)
+
+Reflection Land 1:
+Remix of "Face Shrine" from The Legend of Zelda: Link's Awakening
+(The Legend of Zelda: Threshold of a Dream)
+
+Reflection Land 2:
+Remix of "Face Shrine" from The Legend of Zelda: Link's Awakening
+(The Legend of Zelda: Link's Awakening - Orchestral Arrangement)
+
+Reflection Land 3:
+Remix of "Face Shrine" from The Legend of Zelda: Link's Awakening
+(Super Mario World remix)
+
+Reflection Land 4:
+Remix of "Southern Face Shrine" from The Legend of Zelda: Link's Awakening
+(The Legend of Zelda: Link's Awakening - Orchestral Arrangement)
+
+Ivory Tower:
+"Temple" from Zelda II: The Adventure of Link
+
+Living Fjord:
+"Three Gates" from Halo 2
+
+Minefield:
+"Cell" from Anodyne
+
+Ocean:
+"The Waters Cleansed" from Ori and the Blind Forest
+
+Land of Storms:
+Re-orchestration of "Amp Plains" from Pokémon Mystery Dungeon: Explorers of Time/Darkness
+
+Warped Coast:
+Re-orchestration of "Friend Area - Wilds" from Pokémon Mystery Dungeon: Red Rescue Team
+
+Whirlpool:
+"Ultimate Battle" from Plants vs. Zombies
+
+Burial Grounds:
+Remix of "T-Maxx" from Tetris Max
+
+Dungeon:
+"Underworld 2" from Neutopia II
+
+Jelly Kingdom:
+"Devo" from Cosmo's Cosmic Adventure
+
+Kraken Depths:
+"Irate Eight: Tension" from Donkey Kong Country: Tropical Freeze
+
+Reptiles:
+"Graze the Roof" from Plants vs. Zombies
+
+Yendorian Forest:
+"Sky Tower" from Pokémon Mystery Dungeon: Rescue Team DX
+
+Zebra:
+"Entryway" from Escape Goat
+
+Blizzard:
+"Current Capers" from Donkey Kong Country: Tropical Freeze
+
+Camelot:
+-"Wolvercote Catacombs" from Trine
+-"Dragon Graveyard" from Trine
+-"Journey's End (just orchestra)" from Shadowgate (2014)
+-"Ruins of The Perished" from Trine
+- "Your Adventure Ends Here (alternate take - strings and piano)" from Shadowgate (2014)
+- "Forsaken Dungeons" from Trine
+- "Trine Main Theme" from Trine
+
+Clearing:
+"Stickerbrush Symphony" from Donkey Kong Country 2: Diddy's Kong Quest"
+
+Crossroads II:
+"Overworld" from Shipwreck
+
+Dead Caves:
+"The Sanctuary of Rock and Lava" from Rayman 2: The Great Escape
+
+Dry Forest:
+"Covenant Dance" from Halo
+
+Emerald Mine:
+"Lil Monster" from Orcs Must Die 2
+
+Lost Mountain:
+"Climbing the Ginso Tree" from Ori and the Blind Forest
+
+Overgrown Woods:
+"Forest Haven" from The Legend of Zelda: The Wind Waker
+
+Red Rock Valley:
+"Great Canyon" from Pokémon Mystery Dungeon: Blue Rescue Team
+
+R'Lyeh:
+"Lethe (Scarred Womb)" from The Binding of Isaac: Antibirth
+
+Temple of Cthulhu:
+"The Thief (Cathedral)" from The Binding of Isaac: Antibirth
+
+Vineyard:
+"The Woods of Light" from Rayman 2: The Great Escape
+
+Volcanic Wasteland:
+"Mount Horu Puzzle Rooms - Suite 1" from Ori and the Blind Forest
+
+Windy Plains:
+"Rain" from Spirit: Stallion of the Cimarron
+*This is the only non-videogame track here
+
+Bull Dash:
+"Practice Mode"/"Stay Inside Me" from Geometry Dash
+
+Crossroads III:
+"The Grasslands" from Dragon's Wake
+
+Prairie:
+"Ragged Mountain" from Pokémon Mystery Dungeon: Gates to Infinity
+
+Rose Garden:
+"Apostate" from The Binding of Isaac
+
+Terracotta Army:
+"Industrial Complex" from Another Metroid 2 Remake
+
+Crossroads IV:
+"Four Brave Heroes" from Castle Crashers
+
+Crossroads V:
+"Two Tone Towers" from Orcs Must Die 2
+
+Dragon Chasms:
+"Hidden Mountain & Forest" from Super Smash Bros. Brawl
+
+Elemental Planes (Air):
+"Up Up Up the Chimney" from Little Inferno
+
+Elemental Planes (Earth):
+"Over the Smokestacks, Over the City" from Little Inferno
+
+Elemental Planes (Fire):
+"Little Inferno Titles" from Little Inferno
+
+Elemental Planes (Water):
+"The City" from Little Inferno
+
+Galápagos:
+"Watery Graves" from Plants vs. Zombies
+
+Graveyard:
+"Tar Pits" from Iggy's Egg Adventure
+
+Haunted Woods / Halloween:
+"Welcome to the Dungeon!" from Instant Dungeon!
+
+Hive:
+"Flight of the Zinger" from Donkey Kong Country 2: Diddy's Kong Quest
+
+Ruined City / Docks:
+"Revelation Mountain" from Pokémon Super Mystery Dungeon
+
+Trollheim:
+"Veiled Caverns" from Shipwreck
+
+Hell:
+Remix of "Flooded Complex" from Another Metroid 2 Remake
+
+Cocytus:
+"Vast Ice Mountain Peak" from Pokémon Mystery Dungeon: Explorers of Sky
+
+Land of Power:
+"Fundamentum (Burning Basement)" from The Binding of Isaac: Rebirth
+
+Crystal Land:
+"Windmill Hills" from Rayman 3: Hoodlum Havoc
+
+Wild West:
+"Hidden Village" from The Legend of Zelda: Twilight Princess
+
+Snake Nest:
+"Cassiel" from Splice
+
+Irridated Plains
+"The Dead Uninhibited" from Dragon's Wake
+
+Brown Islands:
+"Dragon Roost Island" from The Legend of Zelda: The Wind Waker
+
+Free Fall:
+"Cassiel" from Splice
+
+Eclectic City:
+"The City of Lost Hope" from Death Road to Canada
+
+Frog Park:
+Remix of "Title Theme" from Super Mario World 2: Yoshi's Island
+
+Wetland:
+"Waterfall" from Transcripted
+
+Cursed Canyon:
+"Dark Groove" from Jazz Jackrabbit 2
+
+Dice Reserve:
+"Asida Track 3" from Chuck's Challenge 3D
+
+

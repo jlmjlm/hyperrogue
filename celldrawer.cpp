@@ -1253,7 +1253,8 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
       break;
 
     case laBull:
-      set_floor(cgi.shButterflyFloor);
+      //set_floor(cgi.shButterflyFloor);
+      set_floor(cgi.shFloor);
       break;
     
     case laCaribbean: case laOcean: case laOceanWall: case laWhirlpool:
@@ -3094,6 +3095,7 @@ void celldrawer::set_maywarp_floor() {
   }
 
 void celldrawer::set_reptile_floor(const shiftmatrix& V, color_t col, bool nodetails) {
+#define wmescher false
 
   auto si = 
     euc::in(2,6) ? 
@@ -3153,6 +3155,7 @@ void celldrawer::set_reptile_floor(const shiftmatrix& V, color_t col, bool nodet
     queuepoly(V*D, cgi.shReptile[j][2], (ecol << 8) + 0xFF);
     queuepoly(V*D, cgi.shReptile[j][3], (ecol << 8) + 0xFF);
     }
+#undef wmescher
   }
 
 void celldrawer::set_emeraldfloor() {

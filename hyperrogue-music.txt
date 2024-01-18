@@ -1,173 +1,171 @@
 # Crossroads [02]
-[02] */music/hr3-crossroads.ogg
+[02] cMusMod/crossroads.ogg
 # Desert [03]
-[03] */music/hr3-desert.ogg
+[03] cMusMod/desert.ogg
 # Icy Lands [04]
-[04] */music/hr3-icyland.ogg
+[04] cMusMod/icyland.ogg
 # Living Caves [05]
-[05] */music/hr3-caves.ogg
+[05] cMusMod/livingcave.ogg
 # Jungle [06]
-[06] */music/hr3-jungle.ogg
+[06] cMusMod/jungle.ogg
 # Alchemist's Lab [07]
-[07] */music/hr3-laboratory.ogg
+[07] cMusMod/alchemylab.ogg
 # Mirror [08]
-[08] */music/hr3-mirror.ogg
+[08] cMusMod/mirror00.ogg
 # Graveyard [09]
-[09] */music/hr3-graveyard.ogg
+[09] cMusMod/graveyard.ogg
 # R'Lyeh [10]
-[10] */music/hr3-rlyeh.ogg
+[10] cMusMod/rleh.ogg
 # Hell [11]
-[11] */music/hr3-hell.ogg
+[11] cMusMod/hell.ogg
 # Cocytus [12]
-[12] */music/hr3-icyland.ogg
+[12] cMusMod/cocytus.ogg
 # Motion [13]
-[13] */music/hr3-motion.ogg
+[13] cMusMod/landofeternalmotion.ogg
 # Dry Forest [14]
-[14] */music/hr3-jungle.ogg
+[14] cMusMod/dryforest.ogg
 # Emerald Mines [15]
-[15] */music/hr3-caves.ogg
+[15] cMusMod/emeraldmine.ogg
 # Vineyard [16]
-[16] */music/hr3-laboratory.ogg
+[16] cMusMod/vineyard.ogg
 # Dead Caves [17]
-[17] */music/hr3-caves.ogg
+[17] cMusMod/deadcave.ogg
 # Hive [18]
-[18] */music/hr3-motion.ogg
+[18] cMusMod/hive.ogg
 # Land of Power [19]
-[19] */music/hr3-mirror.ogg
+[19] cMusMod/landofpower.ogg
 # Camelot [20]
-[20] */music/hr-savino-palace.ogg
+[20] cMusMod/newCamelot.ogg
 # Temple [21]
-[21] */music/hr3-rlyeh.ogg
+[21] cMusMod/cthulhu.ogg
 # CR2 [22]
-[22] */music/hr3-crossroads.ogg
+[22] cMusMod/crossroads2.ogg
 # Caribbean [23]
-[23] */music/hr-savino-caribbean.ogg
+[23] cMusMod/caribbean.ogg
 # Red Rock Valley [24]
-[24] */music/hr3-desert.ogg
+[24] cMusMod/redrockvalley.ogg
 # Minefield [25]
-[25] */music/hr3-hell.ogg
+[25] cMusMod/minefield.ogg
 # Ocean [26]
-[26] */music/hr-savino-ocean.ogg
+[26] cMusMod/ocean.ogg
 # Whirlpool [27]
-[27] */music/hr3-rlyeh.ogg
+[27] cMusMod/whirlpool.ogg
 # Palace [28]
-[28] */music/hr-savino-palace.ogg
+[28] cMusMod/palace.ogg
 # Living Fjord [39]
-[29] */music/hr-savino-ocean.ogg
+[29] cMusMod/livingfjord.ogg
 # Ivory Tower [30]
-[30] */music/hr-savino-ivory.ogg
+[30] cMusMod/ivorytower.ogg
 # Zebra [31]
-[31] */music/hr3-motion.ogg
+[31] cMusMod/zebra.ogg
 # Elemental Fire [32]
-[32] */music/hr3-hell.ogg
+[32] cMusMod/elementalfire.ogg
 # Elemental Air [33]
-[33] */music/hr3-motion.ogg
+[33] cMusMod/elementalair.ogg
 # Elemental Earth [34]
-[34] */music/hr3-caves.ogg
+[34] cMusMod/elementalearth.ogg
 # Elemental Water [35]
-[35] */music/hr-savino-caribbean.ogg
+[35] cMusMod/elementalwater.ogg
 # Crossroads III [36]
-[36] */music/hr3-crossroads.ogg
+[36] cMusMod/crossroads3.ogg
 # Seawall [37] (useless)
 # Elemental Wall [38] (useless)
 # Canvas [39]
-[39] */music/hr3-laboratory.ogg
+[39] */hr3-laboratory.ogg
 # Wild West [41]
-[41] */music/hr-savino-caribbean.ogg
+[41] cMusMod/wildwest.ogg
 # Storms [42]
-[42] */music/hr3-laboratory.ogg
+[42] cMusMod/landofstorms.ogg
 # Overgrown [43]
-[43] */music/hr3-jungle.ogg
+[43] cMusMod/overgrownwoods.ogg
 # Clearing [44]
-[44] */music/hr3-jungle.ogg
+[44] cMusMod/clearing.ogg
 # Haunted [45]
-[45] */music/hr3-graveyard.ogg
+[45] cMusMod/hauntedwoods.ogg
 # Windy Plains [48]
-[48] */music/hr-savino-ivory.ogg
+[48] cMusMod/windyplains.ogg
 # Rose Garden [49]
-[49] */music/hr3-hell.ogg
+[49] cMusMod/rosegarden.ogg
 # Warped Coast/Sea [50, 51 -> 50]
-[50] */music/hr-savino-ocean.ogg
+[50] cMusMod/warpedcoast.ogg
 # Crossroads IV [52]
-[52] */music/hr3-crossroads.ogg
+[52] cMusMod/crossroads4.ogg
 # Yendorian [53]
-[53] */music/hr-savino-ivory.ogg
+[53] cMusMod/yendorianforest.ogg
 # Galapagos [54]
-[54] */music/hr3-crossroads.ogg
+[54] cMusMod/galapagos.ogg
 # Dragon Chasms [55]
-[55] */music/hr3-caves.ogg
+[55] cMusMod/dragonchasms.ogg
 # Kraken [56]
-[56] */music/hr-savino-ocean.ogg
+[56] cMusMod/krakendepths.ogg
 # Burial Grounds [57]
-[57] */music/hr3-graveyard.ogg
+[57] cMusMod/burialgrounds.ogg
 # Trollheim [58]
-[58] */music/hr3-desert.ogg
+[58] cMusMod/trollheim.ogg
 # Halloween [59]
-[59] */music/hr3-graveyard.ogg
+[59] cMusMod/crystal.ogg
 # Dungeon [60]
-[60] */music/hr-savino-palace.ogg
+[60] cMusMod/dungeon.ogg
 # Lost Mountain [61]
-[61] */music/hr-domina-mountain.ogg
+[61] cMusMod/mountain.ogg
 # Reptiles [62]
-[62] */music/hr3-mirror.ogg
+[62] cMusMod/reptiles.ogg
 # Prairie [63]
-[63] */music/hr3-desert.ogg
+[63] cMusMod/prairie.ogg
 # Bull Dash [64]
-[64] */music/hr3-mirror.ogg
+[64] cMusMod/bulldash.ogg
 # Crossroads V [65]
-[65] */music/hr3-crossroads.ogg
+[65] cMusMod/crossroads5.ogg
 # Cellular Automata [66]
-[66] */music/hr3-laboratory.ogg
+[66] */hr3-laboratory.ogg
 # old mirror is at 71, and 67-70 are Reflection lands
-[67] */music/hr3-mirror.ogg
-[68] */music/hr3-mirror.ogg
-[69] */music/hr3-mirror.ogg
-[70] */music/hr3-mirror.ogg
-[71] */music/hr3-mirror.ogg
+[67] cMusMod/mirror01.ogg
+[68] cMusMod/mirror02.ogg
+[69] cMusMod/mirror03.ogg
+[70] cMusMod/mirror04.ogg
+[71] cMusMod/mirrorland.ogg
 # Volcanic Wasteland
-[72] */music/hr3-hell.ogg
+[72] cMusMod/volcano.ogg
 # Blizzard
-[73] */music/hr3-icyland.ogg
+[73] cMusMod/blizzard.ogg
 # Hunting Ground [74]
-[74] */music/hr-domina-hunting.ogg
+[74] cMusMod/huntingrounds.ogg
 # Terracotta (and Mercury River) [75-76]
-[75] */music/hr-domina-hunting.ogg
-[76] */music/hr-domina-hunting.ogg
+[75] cMusMod/terracotta.ogg
+[76] cMusMod/terracottawall.ogg
 # Crystal Land (alternate geometry special)
-[77] */music/hr-savino-palace.ogg
+[77] cMusMod/crystal.ogg
 # Snake Nest (three-colorable geometry special)
-[78] */music/hr3-desert.ogg
+[78] */hr3-desert.ogg
 # Docks (octagonal geometry special)
-[79] */music/hr-savino-caribbean.ogg
+[79] */hr-savino-caribbean.ogg
 # Ruined City
-[80] */music/hr-domina-mountain.ogg
+[80] cMusMod/ruinedcity.ogg
 # Magnetic (unused)
-[81] */music/hr3-caves.ogg
+[81] */hr3-caves.ogg
 # Jelly Kingdom
-[82] */music/hr3-laboratory.ogg
+[82] cMusMod/jellykingdom.ogg
 # Lost Memory needs no music
 # Brown Islands
-[84] */music/hr-savino-caribbean.ogg
+[84] cMusMod/brownislands.ogg
 # Free Fall
-[85] */music/hr-savino-ivory.ogg
+[85] cMusMod/freefall.ogg
 # Irradiated Fields
-[86] */music/hr-savino-palace.ogg
-# Space Rocks
-[87] */music/hr3-crossroads.ogg
+[86] cMusMod/irridatedfields.ogg
 # Wetland
-[88] */music/hr-domina-hunting.ogg
+[88] cMusMod/wetland.ogg
 # Frog Park
-[89] */music/hr3-laboratory.ogg
+[89] cMusMod/frogpark.ogg
 # Eclectic City
-[90] */music/hr-domina-mountain.ogg
+[90] cMusMod/eclecticcity.ogg
 # Cursed Canyon
-[91] */music/hr3-graveyard.ogg
+[91] cMusMod/cursedcanyon.ogg
 # Dice Reserve
-[92] */music/hr3-laboratory.ogg
-
+[92] cMusMod/dicereserve.ogg
 # None [00] (used when the window is out of focus)
 
 HyperRogue soundtrack under the Creative Commons BY-SA 3.0 license, http://creativecommons.org/licenses/by-sa/3.0/
 Crossroads, Graveyard, Land of Eternal Motion, Hall of Mirrors, Hell, R'Lyeh, Living Caves, Jungle, Desert, Icy Lands by Shawn Parrotte (http://www.shawnparrotte.com)
 Caribbean, Ivory Tower, Ocean, Palace by Will Savino (http://www.willsavino.net/)
-Hunting Grounds and Lost Mountain by Lincoln Domina
+
+
