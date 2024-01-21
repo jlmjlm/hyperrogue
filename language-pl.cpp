@@ -9459,7 +9459,7 @@ S("Approximations of geometric straight lines.", "Przybliżenia geometrycznych l
 S("bump to shoot", "uderz by strzelać")
 S("mouse auto-fire mode", "tryb auto-strzału dla myszy")
 S("explicit", "kategoryczny")
-S("You need to click crossbow or be close to fire.", "By strzelać, musisz nacisnąć kuszę, albo być blisko")
+S("You need to click crossbow or be close to fire.", "By strzelać, musisz nacisnąć kuszę, albo być blisko.")
 S("priority", "priorytetowy")
 S("Click on a faraway monster to fire if possible, or move if not.", "Klikając odległego przeciwnika strzelasz jeśli to możliwe, ruszasz się jeśli nie.")
 S("Clicking on a faraway monster always means an attempt to fire.", "Kliknięcie przeciwnika zawsze jest rozumiane jako próba strzału.")
@@ -9776,7 +9776,7 @@ S("rules generated successfully: %1 states using %2-%3 cells", "reguły wygenero
 S("too difficult: %1", "za trudne: %1")
 S("bug: %1", "bug: %1")
 S(
-    "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithms supports horocycles and knows the expansion rates of various "
+    "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithm supports horocycles and knows the expansion rates of various "
     "tessellations (contrary to the basic implementation of Archimedean, tes, and unrectified/warped/untruncated tessellations).\n\nYou can convert mostly any "
     "non-spherical periodic 2D tessellation to strict tree based.\n\nSwitching the map format erases your map.",
 
@@ -9924,15 +9924,15 @@ S("product", "produkt")
 S("Add one extra dimension in the Euclidean way.", "Dodaje dodatkowy wymiar w sposób Euklidesowy.")
 S("Embed Euclidean plane into Nil.", "Zanurz płaszczyznę euklidesową w geometrię Nil.")
 S("Embed Euclidean or hyperbolic plane into Sol.", "Zanurz płaszczyznę euklidesową w geometrię Sol.")
-S("Embed Euclidean or hyperbolic plane into stretched hyperbolic geometry.", "Zanurz płaszczyznę euklidesową w rozciągniętą geometrię hiperboliczną.")
+S("Embed Euclidean or hyperbolic plane into stretched hyperbolic geometry.", "Zanurz płaszczyznę euklidesową lub hiperboliczną w rozciągniętą geometrię hiperboliczną.")
 S("stretched Sol", "rozciągnięte Sol.")
 S("Embed Euclidean or hyperbolic plane into stretched Sol geometry.", "Zanurz płaszczyznę euklidesową lub hiperboliczną w rozciągniętą geometrię Sol.")
-S("Clifford Torus", "trous Clifforda")
+S("Clifford Torus", "torus Clifforda")
 S("Embed Euclidean rectangular torus into S3.", "Zanurz prostokątny torus w geometrię sferyczną.")
 S("hyperbolic product", "produkt hiperboliczny")
 S("Embed Euclidean or hyperbolic plane in the H2xR product space.", "Zanurz płaszczyznę euklidesową lub hiperboliczną w przestrzeń produktową H2xR")
 S("spherical product", "produkt sferyczny")
-S("Embed Euclidean cylinder or spherical plane in the H2xR product space.", "Zanurz płaszczyznę euklidesową lub sferę w przestrzeń produktową S2xR")
+S("Embed Euclidean cylinder or spherical plane in the H2xR product space.", "Zanurz płaszczyznę euklidesową lub sferę w przestrzeń produktową H2xR")
 S("Embed Euclidean plane in twisted product geometry.", "Zanurz płaszczyznę euklidesową w skręconą geometrię produktową.")
 S("Embed Euclidean cylinder in Euclidean space.", "Zanurz walec euklidesowy w przestrzeń euklidesową.")
 S("hyperbolic cylinder", "walec hiperboliczny")
@@ -10018,7 +10018,7 @@ S("sky rendering", "renderowanie powietrza")
 S("do not draw sky", "nie rysuj powietrza")
 S("skybox", "skybox")
 S("infinite depth", "nieskończona głębokość")
-S("The unit this is value is given in is wall height. "
+S("The unit this value is given in is wall height. "
   "Note that, in exponentially expanding spaces, too high values could cause rendering issues. "
   "So if you want infinity, values of 5 or similar should be used -- there is no visible difference from infinity and glitches are avoided.",
   "Ta wartość jest podawana w jednostkach wysokości ściany. "
@@ -10051,3 +10051,20 @@ S("Lie group", "grupy Liego")
 S("light, camera, and objects move in lines of constant direction, in the Lie group sense", "światło, kamera, i obiekty ruszają się w liniach o stałym kierunku w sensie group Liego")
 S("geodesics", "geodezyjne")
 S("light, camera, and objects always take the shortest path", "światło, kamera, i obiekty ruszają się po najkrótszej ścieżce")
+
+// achievement eligiblity
+S("achievement/leaderboard eligiblity:", "legalność osiągnięć i rankingów:")
+S("eligible for most", "większość legalna")
+S("eligible for most -- leaderboards separate", "większość legalna -- osobne rankingi")
+S("eligible for racing", "legalne dla wyścigu")
+S("eligible for shmup", "legalne dla strzelanki")
+S("eligible for multiplayer", "legalne dla wielu graczy")
+S("eligible for Chaos mode", "legalne dla trybu Chaosu")
+S("eligible for Princess Challenge", "legalne dla misji Księżniczka")
+S("eligible for heptagonal", "legalne dla trybu siedmiokątów")
+S("eligible for special geometry", "legalne dla geometrii specjalnych")
+S("eligible for Strange Challenge", "legalne dla Dziwnej Misji")
+S("disabled in cheat mode", "wyłączone w trybie oszusta")
+S("disabled in casual mode", "wyłączone w trybie niezobowiązującym")
+S("not eligible due to current mode settings", "nielegalne w obecnych trybach")
+S("no achievements/leaderboards in this version", "brak osiągnięć i rankingów w tej wersji")

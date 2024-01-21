@@ -597,6 +597,7 @@ EX bool haveRangedTarget() {
   }
 
 void checkmoveO() {
+  bow::bowpath_map.clear();
   if(multi::players > 1 && multi::activePlayers() == 1)
     multi::checklastmove();
   if(multi::players == 1) checkmove();
@@ -628,6 +629,7 @@ EX void teleportTo(cell *dest) {
       playerMoveEffects(movei(cwt.at, dest, TELEPORT));
       afterplayermoved();
       bfs();
+      advance_tides();
       }
     return;
     }
@@ -646,6 +648,7 @@ EX void teleportTo(cell *dest) {
 
   afterplayermoved();
   bfs();
+  advance_tides();
   
   sword::reset();
   items[itOrbSword2] = 0;
@@ -738,6 +741,7 @@ EX bool jumpTo(orbAction a, cell *dest, eItem byWhat, int bonuskill IS(0), eMons
   if(from) movecost(from, dest, 2);
 
   createNoise(1);
+  bow::bowpath_map.clear();
 
   if(shmup::on)
     shmup::teleported();

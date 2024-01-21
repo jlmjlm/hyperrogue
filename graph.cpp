@@ -3273,7 +3273,7 @@ EX int haveaura() {
   if(sphere && mdAzimuthalEqui()) return 0;
   if(among(pmodel, mdJoukowsky, mdJoukowskyInverted) && hyperbolic && pconf.model_transition < 1) 
     return 2;
-  if(pmodel == mdFisheye) return 1;
+  if(among(pmodel, mdFisheye, mdFisheye2)) return 1;
   return pmodel == mdDisk && (!sphere || pconf.alpha > 10) && !euclid;
   }
   
@@ -4119,7 +4119,7 @@ EX ld threshold, xyz_threshold;
 EX bool clip_checked = false;
 
 EX bool other_stereo_mode() {
-  return among(vid.stereo_mode, sODS, sPanini, sStereographic, sEquirectangular);
+  return vid.stereo_mode != sOFF;
   }
 
 void make_clipping_planes() {

@@ -90,7 +90,7 @@ EX namespace geom3 {
         ans += " torus";
       }
     if(among(sp, seSol, seNIH, seSolN)) {
-      if((meuclid && !PURE) && !bt::in()) ans += " pure or bin";
+      if((meuclid && !PURE) || !bt::in()) ans += " pure or bin";
       }
     return ans;
     }
@@ -543,7 +543,7 @@ struct emb_same_in_same : emb_actual {
     for(int i=0; i<4; i++) T[i][2] = T[i][3], T[i][3] = 0;
     for(int i=0; i<4; i++) T[2][i] = T[3][i], T[3][i] = 0;
     T[3][3] = 1;
-    fixmatrix(T);
+    if(MDIM == 3) fixmatrix(T); else IPF(fixmatrix(T));
     for(int i=0; i<MDIM; i++) for(int j=0; j<MDIM; j++) if(isnan(T[i][j])) return Id;
     return T;
     }    
@@ -1389,7 +1389,9 @@ geom3::eSpatialEmbedding embed_by_name(string ss) {
   return seNone;
   }
 
+#if CAP_COMMANDLINE
 auto ah_embed = arg::add2("-seo", [] { arg::shift(); invoke_embed(embed_by_name(arg::args())); })
   + arg::add2("-never-invert", [] { never_invert = true; });
+#endif
 
 }

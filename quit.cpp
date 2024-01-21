@@ -369,8 +369,7 @@ EX void showGameMenu() {
       }
     dialog::addInfo(XLAT("Dropped floors: %1/%2", its(score), its(all)));
     if(score == all) dialog::addInfo(XLAT("CONGRATULATIONS!"), iinf[itOrbYendor].color);
-    if(score == all && geometry == gKleinQuartic && variation == eVariation::untruncated && gp::param == gp::loc(1,1) && !disksize)
-      achievement_gain_once("LOVASZ", rg::special_geometry);      
+    if(score == all) achievement_gain_once("LOVASZ", specgeom_lovasz());
     }
   else {  
     if(0)
@@ -615,6 +614,7 @@ EX void handleKeyQuit(int sym, int uni) {
       stop_game();
       load_last_save();
       start_game();
+      restore_all_golems();
       }
     else
       gotoHelp(safety_help());

@@ -35,6 +35,8 @@ namespace rg {
   static constexpr char special_geometry = 'g';
   /** \brief wrongmode only -- mark achievements for special geometries/variations */
   static constexpr char special_geometry_nicewalls = 'G';
+  /** \brief wrongmode only -- specgeom returns 'fail' if the special geometry is not correct */
+  static constexpr char fail = 'X';
   }
 #endif
 
@@ -284,7 +286,7 @@ EX void initgame() {
     princess::generating = false;
     }
 
-  if(cwt.at->land == laCrossroads2) {
+  if(cwt.at->land == laCrossroads2 && !ls::hv_structure()) {
     cell *c = cwt.at;
     if(mhybrid) { c = hybrid::get_where(c).first; PIU( c->cmove(0) ); }
     c->landparam = 12;
@@ -1715,6 +1717,15 @@ EX void progress_warning() {
     addMessage(XLAT("Your progress will not be saved."));
   }
 
+EX void restore_all_golems() {
+  if(!shmup::on) {
+    restoreGolems(items[itOrbLife], moGolem); items[itOrbLife] = 0;
+    restoreGolems(items[itOrbFriend], moTameBomberbird); items[itOrbFriend] = 0;
+    restoreGolems(kills[moPrincessMoved], moPrincess, princess::saveHP); kills[moPrincessMoved] = 0;
+    restoreGolems(kills[moPrincessArmedMoved], moPrincessArmed, princess::saveArmedHP); kills[moPrincessArmedMoved] = 0;
+    }
+  }
+
 EX void initAll() {
   callhooks(hooks_initialize);
   init_floorcolors();
@@ -1739,13 +1750,7 @@ EX void initAll() {
   if(IRREGULAR) irr::auto_creator();
 #endif
   start_game();
-  
-  if(!shmup::on) {
-    restoreGolems(items[itOrbLife], moGolem); items[itOrbLife] = 0;
-    restoreGolems(items[itOrbFriend], moTameBomberbird); items[itOrbFriend] = 0;
-    restoreGolems(kills[moPrincessMoved], moPrincess, princess::saveHP); kills[moPrincessMoved] = 0;
-    restoreGolems(kills[moPrincessArmedMoved], moPrincessArmed, princess::saveArmedHP); kills[moPrincessArmedMoved] = 0;
-    }
+  restore_all_golems();
   
   firstland = firstland0;
   polygonal::solve();
@@ -1783,7 +1788,6 @@ auto cgm = addHook(hooks_clearmemory, 40, [] () {
   crush_now.clear();
   rosemap.clear();
   hv_land.clear();
-  hv_last_land.clear();
   bow::bowpath.clear();
   bow::clear_bowpath();
   bow::fire_mode = false;

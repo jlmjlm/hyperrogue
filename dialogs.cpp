@@ -791,7 +791,7 @@ EX namespace dialog {
           continue;
           }
         else list_left -= size;
-        if(list_next_key) { key_actions[list_next_key] = key_actions[I.key]; I.key = list_next_key++;  }
+        if(list_next_key) { if(key_actions.count(I.key)) key_actions[list_next_key] = key_actions[I.key]; I.key = list_next_key++;  }
         }
 
       top = tothei;
@@ -1201,6 +1201,7 @@ EX namespace dialog {
       rot_but(0, 1, "rotate in XY", 'z');
       }
 
+#if !ISMOBILE
     addBoolItem("mouse control", dialogflags & sm::MOUSEAIM, 'm');
     dialog::add_action([this] { dialogflags ^= sm::MOUSEAIM; });
     if(dialogflags & sm::MOUSEAIM) {
@@ -1208,6 +1209,7 @@ EX namespace dialog {
       *edit_matrix = cspin(1, 2, mouseaim_y) * *edit_matrix;
       mouseaim_x = mouseaim_y = 0;
       }
+#endif
 
     static string formula;
     formula = "?";

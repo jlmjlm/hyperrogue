@@ -325,10 +325,15 @@ bool pcmove::movepcto() {
   else
     lastmountpos[0] = cwt.at;
   
+  bool fatigued = false;
+
   if(againstRose(cwt.at, NULL) && d<0 && !scentResistant()) {
-    if(vmsg(miRESTRICTED))
-      addMessage("You just cannot stand in place, those roses smell too nicely.");
-    return false;
+    fatigued = items[itFatigue] >= 8;
+    if(!fatigued) {
+      if(vmsg(miRESTRICTED))
+        addMessage(XLAT("You just cannot stand in place, those roses smell too nicely."));
+      return false;
+      }
     }
 
   gravity_state = gsNormal;
@@ -340,13 +345,19 @@ bool pcmove::movepcto() {
   changes.init(checkonly);
   changes.value_keep(bow::bowpath_map);
   bow::bowpath_map.clear();
-  bool b = (d >= 0 && bow::fire_mode) ? (origd = d, cwt += d, false) : (d >= 0) ? actual_move() : stay();
+  if(fatigued) addMessage(XLAT("The roses smell nicely, but you are just too tired to care."));
+  bool b = (d >= 0 && bow::fire_mode) ? false : (d >= 0) ? actual_move() : stay();
   if(checkonly || !b) {
     changes.rollback();
     if(!checkonly) flipplayer = false;
 
-    if(!b && items[itCrossbow] == 0 && bow::crossbow_mode() && d >= 0 && !checkonly) {
+    if(!b && items[itCrossbow] == 0 && bow::crossbow_mode() && bow::bump_to_shoot && d >= 0 && !checkonly) {
       changes.init(checkonly);
+      if(bow::fire_mode) {
+        origd = d;
+        cwt += d;
+        mirror::act(d, mirror::SPINSINGLE);
+        }
       changes.value_keep(bow::bowpath_map);
       b = try_shooting(true);
       if(checkonly || !b) changes.rollback();

@@ -67,6 +67,7 @@ EX ld shiftmul = 1;
 
 EX cell *mouseover, *mouseover2, *lmouseover, *lmouseover_distant;
 EX ld modist, modist2;
+EX shiftmatrix mouseoverV;
 
 EX int lastt;
 
@@ -574,7 +575,9 @@ EX void handleKeyNormal(int sym, int uni) {
     }
 
   if(sym == SDLK_ESCAPE) {
-    if(viewdists)
+    if(bow::fire_mode)
+      bow::switch_fire_mode();
+    else if(viewdists)
       viewdists = false;
     else
       showMissionScreen();
@@ -680,6 +683,9 @@ EX void resize_screen_to(int x, int y);
 EX void mainloopiter() { printf("(compiled without SDL -- no action)\n"); quitmainloop = true; }
 #endif
 
+/* visualization only -- the HyperRogue movement keys should move the camera */
+EX bool game_keys_scroll;
+
 #if CAP_SDL
 
 // Warning: a very long function! todo: refactor
@@ -710,9 +716,6 @@ EX bool mouseaiming(bool shmupon) {
   return
     (GDIM == 3 && !shmupon) || (rug::rugged && (lctrlclick ^ rug::mouse_control_rug)) || (cmode & sm::MOUSEAIM);
   }
-
-/* visualization only -- the HyperRogue movement keys should move the camera */
-EX bool game_keys_scroll;
 
 EX purehookset hooks_control;
 
@@ -1301,7 +1304,10 @@ EX void displayabutton(int px, int py, string s, int col) {
   int rad = (int) realradius();
   if(vid.stereo_mode == sLR) rad = 99999;
   int vrx = min(rad, vid.xres/2 - 40);
-  int vry = min(rad, min(current_display->ycenter, vid.yres - current_display->ycenter) - 20);
+  int maxy = min(current_display->ycenter, vid.yres - current_display->ycenter);
+  int vry = min(rad, maxy - 20);
+  vrx = max(vrx, vid.xres/3);
+  vry = max(vry, maxy * 2/3);
   int x = current_display->xcenter + px * vrx;
   int y = current_display->ycenter + py * (vry - siz/2);
   int vrr = int(hypot(vrx, vry) * sqrt(2.));

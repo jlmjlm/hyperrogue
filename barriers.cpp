@@ -324,12 +324,15 @@ EX void setbarrier(cell *c) {
   setbarrier(c, c->barleft, c->barright, ctof(c));
   }
 
+EX int setland_max = 5;
+
 EX void setland(cell *c, eLand l) {
   if(c->land != l)  {
     c->landparam = 0;  
     }
-  if(l == laNone) {
-    printf("setland\n"); // NONEDEBUG
+  if(l == laNone && setland_max > 0) {
+    setland_max--;
+    printf("error: set land to laNone\n"); // NONEDEBUG
     }
   c->land = l;
   }
@@ -871,6 +874,7 @@ EX void buildCrossroads2(cell *c) {
   if(buggyGeneration) return;
 
   if(!c) return;
+  if(ls::hv_structure()) return;
   
   for(int i=0; i<c->type; i++)
     if(c->move(i) && !c->move(i)->landparam && c->move(i)->mpdist < c->mpdist)

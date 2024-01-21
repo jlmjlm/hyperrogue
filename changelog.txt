@@ -5039,3 +5039,68 @@ Updates to the crossbow mode:
 - fixed crossbow mode not changing the PTM/etc. scoreboards
 - mode change confirmation is now only required when actually changing a relevant option
 - new aim style 'geometric'
+
+2023-12-02 12:54 Update 12.1z:
+Gameplay (mostly crossbow modes)
+- an option to automatically shoot when clicking a tile with mouse
+- press 'f' + direction for auto fire at distant enemies in the given direction
+- bulls are now enraged by crossbow shots
+- ratlings no longer move when shooting pointlessly
+- the warped space distracts you from reloading while staying in place
+- Warped Coast/Sea now prevents crossbow bolts from moving between triangles
+- clarified that only direct melee attacks trigger Storms/Flash
+- fixed Horns in the crossbow mode; the unarmed Princess is now also able to use Empathy+Thorns and Empathy+Horns
+- reduced CR3 land requirement to 20 in casual
+
+Other
+- fixed the drawing mode on quotient spaces (including torus display)
+- fixed point recognition in rug mode
+- cleaned up high-FOV and stereo modes into one setting
+
+2023-12-27 12:54 Update 13.0:
+
+Summary post: https://zenorogue.blogspot.com/2023/12/hyperrogue-130.html
+
+Voronoi mode fixes:
+- fixed Caribbean
+- made Rlyeh and Temple appear, and Haunted and Free Fall are now unavailable
+- better land compatibility
+- fixed CR2
+- fixed Land of Storms (in Horodisk and Voronoi)
+
+Crossbow fixes:
+- in shmup, crossbow bolts now pierce multi-tile monsters, and fire-on-mouse is disabled
+- remove crossbow paths on orb use
+- pressing ESC key while in fire mode now disables the fire mode
+- geometric crossbow can now hit monsters on the edge of vision and inside walls
+- crossbow achievements and leaderboards
+- fixed false game over messages after shooting a bow
+
+other updates:
+- updated the Czech and Polish translations
+- display achievement eligiblity
+- make the Key fireproof; make tortoise if first 21/21 tile created in > 100 turns (thanks to jlm)
+
+Other fixes:
+- fixed restoring golems in casual mode
+- fixed a crash while loading races
+- fixed a bug with embedded maps (i.e., 2D maps in 3D) being destroyed when the game is restarted
+- fixed the drawing of half-vines and mirror walls in spatial
+- fixed the bug where tides may move on orb use
+- fixed Sol, NIH and SolN embeddings being always displayed as legal
+- fixed the name displayed on mouseover for slime
+
+2024-01-12 08:59 Update 13.0a:
+
+- fixed some bugs with high-FOV modes (reset shaders, show upper FOV ranges correctly, buggy two-eye rendering)
+- as a new positive, the Curse of Fatigue makes you not care about roses when very fatigued
+- changed one Prince(ss) message
+- crossbow leaderboards should be fixed
+- fixed button placement on Android once more
+- fixed mirrors in crossbow fire mode
+- the bump-to-shoot flag now actually works
+- fixed a bug in "memory saving" mode to not remove the current altmap
+- variant fisheye projection
+- fixed tides in shmup and when scrolling
+- the dipping rule no longer affects Tiger's Eyes
+- screenshots were sometimes not correctly centered

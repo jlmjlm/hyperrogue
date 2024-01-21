@@ -240,7 +240,8 @@ EX void buildCredits() {
     "Kojiguchi Kazuki, baconcow, Alan, SurelyYouJest, hotdogPi, DivisionByZero, xXxWeedGokuxXx, jpystynen, Dmitry Marakasov, Alexandre Moine, Arthur O'Dwyer, "
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
     "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
-    "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight, jennlbw, Kali Ranya, spiritbackup, Dylan, L_Lord, AntiRogue"
+    "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight, jennlbw, Kali Ranya, spiritbackup, Dylan, L_Lord, AntiRogue, "
+    "masonlgreen"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -964,7 +965,12 @@ EX void describeMouseover() {
     if(c->wall && !(c->wall == waChasm && c->land == laDual && ctof(c)) &&
       !(c->land == laMemory) &&
       !((c->wall == waFloorA || c->wall == waFloorB) && c->item)) { 
-      out += ", "; out += XLAT1(winf[c->wall].name); 
+
+      eWall w = c->wall;
+      if(isAlch(w))
+        w = conditional_flip_slime(mousing ? det(mouseoverV.T) < 0 : det(View) < 0, w);
+
+      out += ", "; out += XLAT1(winf[w].name);
       
       if(c->wall == waRose) out += " (" + its(7-rosephase) + ")";
       if(c->wall == waTerraWarrior) out += " (" + its(c->wparam) + ")";

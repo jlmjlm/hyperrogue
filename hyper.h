@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "12.1y"
-#define VERNUM_HEX 0xA939
+#define VER "13.0a"
+#define VERNUM_HEX 0xAA01
 
 #include "sysconfig.h"
 
@@ -225,7 +225,7 @@ void addMessage(string s, char spamtype = 0);
 
 #define LB_YENDOR_CHALLENGE 40
 #define LB_PURE_TACTICS 41
-#define NUMLEADER 87
+#define NUMLEADER 90
 #define LB_PURE_TACTICS_SHMUP 49
 #define LB_PURE_TACTICS_COOP 50
 #define LB_RACING 81
@@ -250,7 +250,7 @@ struct charstyle {
   bool lefthanded;
   };
 
-enum eStereo { sOFF, sAnaglyph, sLR, sODS, sPanini, sStereographic, sEquirectangular };
+enum eStereo { sOFF, sAnaglyph, sLR, sODS, sPanini, sStereographic, sEquirectangular, sCylindrical };
 
 enum eModel : int;
 
@@ -258,7 +258,7 @@ enum eModel : int;
 struct projection_configuration {
   eModel model;            /**< which projection, see classes.cpp */
   ld xposition, yposition; /**< move the center to another position */
-  ld scale, alpha, fisheye_param, twopoint_param, axial_angle, stretch, ballproj, euclid_to_sphere;
+  ld scale, alpha, fisheye_param, fisheye_alpha, twopoint_param, axial_angle, stretch, ballproj, euclid_to_sphere;
   ld clip_min, clip_max;
   ld halfplane_scale;  
   ld collignon_parameter; 
@@ -887,6 +887,7 @@ template<class T> T& atmod(vector<T>& container, int index) {
 
 namespace daily {
   extern bool on;
+  extern int historical;
   extern int daily_id;
   void setup();
   void split();

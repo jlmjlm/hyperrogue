@@ -876,6 +876,12 @@ struct charstyle_old {
   bool lefthanded;
   };
 
+struct charstyle_prebow {
+  int charid;
+  color_t skincolor, haircolor, dresscolor, swordcolor, dresscolor2, uicolor, eyecolor;
+  bool lefthanded;
+  };
+
 EX void hread(hstream& hs, charstyle& cs) {
   // before 0xA61A there was no eyecolor
   if(hs.get_vernum() < 0xA61A) {
@@ -889,7 +895,21 @@ EX void hread(hstream& hs, charstyle& cs) {
     if(cs.charid < 4) cs.eyecolor = 0;
     cs.dresscolor2 = cso.dresscolor2;
     cs.uicolor = cso.uicolor;
-    cs.lefthanded = cso.lefthanded;    
+    cs.lefthanded = cso.lefthanded;
+    }
+  else if(hs.get_vernum() < 0xA938) {
+    charstyle_prebow cso;
+    hread_raw(hs, cso);
+    cs.charid = cso.charid;
+    cs.skincolor = cso.skincolor;
+    cs.haircolor = cso.haircolor;
+    cs.dresscolor = cso.dresscolor;
+    cs.eyecolor = cso.eyecolor;
+    cs.swordcolor = cs.bowcolor = cs.bowcolor2 = cso.swordcolor;
+    if(cs.charid < 4) cs.eyecolor = 0;
+    cs.dresscolor2 = cso.dresscolor2;
+    cs.uicolor = cso.uicolor;
+    cs.lefthanded = cso.lefthanded;
     }
   else hread_raw(hs, cs);
   }
@@ -1365,8 +1385,10 @@ EX void initConfig() {
     {"ODS", "for rendering 360° VR videos (implemented only in raycaster and some other parts)"},
     {"Panini", "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection."},
     {"stereographic", "Stereographic projection allows very high FOV angles."},
-    {"equirectangular", "for rendering 360° videos (implemented only in raycaster)"}
-    }, "stereo/high-FOV mode", 'm');
+    {"equirectangular", "for rendering 360° videos (implemented only in raycaster)"},
+    {"cylindrical", "full vertical (not implemented in raycaster)"}
+    }, "stereo/high-FOV mode", 'm')
+  ->set_reaction(reset_all_shaders);
 
   param_f(vid.plevel_factor, "plevel_factor", 0.7);
 
@@ -2501,6 +2523,29 @@ EX ld max_fov_angle() {
   return acos(-p) * 2 / degree;
   }
 
+EX void edit_fov_screen() {
+  dialog::editNumber(vid.fov, 1, max_fov_angle(), 1, 90, "field of view",
+    XLAT(
+      "Horizontal field of view, in angles. "
+      "This affects the Hypersian Rug mode (even when stereo is OFF) "
+      "and non-disk models.") + "\n\n" +
+    XLAT(
+      "Must be less than %1°. Panini projection can be used to get higher values.",
+      fts(max_fov_angle())
+      )
+      );
+  dialog::bound_low(1e-8);
+  dialog::bound_up(max_fov_angle() - 0.01);
+  dialog::get_di().extra_options = [] {
+    auto ptr = dynamic_cast<dialog::number_dialog*> (screens.back().target_base());
+    if(ptr && ptr->vmax != max_fov_angle()) { popScreen(); edit_fov_screen(); return; }
+    add_edit(vid.stereo_mode, 'M');
+    if(among(vid.stereo_mode, sPanini, sStereographic)) {
+      add_edit(vid.stereo_param, 'P');
+      }
+    };
+  }
+
 EX void add_edit_fov(char key IS('f')) {
 
   string sfov = fts(vid.fov) + "°";
@@ -2508,26 +2553,7 @@ EX void add_edit_fov(char key IS('f')) {
     sfov += " / " + fts(max_fov_angle()) + "°";
     }
   dialog::addSelItem(XLAT("field of view"), sfov, key);
-  dialog::add_action([=] {
-    dialog::editNumber(vid.fov, 1, max_fov_angle(), 1, 90, "field of view", 
-      XLAT(
-        "Horizontal field of view, in angles. "
-        "This affects the Hypersian Rug mode (even when stereo is OFF) "
-        "and non-disk models.") + "\n\n" +
-      XLAT(
-        "Must be less than %1°. Panini projection can be used to get higher values.",
-        fts(max_fov_angle())
-        )
-        );
-    dialog::bound_low(1e-8);
-    dialog::bound_up(max_fov_angle() - 0.01);
-    dialog::get_di().extra_options = [] {
-      add_edit(vid.stereo_mode, 'M');
-      if(among(vid.stereo_mode, sPanini, sStereographic)) {
-        add_edit(vid.stereo_param, 'P');
-        }
-      };
-    });
+  dialog::add_action(edit_fov_screen);
   }
 
 bool supported_ods() {
@@ -3197,7 +3223,7 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
         );
         });
   string unitwarn =
-    "The unit this is value is given in is wall height. "
+    "The unit this value is given in is wall height. "
     "Note that, in exponentially expanding spaces, too high values could cause rendering issues. So "
     "if you want infinity, values of 5 or similar should be used -- there is no visible difference "
     "from infinity and glitches are avoided.";
