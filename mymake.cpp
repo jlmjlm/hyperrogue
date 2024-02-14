@@ -74,7 +74,7 @@ void set_linux() {
     }
   else if(sdlver == 1) {
     opts = "-DFHS -DLINUX -I/usr/include/SDL";
-    libs = " -lSDL -lSDL_ttf -lSDL_mixer -lSDL_gfx -llGL -lpng -rdynamic -lpthread -lz";
+    libs = " -lSDL -lSDL_ttf -lSDL_mixer -lSDL_gfx -lGL -lpng -rdynamic -lpthread -lz";
     }
   else {
     opts = "-DFHS -DLINUX";
