@@ -169,6 +169,7 @@ template<class T> struct enum_setting : list_setting {
     needs_confirm = true;
     return this;
     }
+  virtual cld get_cld() override { return get_value(); }
   };
 
 /** transmatrix with equality, so we can construct val_setting<matrix_eq> */
@@ -340,6 +341,8 @@ struct custom_setting : public setting {
   function<void(char)> custom_viewer;
   function<cld()> custom_value;
   function<bool(void*)> custom_affect;
+  function<void(const string&)> custom_load;
+
   void show_edit_option(int key) override { custom_viewer(key); }
   supersaver *make_saver() override { throw hr_exception("make_saver for custom_setting"); }
   bool affects(void *v) override { return custom_affect(v); }
@@ -349,6 +352,15 @@ struct custom_setting : public setting {
       add_to_changed(this);
       }
     }
+  virtual void load_from(const string& s) override {
+    if(saver) { saver->load(s); return; }
+    if(!custom_load) {
+      println(hlog, "cannot load parameter: ", parameter_name, " from: ", s);
+      throw hr_exception("parameter cannot be loaded");
+      }
+    custom_load(s);
+    }
+  virtual cld get_cld() override { return custom_value(); }
   };
   
 struct local_parameter_set {
@@ -832,6 +844,7 @@ custom_setting* param_custom(T& val, const string& s, function<void(char)> menui
   u->custom_viewer = menuitem;
   u->custom_value = [&val] () { return (int) val; };
   u->custom_affect = [&val] (void *v) { return &val == v; };
+  u->custom_load = [&val] (const string& s) { val = (T) parseint(s); };
   u->default_key = key;
   u->is_editable = true;
   auto f = &*u;

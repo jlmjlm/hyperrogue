@@ -137,8 +137,8 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
     else return false;
     }
 
-  if(flags & AF_APPROACH) {
-    if(m2 == moLancer) ;
+  if(flags & (AF_APPROACH | AF_HORNS)) {
+    if(m2 == moLancer && (flags & AF_APPROACH)) ;
     else if((flags & AF_HORNS) && checkOrb(m1, itOrbHorns)) { flags |= AF_IGNORE_UNARMED; }
     else return false;
     }
@@ -1111,11 +1111,11 @@ EX bool should_switchplace(cell *c1, cell *c2) {
 EX bool switchplace_prevent(cell *c1, cell *c2, struct pcmove& m) {
   if(!should_switchplace(c1, c2)) return false;
   if(peace::on && (isMultitile(c2->monst) || saved_tortoise_on(c2) || isDie(c2->monst))) {
-    if(m.vmsg(miRESTRICTED)) addMessage(XLAT("Cannot switch places with %the1!", c2->monst));
+    if(m.vmsg(miRESTRICTED, siMONSTER, c2, c2->monst)) addMessage(XLAT("Cannot switch places with %the1!", c2->monst));
     return true;
     }
   if(c1->monst && c1->monst != moFriendlyIvy) {
-    if(m.vmsg(miRESTRICTED)) addMessage(XLAT("There is no room for %the1!", c2->monst));
+    if(m.vmsg(miRESTRICTED, siMONSTER, c1, c1->monst)) addMessage(XLAT("There is no room for %the1!", c2->monst));
     return true;
     }
   if(passable(c1, c2, P_ISFRIEND | (c2->monst == moTameBomberbird ? P_FLYING : 0))) return false;
@@ -1227,11 +1227,13 @@ EX void killThePlayer(eMonster m, int id, flagtype flags) {
     }
   else if(hardcore) {
     addMessage(XLAT("You are killed by %the1!", m));
+    yasc_message = XLAT("killed by %the1", m);
     killHardcorePlayer(id, flags);
     }
   else if(m == moLightningBolt && lastmovetype == lmAttack && isAlchAny(playerpos(id))) {
     addMessage(XLAT("You are killed by %the1!", m));
     addMessage(XLAT("Don't play with slime and electricity next time, okay?"));
+    yasc_message = XLAT("killed by %the1", m);
     kills[moPlayer]++;
     items[itOrbSafety] = 0;
     }
@@ -1346,9 +1348,10 @@ EX void stabbingAttack(movei mi, eMonster who, int bonuskill IS(0)) {
   forCellIdEx(c, t, mt) {
     if(!logical_adjacent(mt, who, c)) continue;
     eMonster mm = c->monst;
-    int flag = AF_APPROACH;
+    int flag = 0;
+    if(!isUnarmed(who) && !out) flag |= AF_APPROACH;
     if(proper(mt, backdir) && anglestraight(mt, backdir, t)) flag |= AF_HORNS;
-    if((isUnarmed(who) || out) && !(flag & AF_HORNS)) continue;
+    if(!flag) continue;
     if(canAttack(mt,who,c,c->monst, flag)) {
       changes.ccell(c);
       if(attackMonster(c, flag | AF_MSG, who)) numlance++;

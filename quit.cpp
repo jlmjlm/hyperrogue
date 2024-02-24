@@ -328,6 +328,7 @@ EX void showGameMenu() {
     XLAT("GAME OVER"), 
     0xC00000, 200, 100
     );
+  if(!canmove && yasc_message != "") dialog::addInfo(yasc_message);
 
   #if CAP_COMPLEX2
   bool sweeper = mine::in_minesweeper();
@@ -638,7 +639,8 @@ EX void handleKeyQuit(int sym, int uni) {
     popScreen();
     msgs.clear();
     if(!canmove) {
-      addMessage(XLAT("GAME OVER"));
+      if(yasc_message != "") addMessage(XLAT("GAME OVER") + ": " + yasc_message);
+      else addMessage(XLAT("GAME OVER"));
       addMessage(timeline());
       }
     }

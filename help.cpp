@@ -241,7 +241,7 @@ EX void buildCredits() {
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
     "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
     "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight, jennlbw, Kali Ranya, spiritbackup, Dylan, L_Lord, AntiRogue, "
-    "masonlgreen"
+    "masonlgreen, A human"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -704,6 +704,7 @@ void add_reqs(eLand l, string& s) {
     #define ACCONLY2(z,x) s += XLAT("Accessible only from %the1 or %the2.\n", z, x);
     #define ACCONLY3(z,y,x) s += XLAT("Accessible only from %the1, %2, or %3.\n", z, y, x);
     #define ACCONLYF(z) s += XLAT("Accessible only from %the1 (until finished).\n", z);
+    #define IFINGAME(land, ok, fallback) if(isLandIngame(land)) { ok } else { s += XLAT("Alternative rule when %the1 is not in the game:\n", land); fallback }
     #include "content.cpp"
 
     case landtypes: return;
@@ -882,9 +883,9 @@ EX void describeMouseover() {
         out += " (" + its(c->landparam)+")";
       else {
         calcTidalPhase();
-        bool b = c->landparam >= tide[(turncount-1) % tidalsize];
+        bool b = c->landparam >= tide[turncount % tidalsize];
         int t = 1;
-        for(; t < 1000 && b == (c->landparam >= tide[(turncount+t-1) % tidalsize]); t++) ;
+        for(; t < 1000 && b == (c->landparam >= tide[(turncount+t) % tidalsize]); t++) ;
         if(b)
           out += " (" + turnstring(t) + XLAT(" to surface") + ")";
         else 
@@ -893,7 +894,7 @@ EX void describeMouseover() {
       }
     #if CAP_FIELD
     else if(c->land == laVolcano) {
-      int id = lavatide(c, -1)/4;
+      int id = lavatide(c, 0)/4;
       if(id < 96/4)
         out += " (" + turnstring(96/4-id) + XLAT(" to go cold") + ")";
       else

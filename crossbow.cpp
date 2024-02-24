@@ -301,7 +301,7 @@ EX void add_fire(cell *c) {
       return;
       }
     clear_bowpath();
-    checked_move_issue = miVALID;
+    checked_move_issue.type = miVALID;
     pcmove pcm;
     pcm.checkonly = false;
     changes.init(false);
@@ -358,7 +358,7 @@ EX bool fire_on_mouse(cell *c) {
     return false;
     }
   gen_bowpath_map();
-  checked_move_issue = miVALID;
+  checked_move_issue.type = miVALID;
   pcmove pcm;
   pcm.checkonly = false;
   changes.init(false);
@@ -368,6 +368,8 @@ EX bool fire_on_mouse(cell *c) {
   if(mouse_fire_mode == mfmAlways) return true;
   return b;
   }
+
+EX int rusalka_curses = 0;
 
 EX void shoot() {
   flagtype attackflags = AF_BOW;
@@ -382,6 +384,7 @@ EX void shoot() {
   vector<pair<cell*, int>> healthy_dragons;
   map<cell*, pair<int, int>> kraken_hits;
   int dragon_hits = 0;
+  rusalka_curses = 0;
 
   // for achievements
   for(auto& mov: bowpath) {
@@ -458,6 +461,8 @@ EX void shoot() {
 
     if(m && attackMonster(c, attackflags | AF_MSG, who)) hit_anything = true;
 
+    if(m == moRusalka) rusalka_curses++;
+
     if(!c->monst || isAnyIvy(m)) {
       spread_plague(cf, c, movei(mov.prev).rev().d, moPlayer);
       produceGhost(c, m, moPlayer);
@@ -514,7 +519,7 @@ EX bool have_bow_target() {
     int res = create_path();
     if(res == -1) continue;
 
-    checked_move_issue = miVALID;
+    checked_move_issue.type = miVALID;
     pcmove pcm;
     pcm.checkonly = true;
     changes.init(true);

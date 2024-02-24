@@ -224,6 +224,7 @@ EX bool landUnlocked(eLand l) {
     #define ACCONLY2(x,y)
     #define ACCONLY3(x,y,z)
     #define ACCONLYF(x)
+    #define IFINGAME(land, ok, fallback) if(isLandIngame(land)) { ok } else { fallback }
     #include "content.cpp"
 
     case landtypes: return false;
@@ -606,7 +607,7 @@ EX eLand getNewLand(eLand old) {
     if(isTrollLand(old)) LIKELY tab[cnt++] = laTrollheim;
     if(old == laTrollheim) for(int i=0; i<landtypes; i++) {
       eLand l2 = eLand(i);
-      if(isTrollLand(l2)) LIKELY tab[cnt++] = l2;
+      if(isTrollLand(l2) && landUnlocked(l2)) LIKELY tab[cnt++] = l2;
       }
     }
 
