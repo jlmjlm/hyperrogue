@@ -1253,6 +1253,7 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
       break;
 
     case laBull:
+    case laHauntedWall: case laHaunted: case laHauntedBorder:
       //set_floor(cgi.shButterflyFloor);
       set_floor(cgi.shFloor);
       break;
@@ -1274,7 +1275,7 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
       set_floor(cgi.shDragonFloor);
       break;
     
-    case laOvergrown: case laClearing: case laHauntedWall: case laHaunted: case laHauntedBorder:
+    case laOvergrown: case laClearing:
       set_floor(cgi.shOverFloor);
       break;
 
