@@ -220,9 +220,9 @@ EX namespace elec {
       c->wall == waMetal || isAlchAny(c)) 
         return isElectricLand(c) ? ecConductor : ecGrounded; 
     if(c->wall == waBigTree || c->wall == waSmallTree)
-        return ecGrounded;
+      return ecGrounded;
     if(among(c->wall, waRed1, waRed2, waRed3, waRubble, waDeadfloor2))
-        return ecIsolator;
+      return ecIsolator;
     if(c->wall == waBarrier)
       return ecIsolator;
     if(c->wall == waChasm)
@@ -2124,6 +2124,7 @@ EX namespace heat {
       if(c->cpdist > gr && !doall) break;
   
       if(isIcyLand(c)) {
+        using namespace elec;
         ld hmod = 0;
 
         if(c->monst == moRanger) hmod += 3 * xrate;
@@ -2133,6 +2134,8 @@ EX namespace heat {
         if(c->wall == waDeadTroll) hmod -= 2 * xrate;
         if(c->wall == waDeadTroll2) hmod -= 1.5 * xrate;
         if(c->wall == waBigStatue) hmod -= .5 * xrate;
+        if(isElectricLand(c) && getCharge(c) == ecGrounded) hmod -= .5 * xrate;
+        if(isElectricLand(c) && getCharge(c) == ecCharged) hmod += .5 * xrate;
         if(c->monst == moLesser || c->monst == moLesserM || c->monst == moGreater || c->monst == moGreaterM)
           hmod += (c->land == laCocytus ? 1.5 : 10) * xrate;
         if(c->monst == moGreaterShark)
