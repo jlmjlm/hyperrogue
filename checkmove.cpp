@@ -402,7 +402,7 @@ EX void create_yasc_message() {
 int yasc_recode(int x) {
   if(cwt.at->type < 10 || x == 0) return x;
   return yasc_recode(x / 10) * 100 + (x % 10);
-  };
+  }
 
 EX void checkmove() {
 
