@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "13.0c"
-#define VERNUM_HEX 0xAA03
+#define VER "13.0d"
+#define VERNUM_HEX 0xAA04
 
 #include "sysconfig.h"
 
@@ -566,7 +566,7 @@ typedef function<int(struct cell*)> cellfunction;
 // passable flags
 
 #define SAGEMELT .1
-#define PT(x, y) ((tactic::on || quotient == 2 || daily::on) ? (y) : inv::on ? min(2*(y),x) : (x))
+#define PT(x, y) rebalance_treasure(x, y, c->land)
 #define ROCKSNAKELENGTH 50
 #define WORMLENGTH 15
 #define PRIZEMUL 7

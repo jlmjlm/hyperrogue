@@ -80,7 +80,8 @@ EX hookset<bool()> hooks_welcome_message;
 EX void welcomeMessage() {
   if(callhandlers(false, hooks_welcome_message)) return;
   if(nohelp == 1) return;
-  if(embedded_plane) return IPF(welcomeMessage());
+  if(custom_welcome != "") addMessage(custom_welcome);
+  else if(embedded_plane) return IPF(welcomeMessage());
 #if CAP_TOUR
   else if(tour::on) return; // displayed by tour
 #endif
@@ -223,6 +224,8 @@ EX void initgame() {
   clearing::imputed = 0;
   rosephase = 0;
   shmup::count_pauses = 0;
+
+  splitrocks = 0;
 
   if(firstland == laElementalWall) cwt.at->land = randomElementalLand();
   
@@ -1760,7 +1763,7 @@ EX void initAll() {
 #if CAP_SAVE
   select_savefile();
   loadsave();
-  if(IRREGULAR) irr::auto_creator();
+  if(IRREGULAR && !irr::base) irr::auto_creator();
 #endif
   start_game();
   restore_all_golems();
@@ -1787,6 +1790,59 @@ EX void finishAll() {
   callhooks(hooks_final_cleanup);
   }
 
+string modheader = "# HyperRogue saved game mode file";
+
+set<string> allowed_params = {
+  "creature_scale", "global_boundary_ratio", "specialland"
+  };
+
+EX void save_mode_to_file(const string& fname) {
+  shstream ss;
+  save_mode_data(ss);
+  string s = as_hexstring(ss.s);
+  fhstream f(fname, "w");
+  if(!f.f) throw hstream_exception();
+  println(f, modheader);
+  println(f, s);
+  if(custom_welcome != "") println(f, "CMSG ", custom_welcome);
+
+  for(auto& ap: allowed_params) {
+    auto& s = params[ap]->saver;
+    if(s->dosave())
+      println(f, ap, "=", s->save());
+    }
+  }
+
+EX void load_mode_from_file(const string& fname) {
+  fhstream f(fname, "r");
+  if(!f.f) throw hstream_exception();
+  string header = scanline(f);
+  if(header[0] != '#') throw hstream_exception();
+  string hex = scanline(f);
+  shstream ss;
+  ss.s = from_hexstring(hex + "00");
+  custom_welcome = "";
+  while(true) {
+    string s = scanline_noblank(f);
+    if(s == "") break;
+    else if(s.substr(0, 5) == "CMSG ") custom_welcome = s.substr(5);
+    else {
+      auto pos = s.find("=");
+      if(pos != string::npos) {
+        string name = s.substr(0, pos);
+        string value = s.substr(pos+1);
+        if(!params.count(name) || !allowed_params.count(name))  {
+          println(hlog, "# parameter unknown: ", name);
+          continue;
+          }
+        params[name]->load_as_animation(value);
+        }
+      }
+    }
+  stop_game();
+  load_mode_data_with_zero(ss);
+  start_game();
+  }
 
 auto cgm = addHook(hooks_clearmemory, 40, [] () {
   pathq.clear();

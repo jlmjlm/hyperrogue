@@ -40,6 +40,7 @@ EX bool doPickupItemsWithMagnetism(cell *c) {
           changes.ccell(c3);
           changes.ccell(c4);
           moveItem(c3, c4, false);
+          animateMovement(match(c3, c4), LAYER_BOAT);
           moveEffect(movei(c4, c4, NODIR), moDeadBird);
           markOrb(itCurseRepulsion);
           }
@@ -56,8 +57,12 @@ EX bool doPickupItemsWithMagnetism(cell *c) {
         }
       else if(c3->item == itOrbSafety || c3->item == itBuggy || c3->item == itBuggy2)
         csaf = c3;
-      else if(markOrb(itOrbMagnetism))
+      else if(markOrb(itOrbMagnetism)) {
+        eItem it = c3->item;
         collectItem(c3, c3, false);
+        if(!c3->item)
+          animate_item_throw(c3, c, it);
+        }
       }
   if(csaf)
     return collectItem(csaf, csaf, false);

@@ -1302,7 +1302,7 @@ LAND( 0x00C000, "Palace Quest", laPrincessQuest, ZERO, itSavedPrincess, RESERVED
 
 LAND( 0xD0D060, "Wild West", laWildWest, ZERO, itBounty, RESERVED, wildwestdesc)
   NATIVE((m == moOutlaw) ? 2 : 0)
-  REQ( NEVER )
+  REQ( ALWAYS )
 
 LAND( 0x80A080, "Land of Storms", laStorms, ZERO | LF_TROLL | LF_ELECTRIC, itFulgurite, RESERVED, elecdesc)
   NATIVE((m == moMetalBeast || m == moMetalBeast2 || m == moStormTroll) ? 1 : 0)
@@ -1412,7 +1412,7 @@ LAND( 0xFF7518, "Halloween", laHalloween, ZERO, itTreat, RESERVED, halloweendesc
         m == moLancer || m == moFireFairy || 
         m == moBomberbird || m == moRatlingAvenger || 
         m == moVineBeast || m == moDragonHead || m == moDragonTail) ? 1 : 0)
-  REQ( NEVER )
+  REQ( ALWAYS )
 
 LAND( 0x605040, "Dungeon", laDungeon, ZERO | LF_GRAVITY | LF_EQUI, itSlime, RESERVED, 
     "The result of a collaboration of the Great Vizier and the Wizard of the Ivory Tower."
@@ -1454,7 +1454,7 @@ LAND( 0xC000C0, "Crossroads V", laCrossroads5, ZERO, itHyperstone, RESERVED, "Ex
 
 LAND( 0xC0C0C0, "Cellular Automaton", laCA, ZERO | LF_TECHNICAL, itNone, RESERVED, cadesc)
   NATIVE(0)
-  REQ(NEVER)
+  REQ(ALWAYS)
 
 LAND( 0xC0C0FF, "Mirror Wall", laMirrorWall, ZERO | LF_TECHNICAL | LF_INMIRRORORWALL, itShard, RESERVED, mirroreddesc)
   NATIVE(isNative(laMirror, m))
@@ -1569,9 +1569,9 @@ LAND( 0x30FF30, "Irradiated Field", laVariant, ZERO, itVarTreasure, RESERVED,
 
 LAND( 0x202020, "Space Rocks", laAsteroids, ZERO, itAsteroid, RESERVED, rock_description)
 ITEM( '!', 0xFFD0D0, "Fuel", itAsteroid, IC_TREASURE, ZERO, RESERVED, osNone, rock_description)
-MONSTER('A', 0x606040, "Space Rock", moAsteroid, ZERO, RESERVED, moAsteroid, rock_description)
+MONSTER('A', 0x606040, "Space Rock", moAsteroid, ZERO, RESERVED, moYeti, rock_description)
   NATIVE(m == moAsteroid ? 2 : 0)
-  REQ( NEVER )
+  REQ( ALWAYS )
   
 LAND( 0x00C0C0, "Wetland",    laWet, ZERO, itWet, RESERVED, 
   "Some people have definitely drowned in this treacherous area. Better be careful!"
