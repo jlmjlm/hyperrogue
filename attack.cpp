@@ -757,7 +757,7 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
     // a reward for killing him before he shoots!
     c->item = itOrbDragon;
     }
-  if(m == moAsteroid && !shmup::on && c->item == itNone && c->wall != waChasm) {
+  if(m == moAsteroid && !shmup::on && c->item == itNone && c->wall != waChasm && c->land == laAsteroids) {
     c->item = itAsteroid;
     changes.value_add(splitrocks, 2);
     }
@@ -943,6 +943,14 @@ EX void fightmessage(eMonster victim, eMonster attacker, bool stun, flagtype fla
         addMessage(XLAT("You trick %the1.", victim)); // normal
       else
         addMessage(XLAT("You pierce %the1.", victim)); // normal
+      }
+    else if(items[itOrbSlaying]) {
+      playSound(NULL, "hit-crush"+pick123());
+      addMessage(XLAT("You crush %the1!", victim)); // normal
+      }
+    else if(stun && items[itCurseWeakness]) {
+      playSound(NULL, "click");
+      addMessage(XLAT("You punch %the1.", victim)); // normal
       }
     else if(!peace::on) {
       playSound(NULL, "hit-sword"+pick123());

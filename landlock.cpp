@@ -230,6 +230,7 @@ EX bool landUnlocked(eLand l) {
     #define ACCONLY3(x,y,z)
     #define ACCONLYF(x)
     #define IFINGAME(land, ok, fallback) if(isLandIngame(land)) { ok } else { fallback }
+    #define INMODE(x) if(x) return true;
     #include "content.cpp"
 
     case landtypes: return false;
@@ -251,7 +252,10 @@ EX void countHyperstoneQuest(int& i1, int& i2) {
   i1 = 0; i2 = 0;
   generateLandList(isLandIngame);
   for(eLand l: landlist) {
+    // no treasure
     if(l == laCA) continue;
+    // same treasure, so count only once
+    if(l == laMirrorOld && isLandIngame(laMirror)) continue;
     eItem ttype = treasureType(l);
     if(!required_for_hyperstones(ttype)) continue;
     i2++; if(items[ttype] >= R10) i1++;
@@ -383,7 +387,7 @@ EX eLand pickluck(eLand l1, eLand l2) {
   } */
 
 EX eLand getNewSealand(eLand old) {
-  while(true) {
+  for(int it=0; it<100; it++) {
     eLand p = pick(laOcean, pick(laCaribbean, laLivefjord, laWarpSea, laKraken, laDocks));
     if(p == laKraken && !landUnlocked(p)) continue;
     if(p == laKraken && peace::on) continue;
@@ -392,6 +396,7 @@ EX eLand getNewSealand(eLand old) {
     if(!isLandIngame(p)) continue;
     return p;
     }
+  return old;
   }
 
 EX bool createOnSea(eLand old) {
@@ -739,6 +744,11 @@ EX bool isLandIngame(eLand l) {
   if((eubinary || sol) && isCyclic(l) && l != specialland) return false;
   if(l == laCamelot && hyperbolic && WDIM == 3) return false;
   return land_validity(l).flags & lv::appears_in_full;
+  }
+
+EX bool landUnlockedIngame(eLand l) {
+  if(!peace::on && !landUnlocked(l)) return false;
+  return isLandIngame(l);
   }
 
 namespace lv {
