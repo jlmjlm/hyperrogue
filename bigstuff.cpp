@@ -1005,7 +1005,7 @@ EX void buildEquidistant(cell *c) {
   if(c->landparam > 30 && b == laOcean && !generatingEquidistant && !mhybrid && hrand(10) < 5 && chance)
     buildAnotherEquidistant(c);
 
-  if(c->landparam > HAUNTED_RADIUS+5 && b == laGraveyard && !generatingEquidistant && !mhybrid && hrand(100) < (PURE?25:5) && items[itBone] >= U10 && chance)
+  if(c->landparam > HAUNTED_RADIUS+5 && b == laGraveyard && !generatingEquidistant && !mhybrid && hrand(100) < (PURE?25:5) && landUnlockedIngame(laHaunted) && chance)
     buildAnotherEquidistant(c);
   }
 
@@ -1132,6 +1132,7 @@ EX void setLandSphere(cell *c) {
 vector<eLand> euland;
 map<int, eLand> euland3;
 map<int, eLand> euland3_hash;
+EX map<array<int, 3>, eLand> landscape_lands;
 
 EX eLand& get_euland(int c) {
   euland.resize(max_vec);
@@ -1144,6 +1145,8 @@ EX void clear_euland(eLand first) {
   if(!nonisotropic) euland[0] = euland[1] = euland[max_vec-1] = first;
   euland3.clear();
   euland3[0] = first;
+  landscape_lands.clear();
+  landscape_lands[make_array(0,0,0)] = first;
   }
 
 bool valid_wall_at(int c) {
@@ -1873,13 +1876,13 @@ EX void build_horocycles(cell *c, cell *from) {
     items[itEmerald] >= U5))) 
     start_camelot(c);
 
-  if(c->land == laRlyeh && can_start_horo(c) && (quickfind(laTemple) || peace::on || (hrand(I2000) < 100 && items[itStatue] >= U5)))
+  if(c->land == laRlyeh && can_start_horo(c) && (quickfind(laTemple) || (hrand(I2000) < 100 && landUnlockedIngame(laTemple))))
     create_altmap(c, horo_gen_distance(), hsA);
 
-  if(c->land == laJungle && can_start_horo(c) && (quickfind(laMountain) || (hrand(I2000) < 100 && landUnlocked(laMountain))))
+  if(c->land == laJungle && can_start_horo(c) && (quickfind(laMountain) || (hrand(I2000) < 100 && landUnlockedIngame(laMountain))))
     create_altmap(c, horo_gen_distance(), hsA);
 
-  if(c->land == laOvergrown && can_start_horo(c) && (quickfind(laClearing) || (hrand(I2000) < 25 && items[itMutant] >= U5 && isLandIngame(laClearing)))) {
+  if(c->land == laOvergrown && can_start_horo(c) && (quickfind(laClearing) || (hrand(I2000) < 25 && landUnlockedIngame(laClearing)))) {
     heptagon *h = create_altmap(c, horo_gen_distance(), hsA);
     if(h) clearing::bpdata[h].root = NULL;
     }
@@ -1891,11 +1894,12 @@ EX void build_horocycles(cell *c, cell *from) {
 
   if(c->land == laOcean && deepOcean && !generatingEquidistant && !peace::on && can_start_horo(c) && 
     (quickfind(laWhirlpool) || (
-      hrand(2000) < (PURE ? 500 : 1000))))
+      hrand(2000) < (PURE ? 500 : 1000) && landUnlockedIngame(laWhirlpool))))
     create_altmap(c, horo_gen_distance(), hsA);
     
   #if CAP_COMPLEX2
-  if(c->land == laOcean && deepOcean && !generatingEquidistant && hrand(10000) < 20 && no_barriers_in_radius(c, 2) && hyperbolic && !quotient && !tactic::on && !safety && !ls::hv_structure()) 
+  if(c->land == laOcean && deepOcean && !generatingEquidistant && hrand(10000) < 20 && no_barriers_in_radius(c, 2) && hyperbolic && !quotient && !tactic::on && !safety && !ls::hv_structure()
+    && landUnlockedIngame(laBrownian))
     brownian::init_further(c);
   #endif
 
@@ -1916,7 +1920,7 @@ EX void build_horocycles(cell *c, cell *from) {
   if(c->land == laPalace && can_start_horo(c) && !princess::generating && !shmup::on && multi::players == 1 && !weirdhyperbolic &&
     (princess::forceMouse ? canReachPlayer(from, moMouse) :
       (hrand(2000) < (peace::on ? 100 : 20))) && 
-    (princess::challenge || kills[moVizier] || peace::on)) {
+    landUnlockedIngame(laPrincessQuest)) {
     create_altmap(c, PRADIUS0, hsOrigin, waPalace);
     celllister cl(c, 5, 1000000, NULL);
     for(cell *c: cl.lst) if(c->master->alt) currentmap->extend_altmap(c->master);
@@ -2315,7 +2319,7 @@ EX void pregen() {
   currentlands.clear();
   if(ls::any_chaos() && !ls::std_chaos())
     for(eLand l: land_over)
-      if(landUnlocked(l) && isLandIngame(l)) 
+      if(landUnlockedIngame(l))
         currentlands.push_back(l);
   }
 

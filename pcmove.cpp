@@ -489,7 +489,7 @@ bool pcmove::swing() {
   mirror::act(origd, mirror::SPINMULTI | mirror::ATTACK);
   
   if(monstersnear_add_pmi(movei(cwt.at, STAY))) {
-    if(vmsg_threat())
+    if(nextmovetype == lmAttack ? vmsg(miWALL, siWALL, mi.t, who_kills_me) : vmsg_threat())
       wouldkill("You would be killed by %the1!");          
     return false;
     }
@@ -802,6 +802,16 @@ bool pcmove::actual_move() {
         c2->monst = moNone;
         c2->wall = waRichDie;
         }
+      else {
+        if(vmsg(miWALL, siWALL, c2, c2->monst))
+          addMessage(XLAT("You can only push this die if the highest number would be on the top!"));
+        return false;
+        }
+      }
+    else if(mip.d == NO_SPACE) {
+      if(vmsg(miWALL, siWALL, c2, c2->monst))
+        addMessage(XLAT("No room to push %the1.", c2->monst));
+      return false;
       }
     }
   #endif
@@ -921,8 +931,6 @@ void pcmove::tell_why_cannot_attack() {
     addMessage(XLAT("You cannot attack Raiders directly!"));
   else if(isSwitch(c2->monst))
     addMessage(XLAT("You cannot attack Jellies in their wall form!"));
-  else if(c2->monst == moAnimatedDie)
-    addMessage(XLAT("You can only push this die if the highest number would be on the top!"));
   else if(c2->monst == moAngryDie)
     addMessage(XLAT("This die is really angry at you!"));
   else if((attackflags & AF_WEAK) && isIvy(c2))
@@ -1311,7 +1319,11 @@ bool pcmove::perform_actual_move() {
     forCellEx(c3, c2) if(c3->wall == waIcewall && c3->item) {
       changes.ccell(c3);
       markOrb(itOrbWinter);
-      if(collectItem(c3, cwt.at)) return true;
+      eItem it = c3->item;
+      if(collectItem(c3, cwt.at))
+        return true;
+      if(!c3->item)
+        animate_item_throw(c3, c2, it);
       }
   
   movecost(cwt.at, c2, 2);

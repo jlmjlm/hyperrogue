@@ -16,7 +16,12 @@ EX array<int, ittypes> items;
 
 EX map<modecode_t, array<int, ittypes> > hiitems;
 
+EX bool pickable_from_water(eItem it) {
+  return among(it, itOrbFish, itOrbAether);
+  }
+
 EX bool cannotPickupItem(cell *c, bool telekinesis) {
+  if(pickable_from_water(c->item) && isWatery(c)) return false;
   return itemHidden(c) && !telekinesis && !(isWatery(c) && markOrb(itOrbFish));
   }
 
@@ -40,6 +45,7 @@ EX bool doPickupItemsWithMagnetism(cell *c) {
           changes.ccell(c3);
           changes.ccell(c4);
           moveItem(c3, c4, false);
+          animateMovement(match(c3, c4), LAYER_BOAT);
           moveEffect(movei(c4, c4, NODIR), moDeadBird);
           markOrb(itCurseRepulsion);
           }
@@ -56,8 +62,12 @@ EX bool doPickupItemsWithMagnetism(cell *c) {
         }
       else if(c3->item == itOrbSafety || c3->item == itBuggy || c3->item == itBuggy2)
         csaf = c3;
-      else if(markOrb(itOrbMagnetism))
+      else if(markOrb(itOrbMagnetism)) {
+        eItem it = c3->item;
         collectItem(c3, c3, false);
+        if(!c3->item)
+          animate_item_throw(c3, c, it);
+        }
       }
   if(csaf)
     return collectItem(csaf, csaf, false);
@@ -732,7 +742,7 @@ EX void collectMessage(cell *c2, eItem which) {
 
 EX bool itemHiddenFromSight(cell *c) {
   return isWatery(c) && !items[itOrbInvis] && !(items[itOrbFish] && playerInWater())
-    && !(shmup::on && shmup::boatAt(c));
+    && !(shmup::on && shmup::boatAt(c)) && !(c->cpdist <= 1 && playerInWater());
   }
 
 }

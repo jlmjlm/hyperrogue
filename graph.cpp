@@ -769,11 +769,12 @@ EX shiftmatrix face_the_player(const shiftmatrix V) {
   if(nonisotropic) return shiftless(spin_towards(unshift(V), dummy, C0, 2, 0));
   #if CAP_VR
   if(vrhr::enabled) {
-    shiftpoint h = tC0(V);    
+    shiftpoint h = tC0(V);
     hyperpoint uh = unshift(h);
-    return shiftless(cspin90(1, 2) * lrspintox(cspin90(2, 1) * uh) * xpush(hdist0(uh)) * cspin90(0, 2) * spin270());
+    return shiftless(cspin90(1, 2) * rspintox(cspin90(2, 1) * uh) * xpush(hdist0(uh)) * cspin90(0, 2) * spin270());
     }
   #endif
+
   return rgpushxto0(tC0(V));
   }
 
@@ -848,10 +849,39 @@ EX void draw_ascii(const shiftmatrix& V, char glyph, color_t col, ld size) {
   string s = s0 + glyph;
   int id = isize(ptds);
   if(WDIM == 2 && GDIM == 3)
-    queuestrn(V * lzpush(cgi.FLOOR - cgi.scalefactor * size / 4), size, s, darkenedby(col, darken), 0);
+    queuestrn(V * lzpush(cgi.FLOOR - cgi.scalefactor * size / 4), size * mapfontscale / 100, s, darkenedby(col, darken), 0);
   else 
-    queuestrn(V, 1, s, darkenedby(col, darken), GDIM == 3 ? 0 : 2);
+    queuestrn(V, mapfontscale / 100, s, darkenedby(col, darken), GDIM == 3 ? 0 : 2);
   while(id < isize(ptds)) ptds[id++]->prio = PPR::MONSTER_BODY;
+  }
+
+EX void queue_goal_text(shiftpoint P1, ld sizemul, const string& s, color_t color) {
+  #if CAP_VR
+  if(vrhr::enabled) {
+    auto e = inverse_exp(P1);
+    e = e * 3 / hypot_d(GDIM, e);
+    auto T = face_the_player(shiftless(rgpushxto0(direct_exp(e))));
+    queuestrn(T, sizemul * mapfontscale / 100, s, color);
+    return;
+    }
+  #endif
+  queuestr(P1, vid.fsize * sizemul, s, color);
+  }
+
+EX bool mark_compass(cell *c, shiftpoint& P1) {
+  cell *c1 = c ? findcompass(c) : NULL;
+  if(!c1) return false;
+
+  shiftmatrix P = ggmatrix(c1);
+  P1 = tC0(P);
+
+  if(isPlayerOn(c)) {
+    queue_goal_text(P1, 2, "X", 0x10100 * int(128 + 100 * sintick(150)));
+//  queuestr(V, 1, its(compassDist(c)), 0x10101 * int(128 - 100 * sin(ticks / 150.)), 1);
+    queue_goal_text(P1, 1, its(-compassDist(c)), 0x10101 * int(128 - 100 * sintick(150)));
+    addauraspecial(P1, 0xFF0000, 0);
+    }
+  return true;
   }
 
 EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int pticks, bool hidden) {
@@ -955,18 +985,8 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
     else
     #endif
     if(1) {
-      cell *c1 = c ? findcompass(c) : NULL;
-      if(c1) {
-        shiftmatrix P = ggmatrix(c1);
-        shiftpoint P1 = tC0(P);
-        
-        if(isPlayerOn(c)) {
-          queuestr(P1, 2*vid.fsize, "X", 0x10100 * int(128 + 100 * sintick(150)));
-    //      queuestr(V, 1, its(compassDist(c)), 0x10101 * int(128 - 100 * sin(ticks / 150.)), 1);
-          queuestr(P1, vid.fsize, its(-compassDist(c)), 0x10101 * int(128 - 100 * sintick(150)));
-          addauraspecial(P1, 0xFF0000, 0);
-          }
-        
+      shiftpoint P1;
+      if(mark_compass(c, P1)) {
         V2 = V * lrspintox(inverse_shift(V, P1));
         }
       else V2 = V;
@@ -3104,15 +3124,15 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
       col = mirrorcolor(geometry == gElliptic ? det(Vs.T) < 0 : mirr);
       if(!mouseout() && !nospins && GDIM == 2) {
         shiftpoint P2 = Vs * inverse_shift(inmirrorcount ? ocwtV : cwtV, mouseh);
-        queuestr(P2, 10, "x", 0xFF00);
-        }     
+        queuestr(P2, 10*mapfontscale/100, "x", 0xFF00);
+        }
       if(!nospins && flipplayer) Vs = Vs * lpispin();
-      
+
       res = res && drawMonsterType(moMimic, c, Vs, col, footphase, asciicol);
       drawPlayerEffects(Vs, Vparam, c, c->monst);
       }
     }
-  
+
   // illusions face randomly
   
   else if(c->monst == moIllusion) {
@@ -3236,7 +3256,7 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
       hyperpoint h = inverse_shift(ocwtV, mouseh);
       if(flipplayer) h = lpispin() * h;
       shiftpoint P2 = Vs * h;
-      queuestr(P2, 10, "x", 0xFF00);
+      queuestr(P2, mapfontscale / 10, "x", 0xFF00);
       }
     
     if(hide_player()) {
@@ -3574,7 +3594,7 @@ void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
         transmatrix T = iso_inverse(Centered) * rgpushxto0(Centered * tC0(V)) * lrspintox(Centered*tC0(V)) * spin(-sd * M_PI/S7) * xpush(0.2);
         
         if(vid.axes >= 5)
-          queuestr(shiftless(T), keysize, s0 + key, col >> 8, 1);
+          queuestr(shiftless(T), keysize * mapfontscale / 100, s0 + key, col >> 8, 1);
         
         else
           queuepoly(shiftless(T), cgi.shArrow, col);
@@ -3582,7 +3602,7 @@ void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
       else if(!confusingGeometry()) break;
       }
     }
-  if(keylist != "") queuestr(shiftless(V), keysize, keylist, col >> 8, 1);
+  if(keylist != "") queuestr(shiftless(V), keysize * mapfontscale / 100, keylist, col >> 8, 1);
   }
 
 EX int celldistAltPlus(cell *c) { return 1000000 + celldistAlt(c); }
@@ -4010,6 +4030,7 @@ EX int colorhash(color_t i) {
   }
 
 EX bool isWall3(cell *c, color_t& wcol) {
+  if(c->wall == waRose) { wcol = gradient(0, wcol, -5 - 5 * (7-rosephase), sintick(50 * (8 - rosephase)), 1); }
   if(isWall(c)) return true;
   if(c->wall == waChasm && c->land == laMemory && (anyshiftclick || !(cgflags & qFRACTAL))) { wcol = 0x606000; return true; }
   if(c->wall == waInvisibleFloor) return false;
@@ -4762,7 +4783,7 @@ EX void drawMarkers() {
     #if CAP_QUEUE
     if(haveMount())
       for (const shiftmatrix& V : hr::span_at(current_display->all_drawn_copies, dragon::target)) {
-        queuestr(V, 1, "X",
+        queuestr(V, mapfontscale/100, "X",
           gradient(0, iinf[itOrbDomination].color, -1, sintick(dragon::whichturn == turncount ? 75 : 150), 1));
         }
     #endif
@@ -4787,7 +4808,7 @@ EX void drawMarkers() {
             }
           shiftpoint H = tC0(ggmatrix(keycell));
           #if CAP_QUEUE
-          queuestr(H, 2*vid.fsize, "X", 0x10101 * int(128 + 100 * sintick(150)));
+          queue_goal_text(H, 2, "X", 0x10101 * int(128 + 100 * sintick(150)));
           int cd = celldistance(yi[yii].key(), cwt.at);
           if(cd == DISTANCE_UNKNOWN) for(int i2 = 0; i2<YDIST; i2++) {
             int cd2 = celldistance(cwt.at, yi[yii].path[i2]);
@@ -4796,7 +4817,7 @@ EX void drawMarkers() {
               println(hlog, "i2 = ", i2, " cd = ", celldistance(cwt.at, keycell));
               }
             }
-          queuestr(H, vid.fsize, its(cd), 0x10101 * int(128 - 100 * sintick(150)));
+          queue_goal_text(H, 1, its(cd), 0x10101 * int(128 - 100 * sintick(150)));
           #endif
           addauraspecial(H, iinf[itOrbYendor].color, 0);
           }
@@ -4931,9 +4952,10 @@ EX void drawMarkers() {
       }
     if(items[itOrbAir] && mouseover->cpdist > 1) {
       cell *c1 = mouseover;
+      int dir = c1->monst == moVoidBeast ? -1 : 1;
       for(int it=0; it<10; it++) {
         int di;
-        auto mib = blowoff_destination(c1, di);
+        auto mib = blowoff_destination_dir(c1, di, dir);
         if(!mib.proper()) break;
         auto& c2 = mib.t;
         shiftmatrix T1 = ggmatrix(c1);
@@ -4994,12 +5016,12 @@ EX void draw_flash(struct flashdata& f, const shiftmatrix& V, bool& kill) {
     int r = 2;
     apply_neon(col, r);
     if(GDIM == 3 || sphere)
-      queuestr(V, (1 - tim * 1. / f.size) * f.angle, f.text, col, r);
+      queuestr(V, (1 - tim * 1. / f.size) * f.angle * mapfontscale / 100, f.text, col, r);
     else if(!kill) {
       shiftpoint h = tC0(V);
       if(hdist0(h) > .1) {
         transmatrix V2 = rspintox(h.h) * xpush(hdist0(h.h) * (1 / (1 - tim * 1. / f.size)));
-        queuestr(shiftless(V2, h.shift), f.angle, f.text, col, r);
+        queuestr(shiftless(V2, h.shift), f.angle * mapfontscale / 100, f.text, col, r);
         }
       }
     if(static_bubbles) {

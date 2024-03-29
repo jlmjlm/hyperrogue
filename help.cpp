@@ -241,7 +241,7 @@ EX void buildCredits() {
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
     "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
     "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight, jennlbw, Kali Ranya, spiritbackup, Dylan, L_Lord, AntiRogue, "
-    "masonlgreen, A human"
+    "masonlgreen, A human, Pasu4"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -700,6 +700,7 @@ void add_reqs(eLand l, string& s) {
     #define COND(x,y) s += (y);
     #define ITEMS_TOTAL(list, z) \
       { int now = 0; string t = "("; for(eItem i: list) { if(t!="(") t += " | "; t += XLATN(iinf[i].name); now += items[i]; } t += ")"; s += XLAT("Treasure required: %1 x %2.\n", its(z), t); buteol(s, now, z); }
+    #define INMODE(x) ;
     #define ACCONLY(z) s += XLAT("Accessible only from %the1.\n", z);
     #define ACCONLY2(z,x) s += XLAT("Accessible only from %the1 or %the2.\n", z, x);
     #define ACCONLY3(z,y,x) s += XLAT("Accessible only from %the1, %2, or %3.\n", z, y, x);
@@ -1089,16 +1090,7 @@ EX void describeMouseover() {
   #endif
   }
 
-EX void showHelp() {
-  cmode = sm::HELP | sm::DOTOUR | sm::DARKEN;
-  getcstat = SDLK_ESCAPE;
-  if(help == "HELPFUN") {
-    help_delegate();
-    return;
-    }
-
-  gamescreen();
-  string help2;
+EX void addHelpWithTitle() {
   if(help[0] == '@') {
     int iv = help.find("\t");
     int id = help.find("\n");
@@ -1109,6 +1101,19 @@ EX void showHelp() {
     dialog::init("help", forecolor, 120, 100);
     dialog::addHelp(help);
     }
+  }
+
+EX void showHelp() {
+  cmode = sm::HELP | sm::DOTOUR | sm::DARKEN;
+  getcstat = SDLK_ESCAPE;
+  if(help == "HELPFUN") {
+    help_delegate();
+    return;
+    }
+
+  gamescreen();
+  string help2;
+  addHelpWithTitle();
   
   bool in_list = false;
 

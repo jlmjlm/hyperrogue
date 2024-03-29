@@ -119,6 +119,7 @@ EX bool wrongMode(char flags) {
     if(disksize) return true;
     }
   if(ineligible_starting_land && !flags) return true;
+  if(use_custom_land_list) return true;
 
   if(shmup::on != (flags == rg::shmup || flags == rg::racing)) return true;
   if(racing::on != (flags == rg::racing)) return true;
@@ -144,6 +145,7 @@ EX bool wrongMode(char flags) {
     dls = land_structure;
 
   if(land_structure != dls) return true;
+  if(shmup::on && vid.creature_scale != 1) return true;
   if(numplayers() > 1 && !multi::friendly_fire) return true;
   if(numplayers() > 1 && multi::pvp_mode) return true;
   if(numplayers() > 1 && multi::split_screen) return true;
@@ -804,6 +806,7 @@ EX void achievement_final(bool really_final) {
   if(bow::crossbow_mode() && bow::style == bow::cbBull) specialcode += 32;
   if(bow::crossbow_mode() && bow::style == bow::cbGeodesic) specialcode += 64;
   if(bow::crossbow_mode() && bow::style == bow::cbGeometric) specialcode += 96;
+  if(shmup::on && vid.creature_scale != 1) return;
   
   if(sphere && specialland == laHalloween) {
     if(specialcode) return;
@@ -814,6 +817,7 @@ EX void achievement_final(bool really_final) {
   if(ineligible_starting_land) return;
   if(geometry) return;
   if(NONSTDVAR) return;
+  if(use_custom_land_list) return;
 
   if(numplayers() > 1 && !multi::friendly_fire) return;
   if(numplayers() > 1 && multi::pvp_mode) return;

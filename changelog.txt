@@ -5141,3 +5141,65 @@ Other:
 - when you press ESC in the gameover screen, the YASC message is displayed
 - special YASC message for pinches, and being on the Round Table
 - in YASC messages, mention the knights blocking the way, and also mention their names
+
+2024-03-24 11:32 Update 13.0d:
+
+System:
+* itch.io Windows binaries and Steam Windows/Linux binaries now use SDL2 instead of SDL1.2
+
+Custom mode:
+* A new mode where you can select the lands to be used.
+* Another menu can be used to save a mode to a file.
+* Enabling Halloween or Space Rocks in infinite geometries now produces something that makes sense.
+* Previously changing the creature scale was disabled in non-cheat shmup. Now it can be changed (but it counts as a cheat).
+* New land structure 'landscape'.
+
+Graphics:
+* Font scale used in ASCII maps now can be changed.
+* Items moved by Orb of Water, Magnetism, Winter, Space, and Repulsion are now animated.
+* VR: fixed items, Ivy, compasses, etc. being placed incorrectly in 2.5D.
+* VR: compass/Yendor targets now should be displayed.
+
+Gameplay:
+* Void Beasts are now pulled by Orb of Air.
+* Changed the electrical properties of some walls to make Eclectic City more friendly.
+* Trees etc are now mentioned as blockers in YASC messages.
+* YASC codes work better if killed on a 10+ tile.
+
+Alternate geometries:
+* Clear more walls when generating Wild West in high GP.
+* Better Emerald in Octagon chamfered.
+* Fixed Emerald Mine and Vineyard generating very bad in {n,oo} and binary tiling.
+* Fixed the lack of non-trapdoors in Zebra 435.
+* Better 'pseudohept' tiles in INVERSE tilings.
+* In grid mode, don't try to draw greatwall lines outside of normal geometry pure/bitruncated.
+* Nicer cell boundaries used in Archimedean and irregular tilings.
+* When you save an irregular map using Orb of Safety or map editor (or custom mode), it should now save the irregular map used.
+
+Bug fixes:
+* Fixed dice hints over different heights.
+* Fixed troll nests in Horodisk/Voronoi.
+* Fixed a crash when running away from Clearing in single-land mode.
+* Some values are tracked in savefiles while previously they did not (fatigue, snake oil, crossbow reload time, gun ammo, etc.) (Thanks to jlm)
+
+2024-03-24 20:10 Update 13.0e:
+
+* in Steam, option `-achievement-always` to always display achievements, even if you already got them.
+* rosebushes now show up on the radar in 3D geometries, and they now blink if they are close to going off
+* if you are in water (and have no Fish), you can now see Orbs of Fish and Aether in adjacent water tiles, and also you can move there and pick them up
+* crossbow bolt now ignore rose restrictions on attack
+* migrating to SDL2 caused crashes in shmup, with the game_keys_scroll option, and with the shift-target option -- this should be fixed
+* 'custom' land list mode is now mentioned in the watermark (bottom left of the screen)
+
+2024-03-27 23:47 Update 13.0f:
+
+* new messages on Orb of Phasing, Slaying, and Weakness
+* more accurate messages on dice pushing
+* when loading save, load full mode data including custom lands
+* irregular maps no longer change on every load due to floating point precision
+* [custom lands list] Space Rock monsters now drop treasure only if in Space Rock land
+* ineligible starting land also if land is not in game
+* [custom lands list] do not freeze if no new sealand is available
+* in countHyperstones, two variants of Mirror are counted once
+* specially generated lands (horocycles, Brown Islands) now respect Unlocked and LandIngame rules
+* fixed some more crashes related to SDL2 (e.g., right-click in shmup)

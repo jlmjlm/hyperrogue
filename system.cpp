@@ -80,7 +80,8 @@ EX hookset<bool()> hooks_welcome_message;
 EX void welcomeMessage() {
   if(callhandlers(false, hooks_welcome_message)) return;
   if(nohelp == 1) return;
-  if(embedded_plane) return IPF(welcomeMessage());
+  if(custom_welcome != "") addMessage(custom_welcome);
+  else if(embedded_plane) return IPF(welcomeMessage());
 #if CAP_TOUR
   else if(tour::on) return; // displayed by tour
 #endif
@@ -186,7 +187,7 @@ EX void initgame() {
 
   if(!safety) {
     firstland = specialland;
-    ineligible_starting_land = !landUnlocked(specialland);
+    ineligible_starting_land = !landUnlockedIngame(specialland);
     }
   
   if(firstland == laNone || firstland == laBarrier)
@@ -223,6 +224,8 @@ EX void initgame() {
   clearing::imputed = 0;
   rosephase = 0;
   shmup::count_pauses = 0;
+
+  splitrocks = 0;
 
   if(firstland == laElementalWall) cwt.at->land = randomElementalLand();
   
@@ -444,7 +447,7 @@ EX namespace scores {
 /** \brief the amount of boxes reserved for each hr::score item */
 #define MAXBOX 500
 /** \brief currently used boxes in hr::score */
-#define POSSCORE 412
+#define POSSCORE 414
 /** \brief a struct to keep local score from an earlier game */
 struct score {
   /** \brief version used */
@@ -951,6 +954,8 @@ EX void applyBoxes() {
 
   applyBoxNum(items[itCrossbow]);
   applyBoxNum(items[itRevolver]);
+  applyBoxNum(items[itAsteroid]);
+  applyBoxM(moAsteroid);
 
   if(POSSCORE != boxid) printf("ERROR: %d boxes\n", boxid);
   if(isize(invorb)) { println(hlog, "ERROR: Orbs not taken into account"); exit(1); }
@@ -1044,17 +1049,19 @@ EX void remove_emergency_save() {
 
 scores::score scorebox;
 
+EX bool save_cheats;
+
 EX void saveStats(bool emergency IS(false)) {
   DEBBI(DF_INIT, ("saveStats [", scorefile, "]"));
 
-  if(autocheat) return;
+  if(autocheat && !save_cheats) return;
   if(scorefile == "") return;
   #if CAP_TOUR
-  if(tour::on) return;
+  if(tour::on && !save_cheats) return;
   #endif
-  if(randomPatternsMode) return;
+  if(randomPatternsMode && !save_cheats) return;
   if(daily::on) return;
-  if(peace::on) return;
+  if(peace::on && !save_cheats) return;
   if(experimental) return;
 
   if(!gold() && !racing::on) return;
@@ -1212,8 +1219,13 @@ EX void loadsave() {
       load_modecode_line(s);
       }
     if(buf[0] == 'H' && buf[1] == 'y') {
-      if(fscanf(f, "%s", buf) <= 0) break;
+      if(fscanf(f, "%9999s", buf) <= 0) break;
       sc.ver = buf;
+      if(sc.ver == "CHEATER!" && save_cheats) {
+        fgets(buf, 12000, f);
+        if(fscanf(f, "%9999s", buf) <= 0) break;
+        sc.ver = buf;
+        }
       if(sc.ver[1] != '.') sc.ver = '0' + sc.ver;
       if(verless(sc.ver, "4.4") || sc.ver == "CHEATER!") { ok = false; continue; }
       ok = true;
@@ -1311,6 +1323,7 @@ EX void loadsave() {
 
     }
   fclose(f);
+  // this is the index of Orb of Safety
   if(ok && sc.box[65 + 4 + itOrbSafety - itOrbLightning]) 
     load_last_save();
   }
@@ -1329,7 +1342,12 @@ EX void load_last_save() {
     shstream ss;
     ss.s = meaning[sc.box[MODECODE_BOX]];
     ss.read(ss.vernum);
-    mapstream::load_geometry(ss);
+    if(ss.vernum < 0xAA05)
+      mapstream::load_geometry(ss);
+    else {
+      ss.write_char(0);
+      load_mode_data_with_zero(ss);
+      }
     }
 
   loadBox();
@@ -1760,7 +1778,7 @@ EX void initAll() {
 #if CAP_SAVE
   select_savefile();
   loadsave();
-  if(IRREGULAR) irr::auto_creator();
+  if(IRREGULAR && !irr::base) irr::auto_creator();
 #endif
   start_game();
   restore_all_golems();
@@ -1787,6 +1805,59 @@ EX void finishAll() {
   callhooks(hooks_final_cleanup);
   }
 
+string modheader = "# HyperRogue saved game mode file";
+
+set<string> allowed_params = {
+  "creature_scale", "global_boundary_ratio", "specialland"
+  };
+
+EX void save_mode_to_file(const string& fname) {
+  shstream ss;
+  save_mode_data(ss);
+  string s = as_hexstring(ss.s);
+  fhstream f(fname, "w");
+  if(!f.f) throw hstream_exception();
+  println(f, modheader);
+  println(f, s);
+  if(custom_welcome != "") println(f, "CMSG ", custom_welcome);
+
+  for(auto& ap: allowed_params) {
+    auto& s = params[ap]->saver;
+    if(s->dosave())
+      println(f, ap, "=", s->save());
+    }
+  }
+
+EX void load_mode_from_file(const string& fname) {
+  fhstream f(fname, "r");
+  if(!f.f) throw hstream_exception();
+  string header = scanline(f);
+  if(header[0] != '#') throw hstream_exception();
+  string hex = scanline(f);
+  shstream ss;
+  ss.s = from_hexstring(hex + "00");
+  custom_welcome = "";
+  while(true) {
+    string s = scanline_noblank(f);
+    if(s == "") break;
+    else if(s.substr(0, 5) == "CMSG ") custom_welcome = s.substr(5);
+    else {
+      auto pos = s.find("=");
+      if(pos != string::npos) {
+        string name = s.substr(0, pos);
+        string value = s.substr(pos+1);
+        if(!params.count(name) || !allowed_params.count(name))  {
+          println(hlog, "# parameter unknown: ", name);
+          continue;
+          }
+        params[name]->load_as_animation(value);
+        }
+      }
+    }
+  stop_game();
+  load_mode_data_with_zero(ss);
+  start_game();
+  }
 
 auto cgm = addHook(hooks_clearmemory, 40, [] () {
   pathq.clear();

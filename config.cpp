@@ -1028,6 +1028,8 @@ EX void savecolortable(colortable& ct, string name) {
 
 EX purehookset hooks_configfile;
 
+EX ld mapfontscale = 100;
+
 EX void initConfig() {
   
   // basic config
@@ -1079,6 +1081,13 @@ EX void initConfig() {
   -> editable(25, 400, 10, "font scale", "", 'b')
   -> set_reaction(compute_fsize)
   -> set_sets([] { dialog::bound_low(0); });
+
+  param_f(mapfontscale, "mapfontscale", 100)
+  -> editable(-400, 400, 10, "map font scale",
+      "This affects the size of the characters on the ASCII map. This includes ASCII walls/monster display mode, the minimap, minefield values, and various debug features.", 'B')
+  ->set_extra([] {
+    dialog::get_di().extra_options = [] () { draw_radar(true); };
+    });
 
   param_i(vid.abs_fsize, "fsize", 12)
   -> editable(1, 72, 1, "font size", "", 'b')
@@ -1379,7 +1388,7 @@ EX void initConfig() {
   addsaverenum(variation, "mode-variation", eVariation::bitruncated);
   addsaver(peace::on, "mode-peace");
   addsaver(peace::otherpuzzles, "mode-peace-submode");
-  addsaverenum(specialland, "land for special modes");
+  param_enum(specialland, "specialland", "land for special modes", specialland);
   
   addsaver(viewdists, "expansion mode");
   param_f(backbrightness, "back", "brightness behind sphere");
@@ -1663,6 +1672,18 @@ EX void initConfig() {
   
   param_i(stamplen, "stamplen");
   param_f(anims::period, "animperiod");
+
+  addsaver(use_custom_land_list, "customland_use");
+  for(int i=0; i<landtypes; i++) {
+    custom_land_list[i] = true;
+    custom_land_treasure[i] = 100;
+    custom_land_difficulty[i] = 100;
+    custom_land_wandering[i] = 100;
+    addsaver(custom_land_list[i], "customland" + its(i) + "i", true);
+    addsaver(custom_land_treasure[i], "customland" + its(i) + "t", 100);
+    addsaver(custom_land_difficulty[i], "customland" + its(i) + "d", 100);
+    addsaver(custom_land_wandering[i], "customland" + its(i) + "w", 100);
+    }
   }
 
 EX bool inSpecialMode() {
@@ -2224,6 +2245,7 @@ EX void showGraphConfig() {
     add_edit(vid.fontscale);
   else
     add_edit(vid.abs_fsize);
+  add_edit(mapfontscale);
 
   dialog::addSelItem(XLAT("vector settings"), XLAT("width") + " " + fts(vid.linewidth), 'w');
   dialog::add_action_push(show_vector_settings);
@@ -2933,8 +2955,7 @@ EX void show3D() {
     dialog::addSelItem(XLAT("3D detailed settings"), "", 'D');
     dialog::add_action_push(show3D_height_details);
     
-    if(scale_used())
-      add_edit(vid.creature_scale);
+    add_edit(vid.creature_scale);
     }
   else {
     add_edit(vid.creature_scale);
@@ -3083,7 +3104,9 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     }, "context help", 'H');
 
   param_f(vid.creature_scale, "creature_scale", "3d-creaturescale", 1)
-    ->editable(0, 1, .1, "Creature scale", "", 'C');
+    ->editable(0, 1, .1, "Creature scale", "", 'C')
+    ->set_extra([] { dialog::addInfo(XLAT("changing this during shmup is counted as cheating")); })
+    ->set_reaction([] { if(shmup::on) cheater++; });
   param_f(vid.height_width, "heiwi", "3d-heightwidth", 1.5)
     ->editable(0, 1, .1, "Height to width", "", 'h');
   param_f(vid.yshift, "yshift", "Y shift", 0)
@@ -3308,7 +3331,13 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     "larger values might produce horodisks with errors or crashing into each other.", 'H');
   param_i(randomwalk_size, "randomwalk_size", 10)->editable(2, 100, 1,
     "land size in randomwalk mode",
-    "The average size of a land in randomwalk mode.", 'R');
+    "The average size of a land in randomwalk mode.", 'R')
+  ->set_reaction([] { if(game_active) { stop_game(); start_game(); } });
+  param_i(landscape_div, "landscape_div")->editable(1, 100, 1,
+    "land size in landscape structure",
+    "Each cell gets three coordinates, each of which change smoothly, using the same method as used for the generation of landscapes e.g. in Dragon Chasms. "
+    "Then, we find a cell of the bitruncated cubic honeycomb at these cordinates, and this cell determines which land it is. The bigger the value, the larger the lands.", 'R')
+  ->set_reaction([] { if(game_active) { stop_game(); start_game(); } });
 
   param_f(global_boundary_ratio, "global_boundary_ratio")
   ->editable(0, 5, 0.1, "Width of cell boundaries",

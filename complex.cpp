@@ -215,10 +215,14 @@ EX namespace elec {
     if(c->wall == waSea || c->wall == waGrounded) return ecGrounded;
     if(c->wall == waSandstone || c->wall == waDeadTroll || 
       c->wall == waDeadTroll2 || 
-      among(c->wall, waBigTree, waSmallTree, waExplosiveBarrel, waRed1, waRed2, waRed3) ||
+      c->wall == waExplosiveBarrel ||
       c->wall == waVinePlant ||
       c->wall == waMetal || isAlchAny(c)) 
         return isElectricLand(c) ? ecConductor : ecGrounded; 
+    if(c->wall == waBigTree || c->wall == waSmallTree)
+        return ecGrounded;
+    if(among(c->wall, waRed1, waRed2, waRed3, waRubble, waDeadfloor2))
+        return ecIsolator;
     if(c->wall == waBarrier)
       return ecIsolator;
     if(c->wall == waChasm)
@@ -2126,6 +2130,8 @@ EX namespace heat {
         if(c->monst == moDesertman) hmod += 4 * xrate;
         if(c->monst == moAngryDie) hmod += 4 * xrate;
         if(c->monst == moMonkey) hmod += xrate;
+        if(c->wall == waCharged) hmod += xrate * .25;
+        if(c->wall == waGrounded) hmod -= xrate * .25;
         if(c->wall == waDeadTroll) hmod -= 2 * xrate;
         if(c->wall == waDeadTroll2) hmod -= 1.5 * xrate;
         if(c->wall == waBigStatue) hmod -= .5 * xrate;
@@ -2478,7 +2484,9 @@ EX void livecaves() {
       if(hv > 0 && c->wall == waNone) {
         if(c->item && c->cpdist == 1 && markOrb(itOrbWater)) {
           bool saf = c->item == itOrbSafety;
+          eItem it = c->item;
           collectItem(c, c);
+          if(it && !c->item) animate_item_throw(c, cwt.at, it);
           if(saf) return;
           }
         c->wall = waSea;
@@ -3498,6 +3506,7 @@ EX namespace ca {
       }
     for(int i=0; i<dcs; i++) {
       cell *c = allcells[i];
+      if(c->land != laCA) continue;
       auto last = c->wall;
       c->wall = willlive[i] ? wlive : waNone;
       if(c->wall != last) {

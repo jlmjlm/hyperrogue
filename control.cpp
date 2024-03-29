@@ -872,7 +872,7 @@ EX void mainloopiter() {
     targetclick = pandora_leftclick | pandora_rightclick;
     pandora_leftclick = pandora_rightclick = 0;
     #else
-    targetclick = keystate[SDLK_RSHIFT] | keystate[SDLK_LSHIFT];
+    targetclick = keystate[SDL12(SDLK_RSHIFT, SDL_SCANCODE_RSHIFT)] | keystate[SDL12(SDLK_LSHIFT, SDL_SCANCODE_LSHIFT)];
     #endif
     }
   else {
@@ -957,7 +957,7 @@ EX void mainloopiter() {
     }
   else sc_ticks = ticks;
 
-  if(game_keys_scroll && !shmup::on && (cmode & sm::NORMAL) && !keystate[SDLK_LALT] && !keystate[SDLK_RALT]) {
+  if(game_keys_scroll && !shmup::on && (cmode & sm::NORMAL) && !keystate[SDL12(SDLK_LALT, SDL_SCANCODE_LALT)] && !keystate[SDL12(SDLK_RALT, SDL_SCANCODE_RALT)]) {
     rug::using_rugview urv;
     auto& lastticks = sc_ticks2;
     ld t = (ticks - lastticks) * shiftmul / 1000.;

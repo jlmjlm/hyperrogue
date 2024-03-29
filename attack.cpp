@@ -151,7 +151,7 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
   if(!(flags & (AF_GUN | AF_SWORD | AF_SWORD_INTO | AF_MAGIC | AF_PLAGUE)))
     if(c1 != c2 && !logical_adjacent(c1, m1, c2)) return false;
 
-  if(!(flags & (AF_LANCE | AF_STAB | AF_BACK | AF_APPROACH | AF_GUN | AF_MAGIC | AF_PLAGUE | AF_SIDE)))
+  if(!(flags & (AF_LANCE | AF_STAB | AF_BACK | AF_APPROACH | AF_GUN | AF_MAGIC | AF_PLAGUE | AF_SIDE | AF_BOW)))
     if(c1 && c2 && againstRose(c1, c2) && !ignoresSmell(m1))
       return false;
   
@@ -757,6 +757,11 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
     // a reward for killing him before he shoots!
     c->item = itOrbDragon;
     }
+  if(m == moAsteroid && !shmup::on && c->item == itNone && c->wall != waChasm && c->land == laAsteroids) {
+    c->item = itAsteroid;
+    changes.value_add(splitrocks, 2);
+    }
+
   if(m == moOutlaw && (c->item == itNone || c->item == itRevolver) && c->wall != waChasm)
     c->item = itBounty;
   // note: an Orb appears underwater!
@@ -938,6 +943,14 @@ EX void fightmessage(eMonster victim, eMonster attacker, bool stun, flagtype fla
         addMessage(XLAT("You trick %the1.", victim)); // normal
       else
         addMessage(XLAT("You pierce %the1.", victim)); // normal
+      }
+    else if(items[itOrbSlaying]) {
+      playSound(NULL, "hit-crush"+pick123());
+      addMessage(XLAT("You crush %the1!", victim)); // normal
+      }
+    else if(stun && items[itCurseWeakness]) {
+      playSound(NULL, "click");
+      addMessage(XLAT("You punch %the1.", victim)); // normal
       }
     else if(!peace::on) {
       playSound(NULL, "hit-sword"+pick123());
