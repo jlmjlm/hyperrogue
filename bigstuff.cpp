@@ -703,6 +703,9 @@ EX int coastval(cell *c, eLand base) {
     if(!c->landparam) return UNKNOWN;
     return c->landparam & 255;
     }
+  else if(base == laWestWall) {
+    if(c->land != base) return 0;
+    }
   else {
     if(c->land == laOceanWall || c->land == laCaribbean || c->land == laWhirlpool ||
       c->land == laLivefjord || c->land == laWarpSea || c->land == laKraken || c->land == laDocks || c->land == laBrownian)
@@ -1771,6 +1774,21 @@ EX void build_walls(cell *c, cell *from) {
   
   else if(good_for_wall(c) && isWarpedType(c->land) && hrand(10000) < 3000 && c->land && 
     buildBarrierNowall(c, eLand(c->land ^ laWarpSea ^ laWarpCoast))) { }
+
+  else if(land_structure == lsVineWalls) {
+    int ev = emeraldval(c);
+    if((ev | 11) == 43 && c->bardir == NODIR) {
+      for(int i=0; i<c->type; i++) if(emeraldval(c->cmove(i)) == ev-4) {
+        bool oldleft = true;
+        for(int j=1; j<=3; j++)
+          if(c->modmove(i+j) && c->modmove(i+j)->mpdist < c->mpdist)
+            oldleft = false;
+        buildBarrierStrong(c, i, oldleft, getNewLand(c->land));
+        extendBarrier(c);
+        }
+      }
+    return;
+    }
   
   else if(ls::single()) return;
     
@@ -1792,11 +1810,11 @@ EX void build_walls(cell *c, cell *from) {
       return;
     }
   
-  else if(good_for_wall(c) && c->land == laCrossroads4 && hrand(10000) < 7000 && c->land && !c->master->alt && !tactic::on && !racing::on &&
+  else if(good_for_wall(c) && ls::any_wall() && c->land == laCrossroads4 && hrand(10000) < 7000 && c->land && !c->master->alt && !tactic::on && !racing::on &&
     buildBarrierNowall(c, getNewLand(laCrossroads4))) ;
   
-  else if(good_for_wall(c) && hrand(I10000) < 20 && !generatingEquidistant && !yendor::on && !tactic::on && !racing::on && !isCrossroads(c->land) && 
-    gold() >= R200 && !weirdhyperbolic && !c->master->alt && c->bardir != NOBARRIERS &&
+  else if(good_for_wall(c) && ls::any_wall() && hrand(I10000) < 20 && !generatingEquidistant && !yendor::on && !tactic::on && !racing::on && !isCrossroads(c->land) &&
+    landUnlockedIngame(laCrossroads4) && !weirdhyperbolic && !c->master->alt && c->bardir != NOBARRIERS &&
     !inmirror(c) && !isSealand(c->land) && !isHaunted(c->land) && !isGravityLand(c->land) && 
     (c->land != laRlyeh || rlyehComplete()) &&
     c->land != laTortoise && c->land != laPrairie && c->land && 

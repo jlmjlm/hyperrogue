@@ -575,6 +575,7 @@ EX bool destroyHalfvine(cell *c, eWall newwall IS(waNone), int tval IS(6)) {
   }
 
 EX int coastvalEdge(cell *c) { return coastval(c, laIvoryTower); }
+EX int coastvalWest(cell *c) { return coastval(c, laWestWall); }
 
 EX int gravityLevel(cell *c) {
   if(c->land == laIvoryTower && ls::hv_structure())
@@ -601,10 +602,10 @@ EX int gravityLevelDiff(cell *c, cell *d) {
   if(shmup::on) return 0;
 
   int nid = neighborId(c, d);
-  int id1 = parent_id(c, 1, coastvalEdge) + 1;
+  int id1 = parent_id(c, 1, coastvalWest) + 1;
   int di1 = angledist(c->type, id1, nid);
 
-  int id2 = parent_id(c, -1, coastvalEdge) - 1;
+  int id2 = parent_id(c, -1, coastvalWest) - 1;
   int di2 = angledist(c->type, id2, nid);
   
   if(di1 < di2) return 1;
@@ -708,8 +709,8 @@ EX void checkTide(cell *c) {
         if(!c2) continue;
         if(c2->land == laBarrier || c2->land == laOceanWall) ;
         else if(c2->land == laOcean) 
-          seadist = min(seadist, c2->SEADIST ? c2->SEADIST+1 : 7),
-          landdist = min(landdist, c2->LANDDIST ? c2->LANDDIST+1 : 7);
+          seadist = min(seadist, c2->SEADIST >= 1 ? c2->SEADIST+1 : 7),
+          landdist = min(landdist, c2->LANDDIST >= 1 ? c2->LANDDIST+1 : 7);
         else if(isSealand(c2->land)) seadist = 1;
         else landdist = 1;
         }
@@ -745,18 +746,27 @@ EX void checkTide(cell *c) {
   #endif
   }
 
-EX bool makeEmpty(cell *c) {
+EX bool makeNoMonster(cell *c) {
+  changes.ccell(c);
+  if(isAnyIvy(c->monst)) killMonster(c, moPlayer, 0);
+  else if(c->monst == moPair) {
+    changes.ccell(c->move(c->mondir));
+    if(c->move(c->mondir)->monst == moPair)
+      c->move(c->mondir)->monst = moNone;
+    }
+  else if(isWorm(c->monst)) {
+    if(!items[itOrbDomination]) return false;
+    }
+  else if(isMultitile(c->monst)) {
+    return false;
+    }
+  else c->monst = moNone;
+  return true;
+  }
 
+EX bool makeEmpty(cell *c) {
   if(c->monst != moPrincess) {
-    if(isAnyIvy(c->monst)) killMonster(c, moPlayer, 0);
-    else if(c->monst == moPair) {
-      if(c->move(c->mondir)->monst == moPair)
-        c->move(c->mondir)->monst = moNone;
-      }
-    else if(isWorm(c->monst)) {
-      if(!items[itOrbDomination]) return false;
-      }
-    else c->monst = moNone;
+    if(!makeNoMonster(c)) return false;
     }
 
   if(c->land == laCanvas) ;

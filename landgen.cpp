@@ -288,7 +288,12 @@ EX void gen_baby_tortoise(cell *c) {
 EX int rebalance_treasure(int x, int y, eLand l) {
   int res = ((tactic::on || quotient == 2 || daily::on) ? (y) : inv::on ? min(2*(y),x) : (x));
   if(use_custom_land_list) res = (res * custom_land_treasure[l] + 50) / 100;
+  res *= ls::ls_mul();
   return res;
+  }
+
+EX eItem random_curse() {
+  return pick(itCurseWeakness, itCurseDraining, itCurseWater, itCurseFatigue, itCurseRepulsion, itCurseGluttony);
   }
 
 EX void giantLandSwitch(cell *c, int d, cell *from) {
@@ -936,7 +941,13 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     
     case laTrollheim:
       if(fargen) {
-        if(hrand(50000) < (ls::tame_chaos() ? 1000: ls::any_chaos() ?50:5) && c->wall != waBarrier && celldist(c) >= 7 && !safety && !peace::on) {
+        int freq =
+          land_structure == lsVineWalls ? 10000 :
+          ls::wall_chaos() ? 2500 :
+          ls::tame_chaos() ? 1000 :
+          ls::any_chaos() ? 50 :
+          5;
+        if(hrand(50000) < freq && c->wall != waBarrier && celldist(c) >= 7 && !safety && !peace::on) {
           bool okay = true;
           forCellCM(c2, c) forCellCM(c3, c2) forCellCM(c4, c3) forCellCM(c5, c4) {
             cell *cx = ls::any_chaos() ? c3 : c5;
@@ -1280,7 +1291,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       if(d == 8) {
         bool ok = c->landparam == 0;
         forCellEx(c2, c) if(c2->landparam) ok = false;
-        if(ok && hrand(doCross ?450:15000) < 20 + (2 * items[itMutant] + yendor::hardness()) && !safety) {
+        if(ok && hrand(doCross ?450:15000) < (20 + (2 * items[itMutant] + yendor::hardness())) * ls::ls_mul_big() && !safety) {
           if(!peace::on) c->item = itMutant;
           c->landparam = items[itMutant] + 5 + hrand(11);
           c->wall = waNone;
@@ -2065,7 +2076,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     
     case laHunting:
       if(d == 7 && c->land == laHunting && !racing::on && !safety && !reptilecheat) {
-        if(hrand(1000) < 20) {
+        if(hrand(1000) < 20 * ls::ls_mul_big()) {
           if(openplains(c)) {
             if(hrand(2) == 0) {
               if(!items[itHunting]) {
@@ -2273,11 +2284,11 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           c->monst = moMonkey;
         else if(hrand_monster(80000) < 5 + items[itRuby] + yendor::hardness())
           c->monst = moEagle;
-        else if(pseudohept_r(c) && c != currentmap->gamestart() && hrand_monster(4000) < 300 + items[itRuby] && !c->monst) {
+        else if(pseudohept_r(c) && c != currentmap->gamestart() && hrand_monster(4000) < (300 + items[itRuby]) * ls::ls_mul_big() && !c->monst) {
           int hardchance = items[itRuby] + yendor::hardness();
           if(hardchance > 25) hardchance = 25;
           bool hardivy = hrand(100) < hardchance;
-          if((cgflags & qFRACTAL) ? buildIvy(c, 0, 2) : hat::in() ?  buildIvy(c, 0, 4) : (hardivy ? buildIvy(c, 1, 9) : buildIvy(c, 0, c->type)) && !peace::on)
+          if(land_structure == lsVineWalls ? buildIvy(c, 0, 2) : (cgflags & qFRACTAL) ? buildIvy(c, 0, 2) : hat::in() ?  buildIvy(c, 0, 4) : (hardivy ? buildIvy(c, 1, 9) : buildIvy(c, 0, c->type)) && !peace::on)
             c->item = itRuby;
           }
         }
@@ -2575,7 +2586,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           treasure_rate += variant::features[i].rate_change;
           variant::features[i].build(c);
           }
-        if(hrand(2000 - PT(kills[moVariantWarrior] * 5, 250)) < treasure_rate && !c->wall && !c->monst) 
+        if(hrand(max(100, 2000 - PT(kills[moVariantWarrior] * 5, 250))) < treasure_rate && !c->wall && !c->monst)
           c->item = itVarTreasure;
         }
       if(d == 7 && c->wall == waTrapdoor) {
@@ -2646,7 +2657,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       }
 
     case laCursed: {
-      if(fargen) {
+      if(fargen && c->wall != waRubble) {
         c->wall = waStone;
         for(int i=0; i<3; i++) {
           auto ew = [i] (cell *c1) {
@@ -2682,7 +2693,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
               c->wall = waStone;
             else {
               c->monst = moHexer;
-              c->item = pick(itCurseWeakness, itCurseDraining, itCurseWater, itCurseFatigue, itCurseRepulsion, itCurseGluttony);
+              c->item = random_curse();
               }
             break;
             }
