@@ -54,6 +54,8 @@ EX int truelotus;
 
 EX int asteroids_generated, asteroid_orbs_generated;
 
+EX int arc_target;
+
 EX time_t timerstart, savetime;
 EX bool timerstopped;
 EX int savecount;
@@ -1226,7 +1228,7 @@ EX void loadsave() {
       if(fscanf(f, "%9999s", buf) <= 0) break;
       sc.ver = buf;
       if(sc.ver == "CHEATER!" && save_cheats) {
-        fgets(buf, 12000, f);
+        if(fgets(buf, 12000, f) == NULL) break;
         if(fscanf(f, "%9999s", buf) <= 0) break;
         sc.ver = buf;
         }
@@ -1662,6 +1664,7 @@ EX void start_game() {
   initcells();
   get_expansion().reset();
   init_disk_cells();
+  arc_target = 10;
 
   if(randomPatternsMode) {
     for(int i=0; i<landtypes; i++) {
@@ -1688,6 +1691,7 @@ EX void start_game() {
   texture::config.remap();
 #endif
   subscreens::prepare();
+  //pickLandArc();
   }
 
 // popAllScreens + popAllGames + stop_game + switch_game_mode + start_game

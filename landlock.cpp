@@ -399,6 +399,20 @@ EX eLand pickLandRPM(eLand old) {
     }
   }
 
+EX eLand pickLandArc() {
+  vector<int> *possible = new vector<int>();
+  for (int i = 0; i < landtypes; i++) {
+    if (landUnlockedIngame(eLand(i))) {
+      possible->push_back(i);
+      printf("Adding %s\n", linf[i].name);
+    }
+  }
+  printf("%ld lands to pick from!\n", possible->size());
+  possible->clear();
+  printf("%ld lands to pick from!\n", possible->size());
+  
+}
+
 EX eLand pickluck(eLand l1, eLand l2) {
   int t1 = items[treasureType(l1)];
   int t2 = items[treasureType(l2)];

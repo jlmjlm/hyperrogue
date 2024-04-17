@@ -575,6 +575,7 @@ EX void gainItem(eItem it) {
       addMessage(XLAT("And the Orbs of Yendor await!"));
       }
     }
+    pickLandArc();
   }
 
 EX string itemcounter(int qty) {
