@@ -740,7 +740,7 @@ EX void showChangeMode() {
     mouseovers = XLAT("One wrong move and it is game over!");
   
   multi::cpid = 0;
-  menuitem_land_structure('l');
+  //menuitem_land_structure('l');
 
   dialog::addBoolItem(XLAT("custom land list"), use_custom_land_list, 'L');
   dialog::add_action_push(customize_land_list);

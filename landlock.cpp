@@ -176,6 +176,7 @@ EX string land_structure_name(bool which) {
   }
 
 EX void fix_land_structure_choice() {  
+  land_structure = lsSingle; return;
   if(closed_or_bounded) {
     if(land_structure != lsTotalChaos && land_structure != lsChaosRW)
       land_structure = lsSingle;
