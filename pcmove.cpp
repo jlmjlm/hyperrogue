@@ -275,6 +275,8 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   pcm.d = d; pcm.subdir = subdir;
   auto b = pcm.movepcto();
   global_pushto = pcm.mip.t;
+  if (b && !checkonly && items[treasureType(pcm.mi.t->land)] >= arc_target)
+    activateSafety(pickLandArc());
   return b;
   }
 
