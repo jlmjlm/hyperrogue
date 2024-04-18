@@ -400,15 +400,15 @@ EX eLand pickLandRPM(eLand old) {
   }
 
 EX eLand pickLandArc() {
-  vector<int> *possible = new vector<int>();
-  for (int i = 0; i < landtypes; i++) {
+  vector<eLand> possible;
+  for (int i = 1; i < landtypes; i++) {
     if (landUnlockedIngame(eLand(i))) {
-      possible->push_back(i);
+      possible.push_back(eLand(i));
       printf("Adding %s\n", linf[i].name);
     }
   }
-  printf("%ld lands to pick from!\n", possible->size());
-  return eLand(possible[0][hrand(possible->size())]);
+  printf("%ld lands to pick from!\n", possible.size());
+  return possible[hrand(possible.size())];
 }
 
 EX eLand pickluck(eLand l1, eLand l2) {
