@@ -275,11 +275,12 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   pcm.d = d; pcm.subdir = subdir;
   auto b = pcm.movepcto();
   global_pushto = pcm.mip.t;
-  if (b && !checkonly && items[treasureType(pcm.mi.t->land)] >= arc_target) {
+  int target = arc_target + (pcm.mi.t->land == laHunting);
+  if (b && !checkonly && items[treasureType(pcm.mi.t->land)] >= target) {
     addMessage(XLAT("%1 complete!", linf[pcm.mi.t->land].name));
     eLand next_land = pickLandArc();
     activateSafety(next_land);
-    string num = hr::format("%d", arc_target);
+    string num = hr::format("%d", arc_target + (next_land == laHunting));
     addMessage(XLAT("Collect %1 %2s.", num, iinf[treasureType(next_land)].name));
   }
   return b;
