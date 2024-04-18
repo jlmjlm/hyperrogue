@@ -43,7 +43,7 @@ endif
 
 
 ifeq (${OS},linux)
-  CXXFLAGS_EARLY += -DLINUX -g
+  CXXFLAGS_EARLY += -DLINUX
   EXE_EXTENSION :=
   LDFLAGS_GL := -lGL
   LDFLAGS_GLEW := -lGLEW

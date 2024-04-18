@@ -233,12 +233,13 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
   addMessage(XLAT("You fall into a wormhole!"));
   
   eLand f = firstland;
-  if(l == laTemple) l = laRlyeh;
+  /* if(l == laTemple) l = laRlyeh;
   if(l == laClearing) l = laOvergrown;
   if(l == laWhirlpool) l = laOcean;
   if(l == laCrossroads5) l = laCrossroads2; // could not fit!
   if(l == laCamelot && !ls::single())
     l = laCrossroads;
+  */
   firstland = l;
   safetyland = l;
   safetyseed = hrandpos();
