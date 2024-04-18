@@ -230,7 +230,7 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
   int gph1 = countMyGolemsHP(moPrincess);
   int gph2 = countMyGolemsHP(moPrincessArmed);
   drawSafety();
-  addMessage(XLAT("You fall into a wormhole!"));
+  //addMessage(XLAT("You fall into a wormhole!"));
   
   eLand f = firstland;
   /* if(l == laTemple) l = laRlyeh;

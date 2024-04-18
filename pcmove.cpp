@@ -275,8 +275,12 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   pcm.d = d; pcm.subdir = subdir;
   auto b = pcm.movepcto();
   global_pushto = pcm.mip.t;
-  if (b && !checkonly && items[treasureType(pcm.mi.t->land)] >= arc_target)
-    activateSafety(pickLandArc());
+  if (b && !checkonly && items[treasureType(pcm.mi.t->land)] >= arc_target) {
+    addMessage(XLAT("%1 complete!", linf[pcm.mi.t->land].name));
+    eLand next_land = pickLandArc();
+    activateSafety(next_land);
+    addMessage(XLAT("Collect 10 %1s.", /*arc_target,*/ iinf[treasureType(next_land)].name));
+  }
   return b;
   }
 
