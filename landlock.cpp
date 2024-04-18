@@ -408,9 +408,7 @@ EX eLand pickLandArc() {
     }
   }
   printf("%ld lands to pick from!\n", possible->size());
-  possible->clear();
-  printf("%ld lands to pick from!\n", possible->size());
-  
+  return eLand(possible[0][hrand(possible->size())]);
 }
 
 EX eLand pickluck(eLand l1, eLand l2) {
