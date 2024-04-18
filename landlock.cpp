@@ -402,8 +402,9 @@ EX eLand pickLandRPM(eLand old) {
 EX eLand pickLandArc() {
   vector<eLand> possible;
   for (int i = 1; i < landtypes; i++) {
-    if (landUnlockedIngame(eLand(i))) {
-      possible.push_back(eLand(i));
+    eLand la = eLand(i);
+    if (landUnlockedIngame(la) && !isCrossroads(la) && items[treasureType(la)] < arc_target) {
+      possible.push_back(la);
       printf("Adding %s\n", linf[i].name);
     }
   }
