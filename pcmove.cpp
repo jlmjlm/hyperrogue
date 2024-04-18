@@ -279,7 +279,8 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
     addMessage(XLAT("%1 complete!", linf[pcm.mi.t->land].name));
     eLand next_land = pickLandArc();
     activateSafety(next_land);
-    addMessage(XLAT("Collect 10 %1s.", /*arc_target,*/ iinf[treasureType(next_land)].name));
+    string num = hr::format("%d", arc_target);
+    addMessage(XLAT("Collect %1 %2s.", num, iinf[treasureType(next_land)].name));
   }
   return b;
   }

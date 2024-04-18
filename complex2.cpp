@@ -726,6 +726,7 @@ EX void check_state() {
         forCellEx(c2, pc)
           if(cl.listed(c2))
             q++;
+      /*
       if(q == 1) havewhat |= HF_FAILED_AMBUSH;
       if(q == 2) {
         for(cell *pc: player_positions())
@@ -740,6 +741,7 @@ EX void check_state() {
         addMessage(XLAT("The Hunting Dogs give up."));
         ambushed = false;
         }        
+      */
       }
     }
   
