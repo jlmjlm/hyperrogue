@@ -264,6 +264,10 @@ EX void initgame() {
     items[itOrbWinter] = 30;
     items[itOrbFlash] = 30;
     }
+  if(firstland == laDeadCaves || firstland == laWet)
+    items[itOrbFlash] = max(items[itOrbFlash], 5);
+  if(firstland == laWet)
+    items[itOrbFish] = max(items[itOrbFish], 5);
   
   if(firstland == laCA)
     items[itOrbAether] = 2;
