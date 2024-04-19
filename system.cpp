@@ -1700,6 +1700,7 @@ EX void start_game() {
 #endif
   subscreens::prepare();
   //pickLandArc();
+  safetyland = specialland;
   }
 
 // popAllScreens + popAllGames + stop_game + switch_game_mode + start_game

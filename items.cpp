@@ -210,14 +210,14 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
       }
 
     playSound(c2, "pickup-orb"); // TODO safety
-    if(!dual::state) items[c2->item] = 7;
+    //if(!dual::state) items[c2->item] = 7;
     if(shmup::on || multi::players > 1) {
       shmup::delayed_safety = true;
-      shmup::delayed_safety_land = c2->land;
+      shmup::delayed_safety_land = safetyland;
       c2->item = itNone;
       }
     else 
-      activateSafety(c2->land);
+      activateSafety(safetyland);
     return true;
     }
   else if(c2->item == itBabyTortoise) {

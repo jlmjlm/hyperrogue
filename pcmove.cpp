@@ -276,9 +276,11 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   auto b = pcm.movepcto();
   global_pushto = pcm.mip.t;
   int target = arc_target + (pcm.mi.t->land == laHunting);
-  if (b && !checkonly && items[treasureType(pcm.mi.t->land)] >= target) {
+  if (b && !checkonly && items[treasureType(safetyland)] >= target) {
     addMessage(XLAT("%1 complete!", linf[pcm.mi.t->land].name));
+    playSound(pcm.mi.t, "pickup-orb");
     eLand next_land = pickLandArc();
+    if(!dual::state) items[itOrbSafety] = 7;
     activateSafety(next_land);
     string num = hr::format("%d", arc_target + (next_land == laHunting));
     addMessage(XLAT("Collect %1 %2s.", num, iinf[treasureType(next_land)].name));
