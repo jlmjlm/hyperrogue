@@ -259,6 +259,7 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
   restoreGolems(gp1, moPrincess, gph1); 
   restoreGolems(gp2, moPrincessArmed, gph2); 
   restartGraph();  
+  if (l == laOcean) safetyland = l;
   }
 
 
