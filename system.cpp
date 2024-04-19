@@ -270,6 +270,8 @@ EX void initgame() {
     items[itOrbFlash] = max(items[itOrbFlash], 5);
     items[itOrbFish] = max(items[itOrbFish], 5);
     }
+  if(firstland == laVolcano)
+    items[itOrbWinter] = max(items[itOrbWinter], 5);
   
   if(firstland == laCA)
     items[itOrbAether] = 2;
