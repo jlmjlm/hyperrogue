@@ -241,7 +241,7 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
     l = laCrossroads;
   */
   firstland = l;
-  safetyland = l;
+  safetyland = (l == laOcean) ? laCrossroads : l;
   safetyseed = hrandpos();
   specialland = l;
   clear_euland(firstland);

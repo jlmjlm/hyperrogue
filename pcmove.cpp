@@ -284,10 +284,10 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   pcm.d = d; pcm.subdir = subdir;
   auto b = pcm.movepcto();
   global_pushto = pcm.mip.t;
-  int target = arc_target + (pcm.mi.t->land == laHunting);
+  int target = arc_target + (safetyland == laHunting);
   if (b && !checkonly && items[treasureType(safetyland)] >= target) {
-    addMessage(XLAT("%1 complete!", linf[pcm.mi.t->land].name));
-    if (pcm.mi.t->land == laPower) drainOrbPowers();
+    addMessage(XLAT("%1 complete!", linf[safetyland].name));
+    if (safetyland == laPower) drainOrbPowers();
     playSound(pcm.mi.t, "pickup-orb");
     eLand next_land = pickLandArc();
     if (isElemental(next_land)) next_land = laElementalWall;
