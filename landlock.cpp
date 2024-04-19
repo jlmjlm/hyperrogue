@@ -274,7 +274,7 @@ EX bool landUnlocked(eLand l) {
 EX bool required_for_hyperstones(eItem ttype) {
   if(ttype == itHyperstone)
     return false;
-  if(among(ttype, itHolyGrail, itSavedPrincess, itLotus))
+  if(among(ttype, itHolyGrail, itSavedPrincess))
     return false;
   if(euclid && among(ttype, itBabyTortoise, itHunting))
     return false;
@@ -400,7 +400,7 @@ EX eLand pickLandRPM(eLand old) {
   }
 
 EX eLand pickLandArc() {
-  static const set<eLand> excluded { laHaunted, laCamelot, laPrincessQuest };
+  static const set<eLand> excluded { laCamelot, laPrincessQuest };
   vector<eLand> possible;
   for (int i = 1; i < landtypes; i++) {
     eLand la = eLand(i);
