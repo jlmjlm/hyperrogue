@@ -268,6 +268,15 @@ bool pcmove::vmsg(moveissue mi) {
   return errormsgs && !checkonly;
   }
 
+static void drainOrbPowers() {
+  int n=0;
+  for(int i=0; i<ittypes; i++)
+    if(itemclass(eItem(i)) == IC_ORB && items[i] >= 2 && i != itOrbFire)
+      items[i] = 2, n++;
+  if(n)
+    addMessage(XLAT("As you leave, your powers are drained!"));
+}
+
 EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   checked_move_issue.type = miVALID;
   pcmove pcm;
@@ -278,13 +287,14 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   int target = arc_target + (pcm.mi.t->land == laHunting);
   if (b && !checkonly && items[treasureType(safetyland)] >= target) {
     addMessage(XLAT("%1 complete!", linf[pcm.mi.t->land].name));
+    if (pcm.mi.t->land == laPower) drainOrbPowers();
     playSound(pcm.mi.t, "pickup-orb");
     eLand next_land = pickLandArc();
     if(!dual::state) items[itOrbSafety] = 7;
     activateSafety(next_land);
     string num = hr::format("%d", arc_target + (next_land == laHunting));
     addMessage(XLAT("Collect %1 %2s.", num, iinf[treasureType(next_land)].name));
-  }
+    }
   return b;
   }
 
@@ -1802,14 +1812,8 @@ EX void wouldkill(const char *msg) {
   }
 
 EX void movecost(cell* from, cell *to, int phase) {
-  if(from->land == laPower && to->land != laPower && (phase & 1)) {
-    int n=0;
-    for(int i=0; i<ittypes; i++)
-      if(itemclass(eItem(i)) == IC_ORB && items[i] >= 2 && i != itOrbFire)
-        items[i] = 2, n++;
-    if(n) 
-      addMessage(XLAT("As you leave, your powers are drained!"));
-    }
+  if(from->land == laPower && to->land != laPower && (phase & 1))
+    drainOrbPowers();
   
 #if CAP_TOUR
   if(from->land != to->land && tour::on && (phase & 2)) {

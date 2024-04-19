@@ -274,7 +274,7 @@ EX bool landUnlocked(eLand l) {
 EX bool required_for_hyperstones(eItem ttype) {
   if(ttype == itHyperstone)
     return false;
-  if(among(ttype, itHolyGrail, itSavedPrincess))
+  if(among(ttype, itHolyGrail, itSavedPrincess, itCoast, itLotus, itElemental))
     return false;
   if(euclid && among(ttype, itBabyTortoise, itHunting))
     return false;
@@ -400,7 +400,7 @@ EX eLand pickLandRPM(eLand old) {
   }
 
 EX eLand pickLandArc() {
-  static const set<eLand> excluded { laOcean, laHaunted, laCamelot, laPrincessQuest };
+  static const set<eLand> excluded { laOcean, laHaunted, laCamelot, laPrincessQuest, laElementalWall };
   vector<eLand> possible;
   for (int i = 1; i < landtypes; i++) {
     eLand la = eLand(i);
@@ -411,7 +411,27 @@ EX eLand pickLandArc() {
     }
   }
   printf("%ld lands to pick from!\n", possible.size());
-  return possible[hrand(possible.size())];
+  if (possible.size())
+    return possible[hrand(possible.size())];
+
+  // No unlocked lands!  Go to first locked one.
+  for (int i = 1; i < landtypes; i++) {
+    eLand la = eLand(i);
+    if (isLandIngame(la) && !landUnlockedIngame(la) && !isCrossroads(la) &&
+        items[treasureType(la)] < arc_target && !excluded.count(la))
+      return la;
+  }
+
+  // No locked or unlocked lands.  Get hyperstones.
+  if (items[itHyperstone] < arc_target) {
+    return laCrossroads;
+  }
+
+  // Do everything again, but harder.
+  if (arc_target == 10) arc_target = 25;
+  else arc_target *= 2;
+
+  return pickLandArc();
 }
 
 EX eLand pickluck(eLand l1, eLand l2) {

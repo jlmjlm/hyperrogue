@@ -264,7 +264,7 @@ EX void initgame() {
     items[itOrbWinter] = 30;
     items[itOrbFlash] = 30;
     }
-  if(firstland == laDeadCaves)
+  if(firstland == laDeadCaves || firstland == laClearing)
     items[itOrbFlash] = max(items[itOrbFlash], 5);
   if(firstland == laWet || firstland == laCursed) {
     items[itOrbFlash] = max(items[itOrbFlash], 5);
@@ -457,7 +457,7 @@ EX namespace scores {
 /** \brief the amount of boxes reserved for each hr::score item */
 #define MAXBOX 500
 /** \brief currently used boxes in hr::score */
-#define POSSCORE 418
+#define POSSCORE 419
 /** \brief a struct to keep local score from an earlier game */
 struct score {
   /** \brief version used */
@@ -970,6 +970,7 @@ EX void applyBoxes() {
   applyBoxM(moVampire);
   applyBoxNum(asteroids_generated);
   applyBoxNum(asteroid_orbs_generated);
+  applyBoxNum(arc_target);
 
   if(POSSCORE != boxid) printf("ERROR: %d boxes\n", boxid);
   if(isize(invorb)) { println(hlog, "ERROR: Orbs not taken into account"); exit(1); }
