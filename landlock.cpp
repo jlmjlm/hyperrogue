@@ -400,10 +400,11 @@ EX eLand pickLandRPM(eLand old) {
   }
 
 EX eLand pickLandArc() {
+  static const set<eLand> excluded { laOcean, laHaunted, laCamelot, laPrincessQuest };
   vector<eLand> possible;
   for (int i = 1; i < landtypes; i++) {
     eLand la = eLand(i);
-    if (landUnlockedIngame(la) && !isCrossroads(la) && items[treasureType(la)] < arc_target) {
+    if (landUnlockedIngame(la) && !isCrossroads(la) && items[treasureType(la)] < arc_target && !excluded.count(la)) {
       possible.push_back(la);
       printf("Adding %s\n", linf[i].name);
     }
