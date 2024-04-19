@@ -243,11 +243,15 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
   firstland = l;
   safetyland = l;
   safetyseed = hrandpos();
+  specialland = l;
   clear_euland(firstland);
   safety = make_it_safe; avengers = 0;
   clearMemory();
   initcells();
+  //get_expansion().reset();
+  //init_disk_cells();
   initgame();
+  //restartGraph();
   firstland = f;
   safety = false;
   restoreGolems(gg, moGolem); 

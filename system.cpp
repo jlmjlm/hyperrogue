@@ -171,6 +171,7 @@ EX int easy_specialland;
 /** \brief initialize the game */
 EX void initgame() {
   DEBBI(DF_INIT, ("initGame"));
+  //safety = false;
   callhooks(hooks_initgame); 
   
   if(!safety) fix_land_structure_choice();
@@ -189,6 +190,7 @@ EX void initgame() {
 
   if(!safety) {
     firstland = specialland;
+    //firstland = safetyland;
     ineligible_starting_land = !landUnlockedIngame(specialland);
     }
   
@@ -202,7 +204,7 @@ EX void initgame() {
   if(firstland == laHauntedBorder) firstland = laGraveyard;
   if(firstland == laHaunted && !tactic::on) firstland = laGraveyard;
   if(firstland == laMercuryRiver) firstland = laTerracotta;
-  if(firstland == laMountain && !tactic::on && !ls::hv_structure()) firstland = laJungle;
+  //if(firstland == laMountain && !tactic::on && !ls::hv_structure()) firstland = laJungle;
   if(firstland == laPrincessQuest) firstland = laPalace;
   if(firstland == laMemory) firstland = laIce;
   if(!ls::hv_structure())
@@ -257,7 +259,7 @@ EX void initgame() {
       }
     }
   
-  if(tactic::on && firstland == laPower) {
+  if(/* tactic::on && */ firstland == laPower) {
     items[itOrbSpeed] = 30;
     items[itOrbWinter] = 30;
     items[itOrbFlash] = 30;
