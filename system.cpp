@@ -260,19 +260,15 @@ EX void initgame() {
       }
     }
   
-  if(/* tactic::on && */ firstland == laPower) {
+  if (/* tactic::on && */ firstland == laPower) {
     items[itOrbSpeed] = 30;
     items[itOrbWinter] = 30;
     items[itOrbFlash] = 30;
     }
-  if(firstland == laDeadCaves || firstland == laClearing)
+  if (firstland == laClearing)
     items[itOrbFlash] = max(items[itOrbFlash], 5);
-  if(firstland == laWet || firstland == laCursed) {
-    items[itOrbFlash] = max(items[itOrbFlash], 5);
-    items[itOrbFish] = max(items[itOrbFish], 5);
-    }
-  if(firstland == laVolcano)
-    items[itOrbWinter] = max(items[itOrbWinter], 5);
+  if (among(firstland, laCaves, laDeadCaves, laWet, laCursed, laVolcano))
+    items[itOrbAether] = max(items[itOrbAether], 5);
   
   if(firstland == laCA)
     items[itOrbAether] = 2;
