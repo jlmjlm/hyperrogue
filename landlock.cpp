@@ -410,7 +410,7 @@ EX eLand pickLandArc() {
       printf("Adding %s\n", linf[i].name);
     }
   }
-  printf("%ld lands to pick from!\n", possible.size());
+  printf("%d lands to pick from!\n", static_cast<int>(possible.size()));
   if (possible.size())
     return possible[hrand(possible.size())];
 
