@@ -192,6 +192,7 @@ EX void initgame() {
     firstland = specialland;
     //firstland = safetyland;
     ineligible_starting_land = !landUnlockedIngame(specialland);
+    arc_target = 10;
     }
   
   if(firstland == laNone || firstland == laBarrier)
@@ -1675,7 +1676,7 @@ EX void start_game() {
   initcells();
   get_expansion().reset();
   init_disk_cells();
-  arc_target = 10;
+  //if (arc_target == 0) arc_target = 10;
 
   if(randomPatternsMode) {
     for(int i=0; i<landtypes; i++) {
