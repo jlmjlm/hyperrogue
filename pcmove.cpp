@@ -291,7 +291,7 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
     playSound(pcm.mi.t, "pickup-orb");
     eLand next_land = pickLandArc();
     if (isElemental(next_land)) next_land = laElementalWall;
-    if(!dual::state) items[itOrbSafety] = 7;
+    if (!dual::state) items[itOrbSafety] = 7;
     activateSafety(next_land);
     string num = hr::format("%d", arc_target + (next_land == laHunting));
     addMessage(XLAT("Collect %1 %2s.", num, iinf[treasureType(next_land)].name));
