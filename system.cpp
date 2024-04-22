@@ -55,6 +55,7 @@ EX int truelotus;
 EX int asteroids_generated, asteroid_orbs_generated;
 
 EX int arc_target;
+eLand arc_startland = laNone;
 
 EX time_t timerstart, savetime;
 EX bool timerstopped;
@@ -193,9 +194,9 @@ EX void initgame() {
     }
 
   if(!safety) {
-    firstland = specialland;
-    //firstland = safetyland;
-    ineligible_starting_land = !landUnlockedIngame(specialland);
+    if (arc_startland == laNone) arc_startland = specialland;
+    firstland = arc_startland;
+    ineligible_starting_land = !landUnlockedIngame(arc_startland);
     arc_target = 10;
     }
   
