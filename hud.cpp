@@ -705,9 +705,11 @@ EX void drawStats() {
     if(peace::on) vers += " peace";
     if(racing::on) vers += " racing";
     if(daily::on) vers += " strange";
-    if(bow::weapon && bow::style == bow::cbBull) vers += " b/bull";
-    if(bow::weapon && bow::style == bow::cbGeodesic) vers += " b/geo";
-    if(land_structure != default_land_structure())
+    if(bow::crossbow_mode()) vers += " b/" + bow::bowName[bow::style];
+    //if(bow::weapon && bow::style == bow::cbBull) vers += " b/bull";
+    //if(bow::weapon && bow::style == bow::cbGeodesic) vers += " b/geo";
+    if(arc_target) vers += " arcade";
+    else if(land_structure != default_land_structure())
       vers += " " + land_structure_name(true);
     if(princess::challenge) vers += " Princess";
     if(randomPatternsMode) vers += " RPM";

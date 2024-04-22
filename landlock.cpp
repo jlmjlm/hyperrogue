@@ -400,6 +400,7 @@ EX eLand pickLandRPM(eLand old) {
   }
 
 EX eLand pickLandArc() {
+  printf("arc_target is %d\n", arc_target);
   static const set<eLand> excluded { laCamelot, laPrincessQuest };
   vector<eLand> possible;
   for (int i = 1; i < landtypes; i++) {
