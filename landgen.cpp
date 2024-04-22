@@ -53,6 +53,7 @@ EX bool notDippingForExtra(eItem i, eItem x) {
 
 void buildRedWall(cell *c, int gemchance) {
   if(c->monst) return;
+  if(safety) return;
   int ki = PT(kills[moHexSnake] + kills[moRedTroll], 50);
   c->wall = waRed3;
   if(hrand(100+ki) < gemchance + ki)
