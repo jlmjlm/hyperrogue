@@ -273,9 +273,11 @@ EX void initgame() {
     maxTo(items[itOrbShield], 3);
   if(firstland == laVolcano)
     maxTo(items[itOrbWinter], 5);
-  if(among(firstland, laCaves, laDeadCaves, laWet, laCursed, laAlchemist,
+  if(among(firstland, laDeadCaves, laWet, laCursed, laAlchemist,
                       laCocytus, laVariant, laDragon, laDesert, laHell))
     maxTo(items[itOrbAether], 5);
+  if(firstland == laCaves)
+    maxTo(items[itOrbDigging], 5);
   
   if(firstland == laCA)
     items[itOrbAether] = 2;
