@@ -706,8 +706,6 @@ EX void drawStats() {
     if(racing::on) vers += " racing";
     if(daily::on) vers += " strange";
     if(bow::crossbow_mode()) vers += " b/" + bow::bowName[bow::style];
-    //if(bow::weapon && bow::style == bow::cbBull) vers += " b/bull";
-    //if(bow::weapon && bow::style == bow::cbGeodesic) vers += " b/geo";
     if(arc_target) vers += " arcade";
     else if(land_structure != default_land_structure())
       vers += " " + land_structure_name(true);
