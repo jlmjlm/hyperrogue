@@ -449,6 +449,8 @@ EX void initgame() {
     if(vid.use_smart_range == 2) vid.use_smart_range = 1;
     }
   if(!allowIncreasedSight()) vid.use_smart_range = 0;
+  calcTidalPhase();
+  resetview();
   callhooks(hooks_post_initgame);
   }
 
