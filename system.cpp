@@ -168,6 +168,10 @@ EX bool ineligible_starting_land;
 
 EX int easy_specialland;
 
+static void maxTo(int &var, int val) {
+  var = max(var, val);
+}
+
 /** \brief initialize the game */
 EX void initgame() {
   DEBBI(DF_INIT, ("initGame"));
@@ -261,14 +265,17 @@ EX void initgame() {
     }
   
   if(/* tactic::on && */ firstland == laPower) {
-    items[itOrbSpeed] = 30;
-    items[itOrbWinter] = 30;
-    items[itOrbFlash] = 30;
+    maxTo(items[itOrbSpeed], 10);
+    maxTo(items[itOrbWinter], 10);
+    maxTo(items[itOrbShell], 10);
     }
   if(firstland == laClearing)
-    items[itOrbFlash] = max(items[itOrbFlash], 5);
-  if(among(firstland, laCaves, laDeadCaves, laWet, laCursed, laVolcano))
-    items[itOrbAether] = max(items[itOrbAether], 5);
+    maxTo(items[itOrbShield], 3);
+  if(firstland == laVolcano)
+    maxTo(items[itOrbWinter], 5);
+  if(among(firstland, laCaves, laDeadCaves, laWet, laCursed, laAlchemist,
+                      laCocytus, laVariant, laDragon, laDesert, laHell))
+    maxTo(items[itOrbAether], 5);
   
   if(firstland == laCA)
     items[itOrbAether] = 2;
