@@ -2178,13 +2178,13 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           if(hrand(1000) < 5)
             c->wall = waBoat;
           if(hrand(1000) < PT(50 + kills[moAlbatross]/2, 150) && !peace::on)
-            c->item = itCoast;
+            if(specialland == laOcean) c->item = itCoast;
           if(hrand_monster(15000) < 10 + 2 * items[itCoast] + 2 * yendor::hardness())
             c->monst = moAlbatross;
-          if(items[itCoast] >= treasureForLocal() && hrand(10000) < 5 && !peace::on && !inv::on)
-            c->item = itOrbAir;
-          else placeLocalSpecial(c, 10000, 6, 5);
-          buildPrizeMirror(c, 2000);
+          if(items[itCoast] >= treasureForLocal() && hrand(10000) < 5 && !peace::on && !inv::on) {
+            if(specialland == laOcean) c->item = itOrbAir;
+          } else placeLocalSpecial(c, 10000, 6, 5);
+          if(specialland == laOcean) buildPrizeMirror(c, 2000);
           }
         else if(c->landparam > 25) {
           int amberbonus = items[itCoast] - 50;
@@ -2508,6 +2508,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     case laCrossroads3:
     case laCrossroads4:
     case laCrossroads5:
+      if(specialland != c->land) break;
       if(c->wall == waTower) c->land = laCamelot;
       ONEMPTY {
         if(!BITRUNCATED && c->land == laCrossroads5 && hrand(100) < 60)

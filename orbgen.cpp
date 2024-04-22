@@ -574,6 +574,10 @@ EX void placeCrossroadOrbs(cell *c) {
   if(peace::on) return;
   if(daily::on) return;
   for(auto& oi: orbinfos) {
+    if(!isCrossroads(specialland)) {
+      if(!among(oi.orb, itOrbSafety, itOrbYendor, itOrbLove))
+        continue;
+      }
     if(!(oi.flags & orbgenflags::CROSS10)) continue;
     if(!oi.gchance) continue;
 
@@ -609,6 +613,10 @@ EX void placeCrossroadOrbs(cell *c) {
 EX void placeOceanOrbs(cell *c) {
   if(peace::on) return;
   for(auto& oi: orbinfos) {
+    if(specialland != laOcean) {
+      if(!among(oi.orb, itOrbSafety, itOrbYendor, itOrbLove))
+        continue;
+      }
     if(!(oi.flags & orbgenflags::CROSS10)) continue;
     
     int treas = items[treasureType(oi.l)] * landMultiplier(oi.l);
