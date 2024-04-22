@@ -450,7 +450,6 @@ EX void initgame() {
     }
   if(!allowIncreasedSight()) vid.use_smart_range = 0;
   calcTidalPhase();
-  resetview();
   callhooks(hooks_post_initgame);
   }
 
