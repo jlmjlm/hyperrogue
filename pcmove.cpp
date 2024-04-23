@@ -508,7 +508,6 @@ bool pcmove::after_move() {
 
   checkArcadeTarget();
 
-  puts("after_move() done.");
   DEBB(DF_TURN, ("done"));
   return true;
   }
@@ -1377,7 +1376,6 @@ void pcmove::handle_friendly_ivy() {
   }
 
 bool pcmove::perform_move_or_jump() {
-  puts("perform_move_or_jump() called.");
   lastmovetype = lmMove; lastmove = cwt.at;
   apply_chaos();
 
@@ -1413,7 +1411,6 @@ bool pcmove::perform_move_or_jump() {
   landvisited[cwt.at->land] = true;
   afterplayermoved();
   
-  printf("perform_move_or_jump() calling after_move()\n");
   return after_move();
   }
 
