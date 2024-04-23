@@ -277,18 +277,12 @@ static void drainOrbPowers() {
     addMessage(XLAT("As you leave, your powers are drained!"));
 }
 
-EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
-  checked_move_issue.type = miVALID;
-  pcmove pcm;
-  pcm.checkonly = checkonly;
-  pcm.d = d; pcm.subdir = subdir;
-  auto b = pcm.movepcto();
-  global_pushto = pcm.mip.t;
+void checkArcadeTarget(/*const cell *t*/) {
   int target = arc_target + (safetyland == laHunting || safetyland == laHell);
-  if (b && !checkonly && items[treasureType(safetyland)] >= target) {
+  if (items[treasureType(safetyland)] >= target) {
     addMessage(XLAT("%1 complete!", linf[safetyland].name));
     if (safetyland == laPower) drainOrbPowers();
-    playSound(pcm.mi.t, "pickup-orb");
+    playSound(NULL, "pickup-orb");
     eLand next_land = pickLandArc();
     if (isElemental(next_land)) next_land = laElementalWall;
     if (!dual::state) items[itOrbSafety] = 7;
@@ -297,6 +291,16 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
                     (next_land == laHunting || next_land == laHell));
     addMessage(XLAT("Collect %1 %2s.", num, iinf[treasureType(next_land)].name));
     }
+  }
+
+EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
+  checked_move_issue.type = miVALID;
+  pcmove pcm;
+  pcm.checkonly = checkonly;
+  pcm.d = d; pcm.subdir = subdir;
+  auto b = pcm.movepcto();
+  global_pushto = pcm.mip.t;
+  if (b && !checkonly) checkArcadeTarget(/*pcm.mi.t*/);
   return b;
   }
 
@@ -502,6 +506,7 @@ bool pcmove::after_move() {
     achievement_gain("SEVENMINE");
     }
 
+  puts("after_move() done.");
   DEBB(DF_TURN, ("done"));
   return true;
   }
@@ -1370,6 +1375,7 @@ void pcmove::handle_friendly_ivy() {
   }
 
 bool pcmove::perform_move_or_jump() {
+  puts("perform_move_or_jump() called.");
   lastmovetype = lmMove; lastmove = cwt.at;
   apply_chaos();
 
@@ -1405,6 +1411,7 @@ bool pcmove::perform_move_or_jump() {
   landvisited[cwt.at->land] = true;
   afterplayermoved();
   
+  printf("perform_move_or_jump() calling after_move()\n");
   return after_move();
   }
 
