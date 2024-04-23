@@ -237,17 +237,15 @@ string wheresounds = HYPERPATH "sounds/";
 
 hookset<bool(const string& s, int vol)> hooks_sound;
 
-EX void playSound(cell *c, const string& fname, int vol) {
-  LATE( hr::playSound(c, fname, vol); )
+EX void playSound(cell *unused, const string& fname, int vol) {
+  LATE( hr::playSound(NULL, fname, vol); )
   if(effvolume == 0) return;
   if(callhandlers(false, hooks_sound, fname, vol)) return;
-  // printf("Play sound: %s\n", fname.c_str());
   if(!chunks.count(fname)) {
     string s = wheresounds+fname+".ogg";
     if(memory_issues()) return;
     memory_for_lib();
     chunks[fname] = Mix_LoadWAV(s.c_str());
-    // printf("Loading, as %p\n", chunks[fname]);
     }
   Mix_Chunk *chunk = chunks[fname];
   if(chunk) {

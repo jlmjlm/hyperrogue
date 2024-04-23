@@ -277,7 +277,7 @@ static void drainOrbPowers() {
     addMessage(XLAT("As you leave, your powers are drained!"));
 }
 
-void checkArcadeTarget(/*const cell *t*/) {
+EX void checkArcadeTarget() {
   int target = arc_target + (safetyland == laHunting || safetyland == laHell);
   if (items[treasureType(safetyland)] >= target) {
     addMessage(XLAT("%1 complete!", linf[safetyland].name));
@@ -300,7 +300,7 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   pcm.d = d; pcm.subdir = subdir;
   auto b = pcm.movepcto();
   global_pushto = pcm.mip.t;
-  if (b && !checkonly) checkArcadeTarget(/*pcm.mi.t*/);
+  //if (b && !checkonly) checkArcadeTarget();
   return b;
   }
 
@@ -505,6 +505,8 @@ bool pcmove::after_move() {
     changes.value_set(seenSevenMines, false);
     achievement_gain("SEVENMINE");
     }
+
+  checkArcadeTarget();
 
   puts("after_move() done.");
   DEBB(DF_TURN, ("done"));

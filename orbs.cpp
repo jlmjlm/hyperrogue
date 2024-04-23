@@ -751,6 +751,7 @@ EX bool jumpTo(orbAction a, cell *dest, eItem byWhat, int bonuskill IS(0), eMons
   else
     monstersTurn();
 
+  checkArcadeTarget();
   return true;
   }
 
