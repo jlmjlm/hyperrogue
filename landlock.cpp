@@ -434,7 +434,7 @@ EX eLand pickLandArc() {
   if (arc_target == 10) arc_target = 25;
   else arc_target *= 2;
 
-  return pickLandArc();
+  return arc_startland;
 }
 
 EX eLand pickluck(eLand l1, eLand l2) {

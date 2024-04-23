@@ -54,8 +54,8 @@ EX int truelotus;
 
 EX int asteroids_generated, asteroid_orbs_generated;
 
-EX int arc_target;
-eLand arc_startland = laNone;
+EX int arc_target = 0;
+EX eLand arc_startland = laNone;
 
 EX time_t timerstart, savetime;
 EX bool timerstopped;
