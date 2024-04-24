@@ -401,8 +401,10 @@ EX eLand pickLandRPM(eLand old) {
 
 EX eLand pickLandArc() {
   printf("arc_target is %d\n", arc_target);
-  if (arc_target <= 0)
-    throw hr_exception(format("Invalid arc_target (%d)", arc_target));
+  if (arc_target <= 0) {
+    addMessage(format("Invalid arc_target (%d)", arc_target));
+    arc_target = 10;
+  }
   static const set<eLand> excluded { laCamelot, laPrincessQuest };
   vector<eLand> possible;
   for (int i = 1; i < landtypes; i++) {

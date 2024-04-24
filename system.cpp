@@ -986,7 +986,7 @@ EX void applyBoxes() {
   applyBoxNum(asteroids_generated);
   applyBoxNum(asteroid_orbs_generated);
   applyBoxNum(arc_target);
-  if(arc_target && loading) {
+  if(/* arc_target && */ loading) {
     arc_startland = specialland;
     specialland = safetyland;
     printf("startland %s, current %s\n", linf[arc_startland].name,
