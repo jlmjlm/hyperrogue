@@ -277,6 +277,33 @@ static void drainOrbPowers() {
     addMessage(XLAT("As you leave, your powers are drained!"));
 }
 
+static const string plural(const string tr) {
+  static const set<string> no_plural = { "Gold", "Spice", "Wine", "Silver",
+    "Royal Jelly", "Amber", "Ancient Jewelry", "Spinel", "Snake Oil",
+    "Lapis Lazuli", "Fuel" };
+  static const map<const string, const string> tr_map {
+    { "Ruby", "Rubies" },
+    { "Elixir of Life", "Elixirs of Life" },
+    { "Demon Daisy", "Demon Daisies" },
+    { "Statue of Cthulhu", "Statues of Cthulhu" },
+    { "Onyx", "Onyxes" },
+    { "Bounty", "Bounties" },
+    { "Black Lotus", "Black Lotuses" },
+    { "Dodecahedron", "Dodecahedra" },
+    { "Green Grass", "Green Grasses" },
+    { "Lava Lily", "Lava Lilies" },
+    { "Sea Glass", "Sea Glasses" },
+    { "Tasty Jelly", "Tasty Jellies" },
+    { "Water Lily", "Water Lilies" },
+    { "Crystal Die", "Crystal Dice" },
+  };
+
+  if (no_plural.count(tr)) return tr;
+  auto it = tr_map.find(tr);
+  if (it == tr_map.end()) return tr+"s";
+  else return it->second;
+}
+
 EX bool arc_returning = false;
 EX void checkArcadeTarget() {
   int target = arc_target + (safetyland == laHunting || safetyland == laHell);
@@ -298,9 +325,9 @@ EX void checkArcadeTarget() {
     activateSafety(next_land);
     string num = hr::format("%d", arc_target +
                     (next_land == laHunting || next_land == laHell));
-    addMessage(XLAT("Collect %1 %2s%3.", num,
-                    iinf[treasureType(next_land)].name,
-                    arc_returning ? " and return" : ""));
+    addMessage(XLAT("Collect %1 %2%3.", num,
+                    plural(iinf[treasureType(next_land)].name),
+                    arc_returning ? XLAT(" and return") : ""));
     }
   }
 
