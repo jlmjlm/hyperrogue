@@ -2572,6 +2572,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           if(hrand(500 + depth) < depth - items[itLotus] && !safety && !peace::on && arc_returning)
             c->item = itLotus;
           }
+          if(safety) c->land = laHauntedBorder;
         }
       break;
 
@@ -3123,9 +3124,11 @@ EX void setdist(cell *c, int d, cell *from) {
       buildEquidistant(c);
     }
 
+/*
   if(d <= 7 && (c->land == laGraveyard || c->land == laHauntedBorder) && !in_s2xe()) {
     c->land = (c->landparam >= 1 && c->landparam <= HAUNTED_RADIUS) ? laHauntedBorder : laGraveyard;
     }
+*/
 
   if(d == 8 && isGravityLand(c->land)) {
     buildEquidistant(c);

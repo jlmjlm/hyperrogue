@@ -1660,7 +1660,7 @@ WALL( '$', 0xFD692F, "Crate", waCrateCrate, WF_WALL | WF_PUSHABLE, RESERVED, 0, 
     )
 
 WALL( '.', 0x40FD40, "Target", waCrateTarget, 0 | WF_ON, RESERVED, 0, sgNone,
-    "Push all your crates on targets."
+    "Return here to leave the Haunted Woods."
     )
 
 WALL( '$', 0x40FD40, "Crate on Target", waCrateOnTarget, WF_WALL | WF_PUSHABLE, RESERVED, 0, sgNone, 
