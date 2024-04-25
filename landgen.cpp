@@ -1208,7 +1208,8 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         if(hrand_monster(20000) < (items[itLavaLily] + yendor::hardness()))
           c->monst = moSalamander,
           c->hitpoints = 3;
-        if(hrand(8000) < PT(100 + 2 * kills[moLavaWolf], 200) && notDippingFor(itLavaLily))
+        if (hrand(8000) < PT(100 + 2 * kills[moLavaWolf], 200) &&
+            notDippingFor(itLavaLily) && !safety)
           c->item = itLavaLily;
         else placeLocalSpecial(c, 1000, 2, 10);
         // prize orbs get a bonus, because most of them are not allowed anyway
