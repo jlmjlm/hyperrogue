@@ -278,12 +278,17 @@ static void drainOrbPowers() {
 }
 
 EX void checkArcadeTarget() {
+  static bool returning = false;
   int target = arc_target + (safetyland == laHunting || safetyland == laHell);
   if (items[treasureType(safetyland)] >= target) {
-    if (safetyland == laHaunted && cwt.at->wall != waCrateTarget)
+    if ((safetyland == laHaunted && cwt.at->wall != waCrateTarget) ||
+        (safetyland == laDungeon && cwt.at->land == laDungeon)) {
+      if (returning) {
+        addMessage(XLAT("Done collecting.  Return whence you came!"));
+        returning = false;
+        }
       return;
-    if (safetyland == laDungeon && cwt.at->land == laDungeon)
-      return;
+      }
     addMessage(XLAT("%1 complete!", linf[safetyland].name));
     if (safetyland == laPower) drainOrbPowers();
     playSound(NULL, "pickup-orb");
@@ -293,10 +298,10 @@ EX void checkArcadeTarget() {
     activateSafety(next_land);
     string num = hr::format("%d", arc_target +
                     (next_land == laHunting || next_land == laHell));
+    returning = (next_land == laHaunted || next_land == laDungeon);
     addMessage(XLAT("Collect %1 %2s%3.", num,
                     iinf[treasureType(next_land)].name,
-                    (next_land == laHaunted || next_land == laDungeon) ?
-                        " and return" : ""));
+                    returning ? " and return" : ""));
     }
   }
 
