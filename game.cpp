@@ -278,6 +278,7 @@ EX void activateSafety(eLand l) {
     }
   if(l == laHaunted)
     cwt.at->wall = waCrateTarget;
+  arc_returning = (l == laHaunted || l == laDungeon);
   }
 
 EX void placeGolem(cell *on, cell *moveto, eMonster m) {

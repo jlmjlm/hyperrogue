@@ -277,15 +277,15 @@ static void drainOrbPowers() {
     addMessage(XLAT("As you leave, your powers are drained!"));
 }
 
+EX bool arc_returning = false;
 EX void checkArcadeTarget() {
-  static bool returning = false;
   int target = arc_target + (safetyland == laHunting || safetyland == laHell);
   if (items[treasureType(safetyland)] >= target) {
     if ((safetyland == laHaunted && cwt.at->wall != waCrateTarget) ||
         (safetyland == laDungeon && cwt.at->land == laDungeon)) {
-      if (returning) {
+      if (arc_returning) {
         addMessage(XLAT("Done collecting.  Return whence you came!"));
-        returning = false;
+        arc_returning = false;
         }
       return;
       }
@@ -298,10 +298,9 @@ EX void checkArcadeTarget() {
     activateSafety(next_land);
     string num = hr::format("%d", arc_target +
                     (next_land == laHunting || next_land == laHell));
-    returning = (next_land == laHaunted || next_land == laDungeon);
     addMessage(XLAT("Collect %1 %2s%3.", num,
                     iinf[treasureType(next_land)].name,
-                    returning ? " and return" : ""));
+                    arc_returning ? " and return" : ""));
     }
   }
 

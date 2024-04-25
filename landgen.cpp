@@ -2564,7 +2564,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
             
           int depth = getHauntedDepth(c);
           
-          if(hrand(500 + depth) < depth - items[itLotus] && !safety && !peace::on)
+          if(hrand(500 + depth) < depth - items[itLotus] && !safety && !peace::on && arc_returning)
             c->item = itLotus;
           }
         }
