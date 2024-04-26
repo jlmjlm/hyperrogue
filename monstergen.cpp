@@ -18,7 +18,7 @@ EX int buildIvy(cell *c, int children, int minleaf) {
   c->mondir = NODIR;
   c->monst = moIvyRoot;
   c->monmirror = nonorientable && hrand(2);
-  
+
   cell *child = NULL;
 
   int leaf = 0;
@@ -26,15 +26,15 @@ EX int buildIvy(cell *c, int children, int minleaf) {
   for(int i=0; i<c->type; i++) {
     createMov(c, i);
     if(passable(c->move(i), c, 0) && c->move(i)->land == c->land) {
-      if(children && !child) 
+      if(children && !child)
         child = c->move(i), leafchild = buildIvy(c->move(i), children-1, 5);
-      else 
+      else
         c->move(i)->monst = (leaf++ || peace::on) ? moIvyWait : moIvyHead,
         c->move(i)->mondir = c->c.spin(i),
         c->move(i)->monmirror = c->monmirror;
       }
     }
-  
+
   leaf += leafchild;
   if(leaf < minleaf) {
     if(child) killIvy(child, moNone);
@@ -66,7 +66,7 @@ EX void chasmifyEarth(cell *c) {
     cell *c2 = c->move(j);
     if(c2 && c2->mpdist > c->mpdist && (
       c2->wall == waDeadfloor || c2->wall == waDeadwall ||
-      c2->wall == waDeadfloor2)) 
+      c2->wall == waDeadfloor2))
       d2[q++] = j;
     }
   if(!q) printf("no further move!\n");
@@ -116,11 +116,11 @@ EX eMonster crossroadsMonster() {
     moYeti, moGoblin, moRanger, moOrangeDog, moRunDog, moMonkey, moZombie,
     moDesertman, moCultist
     };
-  
+
   if(hrand(10) == 0) return weak[hrand(9)];
 
   static eMonster m[24] = {
-    moWorm, moTentacle, 
+    moWorm, moTentacle,
     moTroll, moEagle,
     moLesser, moGreater, moPyroCultist, moGhost,
     moFireFairy, moIvyRoot, moHedge,
@@ -170,7 +170,7 @@ EX bool redtrolls(cell *c) {
   return cd < 32; */
   }
 
-EX eMonster pickTroll(cell *c) { 
+EX eMonster pickTroll(cell *c) {
   if(redtrolls(c))
     return pick(moTroll,moDarkTroll,moRedTroll);
   else
@@ -193,16 +193,16 @@ EX int reptilemax() {
   }
 
 bool wchance_in(eLand l, int a, int of, int reduction = 0) {
-  of *= 10; 
+  of *= 10;
   a += yendor::hardness() + 1;
-  if(isCrossroads(cwt.at->land)) 
+  if(isCrossroads(cwt.at->land))
     a+= items[itHyperstone] * 10;
 
 //if(cwt.at->land == laWhirlwind && !nowhirl) a += items[itWindstone] * 3;
 
   for(int i=0; i<ittypes; i++) if(itemclass(eItem(i)) == IC_TREASURE)
     a = max(a, (items[i]-R10) / 10);
-  
+
   a -= reduction;
   if(a < 0) return false;
 
@@ -259,7 +259,7 @@ EX bool canReachPlayer(cell *cf, eMonster m) {
   for(int i=0; i<isize(cl.lst) && i < 10000; i++) {
     cell *c = cl.lst[i];
     bool found = false;
-    
+
     auto test = [&] (cell *c2) {
       if(cl.listed(c2)) return;
       if(!passable_for(m, c2, c, P_MONSTER | P_ONPLAYER | P_CHAIN)) return;
@@ -271,7 +271,7 @@ EX bool canReachPlayer(cell *cf, eMonster m) {
       if(frog_power(m)) forCellEx(c3, c2) test(c3);
       test(c2);
       }
-    
+
     if(found) return true;
     }
   return false;
@@ -338,7 +338,7 @@ EX void wandering() {
   int ghostcount = getGhostcount();
   if(cwt.at->land == laCA) ghostcount = 0;
   bool genturn = hrand(100) < 30;
-  
+
   if(closed_or_bounded && specialland == laClearing)
     clearing::new_root();
 
@@ -353,11 +353,11 @@ EX void wandering() {
     int maxdist = 0;
     for(int i=0; i<isize(dcal); i++) if(valid(dcal[i])) if(dcal[i]->cpdist > maxdist) maxdist = dcal[i]->cpdist;
     for(int i=0; i<isize(dcal); i++) if(valid(dcal[i])) if(dcal[i]->cpdist >= maxdist-1) { first7 = i; break; }
-    
+
     if(hrand(5) == 0) {
       // spawn treasure
       }
-    
+
     if(smallbounded && hrand(100) < 2) {
       auto& ac = currentmap->allcells();
       cell *c1 = ac[hrand(isize(ac))];
@@ -367,7 +367,7 @@ EX void wandering() {
         }
       }
     }
-  
+
   int iter = 0;
   while(first7 < isize(dcal)) {
     iter++; if(iter > 1000) break;
@@ -377,14 +377,14 @@ EX void wandering() {
     if(isPlayerOn(c)) break;
 
     auto wchance = [c] (int a, int of, int reduction = 0) { return wchance_in(c->land, a, of, reduction); };
-    
+
     if(specialland == laStorms) {
       // place the sandstone wall completely randomly (but not on the player)
       vector<cell*>& ac = currentmap->allcells();
       c = ac[hrand(isize(ac))];
       if(isPlayerOn(c)) continue;
       }
-    
+
     if(smallbounded_generation && !c->item && hrand(5) == 0 && c->land != laHalloween) {
       if(passable(c, NULL, 0) || specialland == laKraken) {
         if(c->land != laGraveyard && !in_lovasz() && !haveOrbPower() && specialland != laHell) for(int it=0; it<1000 && !c->item; it++)
@@ -397,7 +397,7 @@ EX void wandering() {
         if(c->item == itFulgurite) {
           c->item = itNone, c->wall = waSandstone;
           }
-        if(c->item == itBarrow) 
+        if(c->item == itBarrow)
           c->landparam = 2 + hrand(2),
           c->wall = waBarrowDig;
         }
@@ -413,7 +413,7 @@ EX void wandering() {
         seepcount--;
         continue;
         }
-      
+
       if(ghostcount && !c->monst && !inmirror(c)) {
         c->monst = moGhost;
         playSeenSound(c);
@@ -421,7 +421,7 @@ EX void wandering() {
         continue;
         }
       }
-    
+
     if(c->land == laWet && !smallbounded && wetslime >= 25 && !c->monst && hrand(100) <= wetslime-25) {
       static bool angry = false;
       if(!angry) { angry = true; addMessage("You seem to have really pissed off the water spirits!"); }
@@ -429,22 +429,22 @@ EX void wandering() {
       playSeenSound(c);
       continue;
       }
-        
+
     else if((c->wall == waCavewall || c->wall == waDeadwall) && !c->monst &&
       wchance(items[treasureType(c->land)], 10) && canReachPlayer(c, moSlime)) {
       c->monst = moSeep;
       playSeenSound(c);
       continue;
       }
-    
+
     else if(smallbounded && c->wall == waVinePlant && !c->monst && wchance(items[treasureType(c->land)], 10) && canReachPlayer(c, moSlime)) {
       c->monst = moVineSpirit;
       playSeenSound(c);
       continue;
       }
-    
+
     else if(c->land == laOcean && cwt.at->land == laOcean && cwt.at->landparam > 25 && c->landparam > 25 && !tactic::on && !yendor::on && hrand(100) < 2) {
-      c->monst = moPirate; c->wall = waBoat; c->item = itOrbSafety; 
+      c->monst = moPirate; c->wall = waBoat; c->item = itOrbSafety;
       continue;
       }
 
@@ -459,13 +459,13 @@ EX void wandering() {
       playSeenSound(c);
       continue;
       }
-    
+
     #if CAP_COMPLEX2
     else if(c->land == laBrownian && wchance(items[itBrownian], 75)) {
       c->monst = moAcidBird;
       continue;
       }
-    
+
     else if(c->land == laVariant && wchance(items[itVarTreasure], 50)) {
       int i = hrand(21);
       if(getBits(c) & (1>>i)) {
@@ -484,7 +484,7 @@ EX void wandering() {
         continue;
         }
       }
-    
+
     else if(c->land == laWet && among(c->wall, waDeepWater, waShallow) && !c->monst && wchance(items[itWet], 15) && canReachPlayer(c, moShark)) {
         c->monst = hrand(100) < 10 ? moRusalka : moPike;
         playSeenSound(c);
@@ -528,13 +528,13 @@ EX void wandering() {
         }
       if(!peace::on && c->land == laKraken && ((sphere && !hrand(15)) || wchance(items[itKraken], 240)) && !kraken_pseudohept(c)) {
         bool b = sphere || canReachPlayer(c, moKrakenH);
-        if(sphere_narcm && WDIM == 2 && (haveKraken() || !items[itOrbFish])) { 
-          c->monst = moViking; c->wall = waBoat; c->item = itOrbFish; 
+        if(sphere_narcm && WDIM == 2 && (haveKraken() || !items[itOrbFish])) {
+          c->monst = moViking; c->wall = waBoat; c->item = itOrbFish;
           playSeenSound(c);
           continue;
-          }        
+          }
         if(b) forCellEx(c2, c) if((sphere || c2->cpdist > gamerange()) && !kraken_pseudohept(c2)) {
-          forCellCM(c3, c2) if(c3->monst || c3->wall != waSea) 
+          forCellCM(c3, c2) if(c3->monst || c3->wall != waSea)
             goto notfound;
           c2->monst = moKrakenH;
           c2->stuntime = 0;
@@ -554,14 +554,14 @@ EX void wandering() {
       notfound:
       break;
       }
-    
+
     else if(smallbounded && c->land == laPower && !c->monst) {
       if(wchance(items[itPower], 10))
         c->monst = eMonster(moWitch + hrand(NUMWITCH));
       }
-    
+
     else if(c->monst || c->pathdist == PINFD) break;
-    
+
     else if(c->land == laAsteroids && splitrocks && canReachPlayer(c, moYeti)) {
       c->monst = moAsteroid;
       splitrocks--;
@@ -577,9 +577,9 @@ EX void wandering() {
         if(!qty) gen = 1;
         }
       if(gen) c->monst = moAsteroid, c->hitpoints = 4;
-      if(gen == 2) 
+      if(gen == 2)
         asteroids_generated++;
-      
+
       if(items[itAsteroid] > (asteroid_orbs_generated+2) * (asteroid_orbs_generated+3) && !c->item) {
         c->item = pick(itOrbThorns, itOrbSide1, itOrbSide2, itOrbSide3, itOrbShield, itOrbLife);
         asteroid_orbs_generated++;
@@ -587,8 +587,8 @@ EX void wandering() {
 
       break;
       }
-    
-    else if(c->land == laClearing && wchance(items[itMutant2], 150) && items[itMutant2] >= 15 && !c->monst && c->type == 7) 
+
+    else if(c->land == laClearing && wchance(items[itMutant2], 150) && items[itMutant2] >= 15 && !c->monst && c->type == 7)
       c->monst = moRedFox;
 
     else if(c->land == laDual && wchance(items[itGlowCrystal], 40)) {
@@ -596,7 +596,7 @@ EX void wandering() {
       playSeenSound(c);
       }
 
-    else if(hrand(50) < statuecount * statuecount) 
+    else if(hrand(50) < statuecount * statuecount)
       c->monst = moCultistLeader;
 
     else if(c->land == laIce && wchance(items[itDiamond], 10))
@@ -649,7 +649,7 @@ EX void wandering() {
       mirrorspirits--;
       c->monst = moMirrorSpirit;
       }
-    
+
     else if(c->land == laMirror && wchance(items[itShard], 120))
       c->monst = moNarciss;
 
@@ -681,25 +681,25 @@ EX void wandering() {
       c->hitpoints = 3;
       }
 
-    else if(c->land == laWhirlwind && wchance(items[itWindstone], 30)) 
+    else if(c->land == laWhirlwind && wchance(items[itWindstone], 30))
       c->monst = hrand(5) ? moWindCrow : moAirElemental;
 
-    else if(c->land == laWildWest && wchance(items[itBounty], 30)) 
+    else if(c->land == laWildWest && wchance(items[itBounty], 30))
       c->monst = moOutlaw;
 
-    else if(c->land == laEndorian && c->wall == waTrunk && wchance(items[itApple], 30)) 
+    else if(c->land == laEndorian && c->wall == waTrunk && wchance(items[itApple], 30))
       c->monst = moResearcher;
 
-    else if(c->land == laOvergrown && wchance(items[itMutant], 50)) 
+    else if(c->land == laOvergrown && wchance(items[itMutant], 50))
       c->monst = moForestTroll;
 
-    else if(c->land == laTerracotta && wchance(items[itTerra], 40)) 
+    else if(c->land == laTerracotta && wchance(items[itTerra], 40))
       c->monst = moJiangshi;
 
-    else if(c->land == laTerracotta && wandering_jiangshi && genturn) 
+    else if(c->land == laTerracotta && wandering_jiangshi && genturn)
       wandering_jiangshi--, c->monst = moJiangshi;
 
-    else if(c->land == laSwitch && wchance(items[itSwitch], 80)) 
+    else if(c->land == laSwitch && wchance(items[itSwitch], 80))
       c->monst = active_switch();
 
     else if(c->land == laRuins && wchance(items[itRuins], 80)) {
@@ -715,43 +715,43 @@ EX void wandering() {
       c->monst = moPirate;
 
     else if(c->land == laRlyeh && wchance(items[itStatue], 15))
-      c->monst = hrand(3) ? moPyroCultist : 
+      c->monst = hrand(3) ? moPyroCultist :
         (hrand(40) < items[itStatue]-25) ? moCultistLeader : moCultist;
 
     else if(c->land == laGraveyard && wchance(items[itBone], 15))
       c->monst = hrand(5) ? moGhost : moNecromancer;
-      
+
     else if(isHaunted(c->land) && wchance(items[itLotus], 15))
       c->monst = moGhost;
-      
+
     else if(c->land == laDryForest && wchance(items[itFernFlower], 5))
       c->monst = hrand(5) ? moHedge : moFireFairy;
-      
+
     else if(c->land == laCocytus && wchance(items[itSapphire], 45))
       c->monst = moCrystalSage;
-      
+
     else if(c->land == laAlchemist && wchance(items[itElixir], 3) && canReachPlayer(c, moSlime) && c->item == itNone)
       c->monst = moSlime; // ?
-    
+
     else if(isElemental(c->land) && wchance(items[itElemental], 20) && !peace::on)
       c->monst = elementalOf(c->land);
-    
+
     else if(c->land == laIvoryTower && wchance(items[itIvory], 20))
       c->monst = cellEdgeUnstable(c) ? moGargoyle : moFamiliar;
-    
+
     else if(c->land == laMinefield && wchance(items[itBombEgg]-20, 400))
       c->monst = moBomberbird;
-    
+
     else if(c->land == laEmerald && wchance(items[itEmerald], 5))
       c->monst = emerald_monster();
-    
+
     else if(c->land == laWineyard && wchance(items[itWine], 10)) {
       c->monst = moVineBeast;
       }
-    
+
     else if(c->land == laPalace && wchance(items[itPalace], 50)) {
       if(princess::dist(c) < OUT_OF_PRISON && !princess::challenge) break;
-      
+
       if(items[itPalace] >= 15 && hrand(100) < 10)
         c->monst = moVizier;
       else if(items[itPalace] >= 5 && hrand(100) < 50)
@@ -759,30 +759,30 @@ EX void wandering() {
       else c->monst = moPalace;
       c->hitpoints = palaceHP();
       }
-    
+
     else if(c->land == laLivefjord && wchance(items[itFjord], 10)) {
       c->monst = sphere ? pick(moViking, moWaterElemental, moFjordTroll) : moViking;
       }
-    
+
     else if(c->land == laOcean && wchance(items[itCoast], 100)) {
       c->monst = moAlbatross;
       }
-    
+
     else if(c->land == laPower && wchance(items[itPower], 10)) {
       c->monst = eMonster(moWitch + hrand(NUMWITCH));
       }
-    
+
     else if(c->land == laCamelot && hrand(30) == 0 && (euclid || c->master->alt) && celldistAltRelative(c) < 0)
       c->monst = camelot_monster();
-    
+
     else if(isCrossroads(c->land) && isCrossroads(specialland) &&
             items[itHyperstone] && wchance(items[itHyperstone], 20)) {
       c->monst = wanderingCrossroadsMonster();
       c->hitpoints = palaceHP();
       }
 
-
     else break;
+
 
     playSeenSound(c);
     if(c->monst == moWorm || c->monst == moHexSnake) c->mondir = NODIR;
@@ -823,7 +823,7 @@ EX void generateSnake(cell *c, int i, int snakecolor) {
       }
     }
   if(isize(rocksnake) < ROCKSNAKELENGTH/2 && BITRUNCATED) {
-    for(int i=0; i<isize(rocksnake); i++) 
+    for(int i=0; i<isize(rocksnake); i++)
       rocksnake[i]->monst = moNone;
     }
   else c2->mondir = NODIR;

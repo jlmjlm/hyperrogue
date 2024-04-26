@@ -709,7 +709,7 @@ EX int distance;
 EX bool ambushed;
 
 EX void check_state() {
-  if(havewhat & HF_HUNTER) {
+  if((havewhat & HF_HUNTER)) {
     manual_celllister cl;
     for(cell *c: dcal) {
       if(c->monst == moHunterDog) {
@@ -717,8 +717,9 @@ EX void check_state() {
           distance = c->cpdist;
         mark(c, cl);
         }
-      if(c->monst == moHunterGuard && c->cpdist <= 4) 
+      if(c->monst == moHunterGuard && c->cpdist <= 4) {
         mark(c, cl);
+        }
       }
     if(items[itHunting] > 5 && items[itHunting] <= 22) {
       int q = 0;
@@ -737,7 +738,7 @@ EX void check_state() {
               if(cl.listed(c3))
                 havewhat |= HF_FAILED_AMBUSH;
         }
-      if(havewhat & HF_FAILED_AMBUSH && ambushed) {
+      if((havewhat & HF_FAILED_AMBUSH) && ambushed) {
         addMessage(XLAT("The Hunting Dogs give up."));
         ambushed = false;
         }        

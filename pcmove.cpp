@@ -306,7 +306,7 @@ static const string plural(const string tr) {
 
 EX bool arc_returning = false;
 EX void checkArcadeTarget() {
-  int target = arc_target + (safetyland == laHunting || safetyland == laHell);
+  int target = arc_target + (safetyland == laHell);
   if (items[treasureType(safetyland)] >= target) {
     if ((safetyland == laHaunted && cwt.at->wall != waCrateTarget) ||
         (safetyland == laDungeon && cwt.at->land == laDungeon)) {
@@ -317,6 +317,8 @@ EX void checkArcadeTarget() {
       if (!arc_returning) bfs(true);
       return;
       }
+    if (safetyland == laHunting && (havewhat & HF_HUNTER))
+      return;  // The final ambush is still active.
     addMessage(XLAT("%1 complete!", linf[safetyland].name));
     if (safetyland == laPower) drainOrbPowers();
     playSound(NULL, "pickup-orb");
@@ -324,11 +326,11 @@ EX void checkArcadeTarget() {
     if (isElemental(next_land)) next_land = laElementalWall;
     if (!dual::state) items[itOrbSafety] = 7;
     activateSafety(next_land);
-    string num = hr::format("%d", arc_target +
-                    (next_land == laHunting || next_land == laHell));
+    string num = hr::format("%d", arc_target + (next_land == laHell));
     addMessage(XLAT("Collect %1 %2%3.", num,
                     plural(iinf[treasureType(next_land)].name),
-                    arc_returning ? XLAT(" and return") : ""));
+                    arc_returning ? XLAT(" and return") :
+                        (next_land == laHunting) ? XLAT(" and survive") : ""));
     }
   }
 
