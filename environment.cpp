@@ -303,8 +303,8 @@ EX vector<int> bfs_reachedfrom;
 
 /** calculate cpdist, 'have' flags, and do general fixings */
 EX void bfs(bool kill_treasure IS(false)) {
-  if (kill_treasure)
-    addMessage("Killing treasure!");
+  //if (kill_treasure)
+  //  addMessage("Killing treasure!");
 
   yendor::onpath();
 
@@ -377,18 +377,20 @@ EX void bfs(bool kill_treasure IS(false)) {
         c2->cpdist = d+1;
 
         // remove treasures
+        /*
         if (kill_treasure) {
           if (c2->item)
             addMessage("kill_treasure: removal candidate " + string(iinf[c2->item].name) + format(" %llx&%x=%llx", iinf[c2->item].flags, IC_TREASURE,
                  iinf[c2->item].flags & IC_TREASURE));
           }
+        */
         if((!peace::on && c2->item && c2->cpdist == distlimit &&
               itemclass(c2->item) == IC_TREASURE &&
               !among(c2->item, itBrownian, itBabyTortoise) && WDIM != 3 &&
               (items[c2->item] >= (ls::any_chaos()?10:20) + currentLocalTreasure ||
                   getGhostcount() >= 2))
             || (kill_treasure && (iinf[c2->item].itemclass == IC_TREASURE))) {
-          addMessage(string(iinf[c2->item].name) + " := no item");
+          //addMessage(string(iinf[c2->item].name) + " := no item");
           c2->item = itNone;
           if(c2->land == laMinefield) { c2->landparam &= ~3; }
           }

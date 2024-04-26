@@ -313,8 +313,8 @@ EX void checkArcadeTarget() {
       if (arc_returning) {
         addMessage(XLAT("Done collecting.  Return whence you came!"));
         arc_returning = false;
-        bfs(true);
         }
+      if (!arc_returning) bfs(true);
       return;
       }
     addMessage(XLAT("%1 complete!", linf[safetyland].name));
