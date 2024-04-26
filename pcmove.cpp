@@ -325,8 +325,7 @@ EX void checkArcadeTarget() {
     if (isElemental(next_land)) next_land = laElementalWall;
     if (!dual::state) items[itOrbSafety] = 7;
     activateSafety(next_land);
-    string num = hr::format("%d", arc_target);
-    addMessage(XLAT("Collect %1 %2%3.", num,
+    addMessage(XLAT("Collect %1 %2%3.", format("%d", arc_target),
                     plural(iinf[treasureType(next_land)].name),
                     arc_returning ? XLAT(" and return") :
                         (next_land == laHunting) ? XLAT(" and survive") : ""));
