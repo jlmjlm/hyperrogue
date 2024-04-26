@@ -547,6 +547,7 @@ EX void placeLocalOrbs(cell *c) {
       ch = 0;
     int tc = items[treasureType(oi.l)] * landMultiplier(oi.l);
     int tcmin = treasureForLocal();
+    if(l == laHell || l == laGraveyard) tcmin--;
     if(inv::on) {
       if(!(oi.flags & orbgenflags::OSM_LOCAL25))
         tc = 0;
