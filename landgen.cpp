@@ -2210,7 +2210,11 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       break;
 
     case laMinefield:
-      if(d == 7 && closed_or_bounded) c->wall = waMineUnknown;
+      if(/* c->wall || */ c->item && false)
+        addMessage(
+            format("cell already contains wall %d (%s) and item %d (%s)!",
+                   c->wall, winf[c->wall].name, c->item, iinf[c->item].name));
+      if(d == 7 && mine::in_minesweeper()) c->wall = waMineUnknown;
       else if(d == 7) {
         c->wall = waMineUnknown;
         // 250: rare mines
@@ -2229,22 +2233,31 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         int tfreq =
           reptilecheat ? 0 :
           treas < 10 ? 50 + 5 * treas :
-          treas < 25 ? 100  + (treas-10) * 2:
+          treas < 25 ? 100 + (treas-10) * 2:
           treas < 50 ? 150 + (treas-25) :
           175;
 
-        if(hrand(5000) < minefreq)
+        bool nsafety = true; // !safety;
+        if(hrand(5000) < minefreq) {
           c->wall = waMineMine;
-        else if(hrand(5000) < tfreq && !safety && !peace::on) {
+          if (c->item)
+            throw hr_exception(string("giantLandSwitch: Placing mine under ") +
+                               iinf[c->item].name);
+        } else if(hrand(5000) < tfreq && nsafety && !peace::on) {
           c->item = itBombEgg;
           c->landparam = items[itBombEgg] + 5 + hrand(11);
+          if (c->wall == waMineMine) throw hr_exception("Placing egg on mine!");
           }
         else if(hrand_monster(5000) < treas - 20 + yendor::hardness() && !safety && !reptilecheat)
           c->monst = moBomberbird;
         else placeLocalSpecial(c, 500);
         }
-      if(d == 3 && safety && (c->wall == waMineMine || c->wall == waMineUnknown) && !closed_or_bounded)
+      if(d == 3 && safety && (c->wall == waMineMine || c->wall == waMineUnknown) && !mine::in_minesweeper())
         c->wall = waMineOpen;
+      if (c->item && c->wall == waMineMine)
+        throw hr_exception(format("cell contains mine and item %d (%s)",
+                                  c->item, iinf[c->item].name));
+        //c->wall = waNone;
       break;
 
     case laWhirlpool:

@@ -2318,7 +2318,7 @@ EX void moreBigStuff(cell *c) {
 EX void generate_mines() {
   vector<cell*> candidates;
 
-  if(closed_or_bounded)
+  if(mine::in_minesweeper())
     for(cell *c: currentmap->allcells())
       setdist(c, 7, nullptr);
   
@@ -2328,7 +2328,12 @@ EX void generate_mines() {
   hrandom_shuffle(candidates);
   bounded_mine_max = isize(candidates);
   bounded_mine_quantity = int(bounded_mine_max * bounded_mine_percentage + 0.5);
-  for(int i=0; i<bounded_mine_quantity; i++) candidates[i]->wall = waMineMine;
+  for(int i=0; i<bounded_mine_quantity; i++) {
+    candidates[i]->wall = waMineMine;
+    if (candidates[i]->item)
+      throw hr_exception(string("generate_mines: Placing mine under ") +
+                         iinf[candidates[i]->item].name);
+    }
   }
 
 EX vector<eLand> currentlands;

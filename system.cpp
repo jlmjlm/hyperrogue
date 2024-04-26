@@ -381,7 +381,7 @@ EX void initgame() {
     makeEmpty(cwt.at);
     }
 
-  if(specialland == laMinefield && closed_or_bounded) {
+  if(specialland == laMinefield && mine::in_minesweeper()) {
     bfs();
     generate_mines();
     }

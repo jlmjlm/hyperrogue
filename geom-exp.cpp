@@ -1085,7 +1085,7 @@ EX void showEuclideanMenu() {
   menuitem_land_structure('l');
   add_edit(req_disksize);
   
-  if(specialland == laMinefield && closed_or_bounded) {
+  if(specialland == laMinefield && mine::in_minesweeper()) {
     dialog::addSelItem(XLAT("number of mines"), its(bounded_mine_quantity), 'm');
     dialog::add_action([] {
       dialog::editNumber(bounded_mine_quantity, 0, bounded_mine_max, 1, (bounded_mine_max+5)/10, 
