@@ -775,17 +775,18 @@ EX void wandering() {
     else if(c->land == laCamelot && hrand(30) == 0 && (euclid || c->master->alt) && celldistAltRelative(c) < 0)
       c->monst = camelot_monster();
     
-    else if(isCrossroads(c->land) && items[itHyperstone] && wchance(items[itHyperstone], 20)) {
+    else if(isCrossroads(c->land) && isCrossroads(specialland) &&
+            items[itHyperstone] && wchance(items[itHyperstone], 20)) {
       c->monst = wanderingCrossroadsMonster();
       c->hitpoints = palaceHP();
       }
-    
+
 
     else break;
-      
+
     playSeenSound(c);
     if(c->monst == moWorm || c->monst == moHexSnake) c->mondir = NODIR;
-      
+
     // laMotion -> no respawn!
     }
   }
