@@ -1131,7 +1131,8 @@ bool pcmove::after_escape() {
 bool pcmove::move_if_okay() {
   cell*& c2 = mi.t;
   #if CAP_COMPLEX2
-  if(mine::marked_mine(c2) && !mine::safe() && !checkonly && warningprotection(XLAT("Are you sure you want to step there?")))
+  if(mine::marked_mine(c2) && !mine::safe() && !checkonly &&
+      warningprotection(XLAT("Are you sure you want to step there?")))
     return false;
   #endif
 
