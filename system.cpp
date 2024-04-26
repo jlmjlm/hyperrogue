@@ -282,6 +282,8 @@ EX void initgame() {
     maxTo(items[itOrbAether], 5);
   if(firstland == laCaves)
     maxTo(items[itOrbDigging], 5);
+  if(firstland == laLivefjord)
+    maxTo(items[itOrbWater], 5);
 
   if(firstland == laCA)
     items[itOrbAether] = 2;
