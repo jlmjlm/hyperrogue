@@ -295,9 +295,11 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   if(isCrossroads(l) || l == laOcean)
     return olrHub;
 
-  if(it == itOrbSlaying && !among(l, 
-    laMirror, laHell, laEmerald, laDryForest, laCamelot, laPalace, laStorms, laRose, laTortoise, laBurial, laDungeon, laReptile, 
-    laPrairie, laBull, laVolcano, laTerracotta, laRuins, laVariant, laEclectic, laBrownian, laCursed))
+  if(it == itOrbSlaying &&
+       !among(l, laMirror, laHell, laEmerald, laDryForest, laCamelot, laPalace,
+                 laStorms, laRose, laTortoise, laBurial, laDungeon, laReptile,
+                 laPrairie, laBull, laVolcano, laTerracotta, laRuins, laVariant,
+                 laEclectic, laBrownian, laCursed))
     return olrUseless;
   
   if(l == laCocytus)
@@ -367,18 +369,20 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   if(it == itOrbSword && l == laBurial)
     return olrAlways;
     
-  if(it == itOrbFish && !among(l, laOcean, laLivefjord, laWhirlpool, laCamelot, laTortoise, laWarpCoast, laWarpSea, laCocytus, laBrownian, laVariant, laWet, laFrog))
+  if(it == itOrbFish && !among(l, laOcean, laLivefjord, laWhirlpool, laCamelot,
+                laTortoise, laWarpCoast, laWarpSea, laCocytus, laBrownian,
+                laVariant, laWet, laFrog))
     return olrUseless;
 
   if(it == itOrbDomination && l != laOcean && l != laRedRock && l != laDesert &&
-    l != laRlyeh && l != laDragon)
+        l != laRlyeh && l != laDragon)
     return olrUseless;
 
   if(it == itOrbIllusion) return olrPrize3;
   
   if(l == laTortoise)
     if(it == itOrbFlash || it == itOrbLightning || it == itOrbFreedom ||
-      it == itOrbPsi || it == itOrbFriend || it == itOrbDragon)
+          it == itOrbPsi || it == itOrbFriend || it == itOrbDragon)
       return olrForbidden;
     
   if(l == laEndorian)
@@ -483,7 +487,8 @@ EX void placePrizeOrb(cell *c) {
     if(olr != olrPrize25 && olr != olrPrize3) continue;
     int treas = items[treasureType(oi.l)];
     if(olr == olrPrize3) treas *= 10;
-    if(olr == olrPrize25 || olr == olrPrize3 || olr == olrGuest || olr == olrMonster || olr == olrAlways) {
+    if(olr == olrPrize25 || olr == olrPrize3 || olr == olrGuest ||
+         olr == olrMonster || olr == olrAlways) {
       if(treas < mintreas) continue;
       } 
     else continue;
@@ -537,7 +542,8 @@ EX void placeLocalOrbs(cell *c) {
       continue;
     if(!oi.lchance) continue;
     int ch = hrand(oi.lchance);
-    if(ch == 1 && ls::any_chaos() && hrand(2) == 0 && items[treasureType(oi.l)] * landMultiplier(oi.l) >= (11+hrand(15)))
+    if(ch == 1 && ls::any_chaos() && hrand(2) == 0 &&
+         items[treasureType(oi.l)] * landMultiplier(oi.l) >= (11+hrand(15)))
       ch = 0;
     int tc = items[treasureType(oi.l)] * landMultiplier(oi.l);
     int tcmin = treasureForLocal();
