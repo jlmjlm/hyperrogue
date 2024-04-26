@@ -97,12 +97,13 @@ bool out_ruin(cell *c) {
     cd &= 31;
     return cd >= 16;
     }
+  else {
   #if CAP_FIELD
-  else
     return windmap::at(c) >= 128;
   #else
-  else return false;
+    return false;
   #endif
+    }
   }
 
 EX eMonster genRuinMonster(cell *c) {
@@ -2608,9 +2609,9 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         forCellEx(c1, c) if(among(c1->wall, waDeepWater, waBoat))
           c->wall = waNone;
         }
-      break;
       #endif
       }
+      break;
 
     case laEclectic: {
 
@@ -3016,7 +3017,8 @@ EX void setdist(cell *c, int d, cell *from) {
 
   // this fixes the following problem:
   // http://steamcommunity.com/app/342610/discussions/0/1470840994970724215/
-  if(!generatingEquidistant && from && d >= 7 && c->land && !bt::in() && !arcm::in() && !cryst && WDIM == 2 && hyperbolic && !arb::in()) {
+  if(!generatingEquidistant && from && d >= 7 && c->land && !bt::in() &&
+      !arcm::in() && !cryst && WDIM == 2 && hyperbolic && !arb::in()) {
     int cdi = celldist(c);
     if(celldist(from) > cdi) {
       forCellCM(c2, c) if(celldist(c2) < cdi) {
@@ -3058,7 +3060,9 @@ EX void setdist(cell *c, int d, cell *from) {
       }
     #endif
 
-    if(!c->land && from && (WDIM == 3 || !among(from->land, laBarrier, laElementalWall, laHauntedWall, laOceanWall)) && !quotient && ls::chaoticity() < 60 && land_structure != lsLandscape) {
+    if(!c->land && from &&
+         (WDIM == 3 || !among(from->land, laBarrier, laElementalWall, laHauntedWall, laOceanWall)) &&
+         !quotient && ls::chaoticity() < 60 && land_structure != lsLandscape) {
       if(!hasbardir(c)) setland(c, from->land);
       }
     if(c->land == laTemple && ls::any_order()) setland(c, laRlyeh);
@@ -3072,15 +3076,15 @@ EX void setdist(cell *c, int d, cell *from) {
       }
 
 #if CAP_DAILY
-    if(!daily::on) {
+  #define UNLESS_DAILY_ON(x) if(!daily::on) { x }
 #else
-    if(true) {
+  #define UNLESS_DAILY_ON(x) x
 #endif
-      set_land_for_geometry(c);
-      }
-    }
 
-  if(d == BARLEV && c->land == laCanvas)  {
+  UNLESS_DAILY_ON( set_land_for_geometry(c); )
+  }
+
+  if(d == BARLEV && c->land == laCanvas) {
     color_t col = patterns::generateCanvas(c);
     c->landparam = col;
     c->wall = canvas_default_wall;
@@ -3114,7 +3118,6 @@ EX void setdist(cell *c, int d, cell *from) {
       }
 
     if(d < BARLEV) for(int i=0; i<c->type; i++) {
-
       setdist(createMov(c, i), d+1, c);
       if(buggyGeneration) return;
       }
