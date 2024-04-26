@@ -55,7 +55,7 @@ EX vector<cell*> worms, ivies, ghosts, golems, hexsnakes;
 vector<pair<cell*, eMonster>> tempmonsters;
 
 /** The position of the first cell in dcal in distance 7. New wandering monsters can be generated in dcal[first7..]. */
-EX int first7;           
+EX int first7;
 
 /** the list of all nearby cells, according to cpdist */
 EX vector<cell*> dcal;
@@ -126,7 +126,7 @@ EX void onpath_mark(cell *c) {
 
 EX void clear_pathdata() {
   for(auto c: pathq) c.at->pathdist = PINFD;
-  pathq.clear(); 
+  pathq.clear();
   pathqm.clear();
   }
 
@@ -143,7 +143,7 @@ EX void compute_graphical_distance() {
   int sr = get_sightrange_ambush();
   if(pd_from == c1 && pd_range == sr) return;
   clear_pathdata();
-  
+
   pathlock++;
   pd_from = c1;
   pd_range = sr;
@@ -202,34 +202,34 @@ void princess_ai::run() {
   }
 
 EX void computePathdist(eMonster param, bool include_allies IS(true)) {
-  
+
   for(cell *c: targets)
     if(include_allies || isPlayerOn(c))
       onpath_random_dir(c, isPlayerOn(c) ? 0 : 1);
 
   int qtarg = isize(targets);
-  
+
   int limit = gamerange();
-  
+
   int qb = 0;
 
   bool princess = isPrincess(param);
   princess_ai gd;
   princess_retry:
-  
+
   for(; qb < isize(pathq); qb++) {
     cellwalker cw = pathq[qb];
     /* The opposite cell will be added to the queue first, which helps the AI. */
     cw += cw.at->type/2;
     cell*& c = cw.at;
     if(c->monst && !isBug(c) && !(isFriendly(c) && !c->stuntime)) {
-      pathqm.push_back(c); 
+      pathqm.push_back(c);
       continue; // no paths going through monsters
       }
     if(isMounted(c) && !isPlayerOn(c)) {
       // don't treat the Worm you are riding as passable
-      pathqm.push_back(c); 
-      continue; 
+      pathqm.push_back(c);
+      continue;
       }
     if(c->cpdist > limit && !(c->land == laTrollheim && turncount < c->landparam) && c->wall != waThumperOn) continue;
     int d = c->pathdist;
@@ -238,7 +238,7 @@ EX void computePathdist(eMonster param, bool include_allies IS(true)) {
       cellwalker cw1 = cw + j;
       // printf("i=%d cd=%d\n", i, c->move(i)->cpdist);
       cell *c2 = cw1.peek();
-      
+
       flagtype f = P_MONSTER;
       if(param == moTameBomberbird) f |= P_FLYING | P_ISFRIEND;
       if(isPrincess(param)) f |= P_ISFRIEND | P_USEBOAT | P_CHAIN;
@@ -248,7 +248,7 @@ EX void computePathdist(eMonster param, bool include_allies IS(true)) {
       else pass = pass && passable(c, c2, f);
 
       if(pass) {
-        
+
         if(qb >= qtarg) {
           if(param == moTortoise && nogoSlow(c, c2)) continue;
           if(param == moIvyRoot  && strictlyAgainstGravity(c, c2, false, MF_IVY)) continue;
@@ -259,14 +259,14 @@ EX void computePathdist(eMonster param, bool include_allies IS(true)) {
 
         onpath_with_dir(cw1 + wstep, d+1);
         }
-      
+
       else if(c2 && c2->wall == waClosedGate && princess)
         gd.visit_gate(c2);
       }
     }
-  
+
   if(princess) {
-    gd.run(); 
+    gd.run();
     if(qb < isize(pathq)) goto princess_retry;
     }
   }
@@ -302,17 +302,19 @@ pathdata::pathdata(eMonster m, bool include_allies IS(true)) {
 EX vector<int> bfs_reachedfrom;
 
 /** calculate cpdist, 'have' flags, and do general fixings */
-EX void bfs() {
+EX void bfs(bool kill_treasure IS(false)) {
+  if (kill_treasure)
+    addMessage("Killing treasure!");
 
   yendor::onpath();
-  
+
   int dcs = isize(dcal);
   for(int i=0; i<dcs; i++) dcal[i]->cpdist = INFD;
-  worms.clear(); ivies.clear(); ghosts.clear(); golems.clear(); 
-  tempmonsters.clear(); targets.clear(); 
+  worms.clear(); ivies.clear(); ghosts.clear(); golems.clear();
+  tempmonsters.clear(); targets.clear();
   statuecount = 0;
   wetslime = 0;
-  hexsnakes.clear(); 
+  hexsnakes.clear();
 
   hadwhat = havewhat;
   havewhat = 0; jiangshi_on_screen = 0;
@@ -325,7 +327,7 @@ EX void bfs() {
   elec::haveelec = false;
   airmap.clear();
   if(!(hadwhat & HF_ROSE)) rosemap.clear();
-  
+
   dcal.clear(); bfs_reachedfrom.clear();
 
   for(cell *c: player_positions()) {
@@ -335,7 +337,7 @@ EX void bfs() {
     bfs_reachedfrom.push_back(hrand(c->type));
     if(!invismove) targets.push_back(c);
     }
-  
+
   int distlimit = gamerange();
 
   for(cell *c: player_positions()) {
@@ -343,60 +345,69 @@ EX void bfs() {
     if(c->monst == moTentacle || c->monst == moTentaclewait || c->monst == moTentacleEscaping)
       worms.push_back(c);
     }
-  
+
   int qb = 0;
   first7 = 0;
   while(true) {
     if(qb == isize(dcal)) break;
     int i, fd = bfs_reachedfrom[qb] + dcal[qb]->type/2;
     cell *c = dcal[qb++];
-    
+
     int d = c->cpdist;
-    
+
     if(WDIM == 2 && d == distlimit) { first7 = qb; break; }
 
     for(int j=0; j<c->type; j++) if(i = (fd+j) % c->type, c->move(i)) {
       // printf("i=%d cd=%d\n", i, c->move(i)->cpdist);
       cell *c2 = c->move(i);
       if(!c2) continue;
-      
+
       if(isWarpedType(c2->land)) havewhat |= HF_WARP;
       if(c2->land == laMirror) havewhat |= HF_MIRROR;
-      
+
       if((c->wall == waBoat || c->wall == waSea) &&
         (c2->wall == waSulphur || c2->wall == waSulphurC))
         c2->wall = waSea;
-      
+
       if(c2 && signed(c2->cpdist) > d+1) {
         if(WDIM == 3 && !gmatrix.count(c2)) {
           if(!first7) first7 = qb;
           continue;
           }
         c2->cpdist = d+1;
-        
+
         // remove treasures
-        if(!peace::on && c2->item && c2->cpdist == distlimit && itemclass(c2->item) == IC_TREASURE &&
-          !among(c2->item, itBrownian, itBabyTortoise) && WDIM != 3 &&
-          (items[c2->item] >= (ls::any_chaos()?10:20) + currentLocalTreasure || getGhostcount() >= 2)) {
-            c2->item = itNone;
-            if(c2->land == laMinefield) { c2->landparam &= ~3; }
-            }
-            
+        if (kill_treasure) {
+          if (c2->item)
+            addMessage("kill_treasure: removal candidate " + string(iinf[c2->item].name) + format(" %llx&%x=%llx", iinf[c2->item].flags, IC_TREASURE,
+                 iinf[c2->item].flags & IC_TREASURE));
+          }
+        if((!peace::on && c2->item && c2->cpdist == distlimit &&
+              itemclass(c2->item) == IC_TREASURE &&
+              !among(c2->item, itBrownian, itBabyTortoise) && WDIM != 3 &&
+              (items[c2->item] >= (ls::any_chaos()?10:20) + currentLocalTreasure ||
+                  getGhostcount() >= 2))
+            || (kill_treasure && (iinf[c2->item].itemclass == IC_TREASURE))) {
+          addMessage(string(iinf[c2->item].name) + " := no item");
+          c2->item = itNone;
+          if(c2->land == laMinefield) { c2->landparam &= ~3; }
+          }
+
         if(c2->item == itBombEgg && c2->cpdist == distlimit && items[itBombEgg] >= c2->landparam) {
           c2->item = itNone;
           c2->landparam |= 2;
           c2->landparam &= ~1;
           if(!c2->monst) c2->monst = moBomberbird, c2->stuntime = 0;
           }
-        
+
         if(c2->item == itBarrow && c2->cpdist == distlimit && c2->wall != waBarrowDig) {
           c2->item = itNone;
           }
-        
+
         if(c2->item == itLotus && c2->cpdist == distlimit && items[itLotus] >= getHauntedDepth(c2)) {
           c2->item = itNone;
           }
-        
+
         if(c2->item == itMutant2 && timerghost) {
           bool rotten = true;
           for(int i=0; i<c2->type; i++)
@@ -404,47 +415,47 @@ EX void bfs() {
               rotten = false;
           if(rotten) c2->item = itNone;
           }
-        
-        if(c2->item == itDragon && (shmup::on ? shmup::curtime-c2->landparam>300000 : 
+
+        if(c2->item == itDragon && (shmup::on ? shmup::curtime-c2->landparam>300000 :
           turncount-c2->landparam > 500))
           c2->item = itNone;
-      
+
         if(c2->item == itTrollEgg && c2->cpdist == distlimit && !shmup::on && c2->landparam && turncount-c2->landparam > 650)
           c2->item = itNone;
 
         if(c2->item == itWest && c2->cpdist == distlimit && items[itWest] >= c2->landparam + 4)
           c2->item = itNone;
-      
+
         if(c2->item == itMutant && c2->cpdist == distlimit && items[itMutant] >= c2->landparam) {
           c2->item = itNone;
           }
-      
+
         if(c2->item == itIvory && c2->cpdist == distlimit && items[itIvory] >= c2->landparam) {
           c2->item = itNone;
           }
-        
+
         if(c2->item == itAmethyst && c2->cpdist == distlimit && items[itAmethyst] >= -celldistAlt(c2)/5) {
           c2->item = itNone;
           }
-        
+
         if(!keepLightning) c2->ligon = 0;
         dcal.push_back(c2);
         bfs_reachedfrom.push_back(c->c.spin(i));
-        
-        if(c2->wall == waBigStatue && c2->land != laTemple) 
+
+        if(c2->wall == waBigStatue && c2->land != laTemple)
           statuecount++;
-        
+
         if(isAlch(c2->wall) && c2->land == laWet)
           wetslime++;
-          
+
         if(cellHalfvine(c2) && isWarped(c2)) {
           addMessage(XLAT("%The1 is destroyed!", c2->wall));
           destroyHalfvine(c2);
           }
-        
+
         if(c2->wall == waCharged) elec::havecharge = true;
         if(isElectricLand(c2)) elec::haveelec = true;
-        
+
         if(c2->land == laWhirlpool) havewhat |= HF_WHIRLPOOL;
         if(c2->land == laWhirlwind) havewhat |= HF_WHIRLWIND;
         if(c2->land == laWestWall) havewhat |= HF_WESTWALL;
@@ -452,11 +463,11 @@ EX void bfs() {
         if(c2->land == laClearing) havewhat |= HF_MUTANT;
 
         if(c2->wall == waRose) havewhat |= HF_ROSE;
-        
+
         if((hadwhat & HF_ROSE) && (rosemap[c2] & 3)) havewhat |= HF_ROSE;
-        
+
         if(c2->monst) {
-          if(isHaunted(c2->land) && 
+          if(isHaunted(c2->land) &&
             c2->monst != moGhost && c2->monst != moZombie && c2->monst != moNecromancer)
             fail_survivalist();
           if(c2->monst == moHexSnake || c2->monst == moHexSnakeTail) {
@@ -472,7 +483,7 @@ EX void bfs() {
           else if(c2->monst == moDragonHead || c2->monst == moDragonTail) {
             havewhat |= HF_DRAGON;
             }
-          else if(c2->monst == moWitchSpeed) 
+          else if(c2->monst == moWitchSpeed)
             havewhat |= HF_FAST;
           else if(c2->monst == moMutant)
             havewhat |= HF_MUTANT;
@@ -523,11 +534,11 @@ EX void bfs() {
           else if(among(c2->monst, moAnimatedDie, moAngryDie)) havewhat |= HF_DICE;
           else if(c2->monst == moMonk) havewhat |= HF_MONK;
           else if(c2->monst == moShark || c2->monst == moCShark || among(c2->monst, moRusalka, moPike)) havewhat |= HF_SHARK;
-          else if(c2->monst == moAirElemental) 
+          else if(c2->monst == moAirElemental)
             havewhat |= HF_AIR, airmap.push_back(make_pair(c2,0));
           }
         // pheromones!
-        if(c2->land == laHive && c2->landparam >= 50 && c2->wall != waWaxWall) 
+        if(c2->land == laHive && c2->landparam >= 50 && c2->wall != waWaxWall)
           havewhat |= HF_BUG;
         if(c2->wall == waThumperOn)
           targets.push_back(c2);
@@ -541,23 +552,23 @@ EX void bfs() {
       if(c2->wall == waThumperOn) {
         targets.push_back(c2);
         }
-  
+
   for(auto& t: tempmonsters) t.first->monst = t.second;
-  
+
   buildAirmap();
   }
 
 EX void moverefresh(bool turn IS(true)) {
   int dcs = isize(dcal);
-  
+
   for(int i=0; i<dcs; i++) {
     cell *c = dcal[i];
-    
+
     if(c->monst == moWolfMoved) c->monst = moWolf;
     if(c->monst == moIvyNext) {
       c->monst = moIvyHead; ivynext(c);
       }
-    if(c->monst == moIvyDead) 
+    if(c->monst == moIvyDead)
       removeIvy(c);
     refreshFriend(c);
     if(c->monst == moSlimeNextTurn) c->monst = moSlime;
@@ -565,7 +576,7 @@ EX void moverefresh(bool turn IS(true)) {
     else if(c->monst == moLesserM) c->monst = moLesser;
     if(c->monst == moGreater && !cellEdgeUnstable(c)) c->monst = moGreaterM;
     else if(c->monst == moGreaterM) c->monst = moGreater;
-    
+
     if(c->monst == moPair && !c->stuntime) {
       cell *c2 = c->move(c->mondir);
       if(c2->monst != moPair) continue;
@@ -577,7 +588,7 @@ EX void moverefresh(bool turn IS(true)) {
           }
         }
       }
-    
+
     if(c->stuntime && !isMutantIvy(c)) {
       if(turn) c->stuntime--;
       int breathrange = sphere ? 2 : 3;
@@ -614,11 +625,11 @@ EX void moverefresh(bool turn IS(true)) {
           }
         }
       }
-    
+
     // tortoises who have found their children no longer move
     if(saved_tortoise_on(c))
       c->stuntime = 2;
-    
+
     if(c->monst == moReptile) {
       if(c->wall == waChasm || cellUnstable(c)) {
         c->monst = moNone;
@@ -640,18 +651,18 @@ EX void moverefresh(bool turn IS(true)) {
         playSound(c, "click");
         }
       }
-        
+
     if(c->wall == waChasm) {
       if(c->land != laWhirlwind) c->item = itNone;
-      
+
       if(c->monst && !survivesChasm(c->monst) && c->monst != moReptile && normal_gravity_at(c)) {
-        if(c->monst != moRunDog && c->land == laMotion) 
+        if(c->monst != moRunDog && c->land == laMotion)
           achievement_gain_once("FALLDEATH1");
         addMessage(XLAT("%The1 falls!", c->monst));
         fallMonster(c, AF_FALL);
         }
       }
-    
+
     else if(isReptile(c->wall) && turn) {
       if(c->monst || isPlayerOn(c)) c->wparam = -1;
       else if(c->cpdist <= 7) {
@@ -668,8 +679,8 @@ EX void moverefresh(bool turn IS(true)) {
           for(int i=0; i<c->type; i++) {
             int i0 = (i+3) % c->type;
             int i1 = (i+c->type-3) % c->type;
-            if(c->move(i0) && passable(c->move(i0), c, 0)) 
-            if(c->move(i1) && passable(c->move(i1), c, 0)) 
+            if(c->move(i0) && passable(c->move(i0), c, 0))
+            if(c->move(i1) && passable(c->move(i1), c, 0))
               gooddirs.push_back(i);
             }
           c->mondir = hrand_elt(gooddirs, c->mondir);
@@ -695,7 +706,7 @@ EX void moverefresh(bool turn IS(true)) {
         c->item = itNone;
         }
       }
-    
+
     else if(isWatery(c)) {
       if(c->monst == moLesser || c->monst == moLesserM || c->monst == moGreater || c->monst == moGreaterM)
         c->monst = moGreaterShark;
@@ -703,7 +714,7 @@ EX void moverefresh(bool turn IS(true)) {
         playSound(c, "splash"+pick12());
         if(isNonliving(c->monst))
           addMessage(XLAT("%The1 sinks!", c->monst));
-        else 
+        else
           addMessage(XLAT("%The1 drowns!", c->monst));
         if(isBull(c->monst)) {
           addMessage(XLAT("%The1 is filled!", c->wall));
@@ -717,7 +728,7 @@ EX void moverefresh(bool turn IS(true)) {
         playSound(c, "splash"+pick12());
         if(isNonliving(c->monst))
           addMessage(XLAT("%The1 sinks!", c->monst));
-        else 
+        else
           addMessage(XLAT("%The1 drowns!", c->monst));
         if(isBull(c->monst)) {
           addMessage(XLAT("%The1 is filled!", c->wall));
@@ -731,7 +742,7 @@ EX void moverefresh(bool turn IS(true)) {
       else if(c->monst && !survivesPoison(c->monst, c->wall) && normal_gravity_at(c)) {
         if(isNonliving(c->monst))
           addMessage(XLAT("%The1 is destroyed by lava!", c->monst));
-        else 
+        else
           addMessage(XLAT("%The1 is killed by lava!", c->monst));
         playSound(c, "steamhiss", 70);
         fallMonster(c, AF_FALL);
@@ -749,21 +760,21 @@ EX void moverefresh(bool turn IS(true)) {
         kraken::kill(c, moNone);
         }
       }
-    
+
     if(c->monst == moVineSpirit && !cellHalfvine(c) && c->wall != waVinePlant) {
       addMessage(XLAT("%The1 is destroyed!", c->monst));
       fallMonster(c, AF_CRUSH);
       }
-    
+
     if(c->monst) mayExplodeMine(c, c->monst);
-    
+
     if(c->monst && c->wall == waClosedGate && !survivesWall(c->monst)) {
       playSound(c, "hit-crush"+pick123());
       addMessage(XLAT("%The1 is crushed!", c->monst));
       fallMonster(c, AF_CRUSH);
       }
 
-    if(c->monst && cellUnstable(c) && !ignoresPlates(c->monst) && !shmup::on) 
+    if(c->monst && cellUnstable(c) && !ignoresPlates(c->monst) && !shmup::on)
       doesFallSound(c);
     }
   }
@@ -846,7 +857,7 @@ EX void monstersTurn() {
     return;
     }
 
-  if(playerInPower() && (phase2 || !items[itOrbSpeed]) && (havewhat & HF_FAST)) 
+  if(playerInPower() && (phase2 || !items[itOrbSpeed]) && (havewhat & HF_FAST))
     moveNormals(moWitchSpeed);
 
   if(phase2 && markOrb(itOrbEmpathy)) {
@@ -868,7 +879,7 @@ EX void monstersTurn() {
   if(!phase1) heat::processfires();
   // this depends on turncount, so we do it always
   advance_tides();
-  
+
   for(cell *c: crush_now) {
     changes.ccell(c);
     playSound(NULL, "closegate");
@@ -879,12 +890,12 @@ EX void monstersTurn() {
     destroyBoats(c, NULL, true);
     explodeBarrel(c);
     }
-  
+
   changes.value_keep(crush_now);
   changes.value_keep(crush_next);
   crush_now = std::move(crush_next);
   crush_next.clear();
-  
+
   DEBB(DF_TURN, ("heat"));
   heat::processheat();
   // if(elec::havecharge) elec::drawcharges();
@@ -894,7 +905,7 @@ EX void monstersTurn() {
   #if CAP_COMPLEX2
   if(!phase1) terracotta::check();
   #endif
-  
+
   if(items[itOrbFreedom])
     for(cell *pc: player_positions())
       checkFreedom(pc);
