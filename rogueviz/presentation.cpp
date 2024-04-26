@@ -123,6 +123,7 @@ void slide_error(presmode mode, string s) {
     });
   }
 
+#if CAP_TEXTURE
 map<string, texture::texture_data> textures;
 
 void draw_texture(texture::texture_data& tex, ld dx, ld dy, ld scale1) {
@@ -178,6 +179,7 @@ void show_picture(presmode mode, string s, flagtype flags) {
     }
   add_stat(mode, [s, flags] { sub_picture(s, flags); return false; });
   }
+#endif
 
 string latex_packages =
   "\\usepackage{amsmath}\n"
@@ -232,6 +234,7 @@ void show_latex(presmode mode, string s) {
   show_picture(mode, gen_latex(mode, s, 2400, 0));
   }
 
+#if CAP_TEXTURE
 void dialog_add_latex(string s, color_t col, int size, flagtype flags) {
   string fn = gen_latex(pmStart, s, 600, flags);
   if(!textures.count(fn)) {
@@ -282,6 +285,7 @@ void dialog_add_latex(string s, color_t col, int size, flagtype flags) {
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     });
   }
+#endif
 
 /** possible values: 
  *  0 = never display latex
@@ -323,10 +327,12 @@ void read_all(int fd, void *buf, int cnt) {
 
 /* note: this loads the whole animation uncompressed into memory, so it is suitable only for short presentations */
 void show_animation(presmode mode, string s, int sx, int sy, int frames, int fps) {
-#if CAP_VIDEO
+#if CAP_VIDEO && CAP_TEXTURE
   if(mode == pmStartAll || mode == pmStart) {
     /* load only once */
+    #if CAP_TEXTURE
     if(textures.count(s + "@0")) return;
+    #endif
     /* actually load */
     array<int, 2> tab;
     if(pipe(&tab[0])) {
@@ -351,6 +357,7 @@ void show_animation(presmode mode, string s, int sx, int sy, int frames, int fps
       }
       
     ::close(tab[1]);
+    #if CAP_TEXTURE
     for(int i=0; i<frames; i++) {
       auto& tex = textures[s + "@" + its(i)];
       tex.strx = tex.tx = sx;
@@ -367,6 +374,7 @@ void show_animation(presmode mode, string s, int sx, int sy, int frames, int fps
       println(hlog, "load frame ", i, " = ", tex.loadTextureGL(), " color = ", tex.texture_pixels[0]);
       // tex.loadTextureGL();
       }
+    #endif
     
     ::close(tab[0]);
     println(hlog, "waiting");
@@ -379,7 +387,9 @@ void show_animation(presmode mode, string s, int sx, int sy, int frames, int fps
     f %= frames;
     auto& tex = textures[s + "@" + its(f)];
     flat_model_enabler fme;    
+    #if CAP_TEXTURE
     draw_texture(tex);
+    #endif
     return false;
     });
 #endif
@@ -627,7 +637,9 @@ void launch_slideshow_by_name(string s) {
 
 int runslide =
   addHook(hooks_resetGL, 100, [] {
+    #if CAP_TEXTURE
     textures.clear();
+    #endif
     })
 + arg::add3("-slides", [] {
   arg::shift(); launch_slideshow_by_name(arg::args());

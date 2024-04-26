@@ -172,9 +172,9 @@ namespace rogueviz {
     slide *gen_rvtour();
     #if CAP_TEXTURE
     void draw_texture(texture::texture_data& tex, ld dx = 0, ld dy = 0, ld scale = 1);
+    extern map<string, texture::texture_data> textures;
     #endif
 
-    extern map<string, texture::texture_data> textures;
 
 template<class T, class U> function<void(presmode)> roguevizslide(char c, const T& t, const U& f) {
   return [c,t,f] (presmode mode) {
