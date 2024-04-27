@@ -1095,7 +1095,8 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
             else c2->mondir = NODIR;
             }
           }
-        if(!c->monst && !ls::single() && !racing::on && !yendor::on && !randomPatternsMode && !peace::on && !euclid && hrand(4000) < 10 && !safety)
+        if(!c->monst && !racing::on && !yendor::on && !randomPatternsMode &&
+             !peace::on && !euclid && hrand(4000) < 10 && !safety)
           gen_baby_tortoise(c);
         }
       break;
