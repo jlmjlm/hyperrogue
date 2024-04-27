@@ -417,4 +417,29 @@ EX string shapename(int id) {
   return english[id];
   }
 
+EX const string treasure_plural(const string tr) {
+  static const set<string> no_plural = { "Gold", "Spice", "Wine", "Silver",
+    "Royal Jelly", "Amber", "Ancient Jewelry", "Spinel", "Snake Oil", "Coral",
+    "Lapis Lazuli", "Fuel", "Turquoise", "Green Grass", "Sea Glass" };
+  static const map<const string, const string> tr_map {
+    { "Ruby", "Rubies" },
+    { "Elixir of Life", "Elixirs of Life" },
+    { "Demon Daisy", "Demon Daisies" },
+    { "Statue of Cthulhu", "Statues of Cthulhu" },
+    { "Onyx", "Onyxes" },
+    { "Bounty", "Bounties" },
+    { "Black Lotus", "Black Lotuses" },
+    { "Dodecahedron", "Dodecahedra" },
+    { "Lava Lily", "Lava Lilies" },
+    { "Tasty Jelly", "Tasty Jellies" },
+    { "Water Lily", "Water Lilies" },
+    { "Crystal Die", "Crystal Dice" },
+  };
+
+  if (no_plural.count(tr)) return tr;
+  auto it = tr_map.find(tr);
+  if (it == tr_map.end()) return tr+"s";
+  else return it->second;
+  }
+
 }
