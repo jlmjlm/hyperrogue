@@ -907,6 +907,7 @@ namespace daily {
 #define REVPRING(i) for(double i=cgi.S84; i>=-1e-6; i-=pow(.5, vid.linequality))
 
 #define ONEMPTY if(d == 7 && passable(c, NULL, 0) && !safety && !reptilecheat)
+#define ONEMPTY_SAFE if(d == 7 && passable(c, NULL, 0) && !reptilecheat)
 
 template <class T> void texture_order(const T& f) {
   const int STEP = vid.texture_step;

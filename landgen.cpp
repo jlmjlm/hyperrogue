@@ -1810,7 +1810,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       break;
 
     case laTortoise:
-      if(fargen) {
+      if(fargen /* || arc_target */) {
         using namespace tortoise;
         int f = hrand(30);
         if(f < 21 && ((getBits(c)>>f) & 1)) {
@@ -1836,7 +1836,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           #undef PSH
           }
         }
-      ONEMPTY {
+      ONEMPTY_SAFE {
         bool mk21tor = (tortoise::seek() && !((tortoise::getb(c) ^ tortoise::seekbits) & tortoise::mask) && (turncount > tortoise::last21tort + 100));
         if((mk21tor || hrand_monster(ls::hv_structure() ? 8000 : 4000) < (peace::on ? 750 : 50 + items[itBabyTortoise]*2 + yendor::hardness() * 6)) && !safety) {
           c->monst = moTortoise;
@@ -1854,7 +1854,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
 
         int chance = 50 + items[itBabyTortoise]*2;
         if(quickfind(laTortoise)) chance += 150;
-        if((ls::single() || euclid || peace::on) && hrand(4000) < chance && !safety) {
+        if((ls::single() || euclid || peace::on) && hrand(4000) < chance /* && !safety */) {
           c->item = itBabyTortoise;
           tortoise::babymap[c] = tortoise::getb(c) ^ tortoise::getRandomBits();
           }
