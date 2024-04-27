@@ -300,9 +300,17 @@ static const string plural(const string tr) {
   auto it = tr_map.find(tr);
   if (it == tr_map.end()) return tr+"s";
   else return it->second;
-}
+  }
 
 EX bool arc_returning = false;
+
+EX void arcCollectMessage(eLand la) {
+  addMessage(XLAT("Collect %1 %2%3.", format("%d", arc_target),
+                  plural(iinf[treasureType(la)].name),
+                  arc_returning ? XLAT(" and return") :
+                      (la == laHunting) ? XLAT(" and survive") : ""));
+  }
+
 EX void checkArcadeTarget() {
   if (items[treasureType(specialland)] >= arc_target) {
     if ((specialland == laHaunted && cwt.at->wall != waCrateTarget) ||
@@ -323,10 +331,7 @@ EX void checkArcadeTarget() {
     if (isElemental(next_land)) next_land = laElementalWall;
     if (!dual::state) items[itOrbSafety] = 7;
     activateSafety(next_land);
-    addMessage(XLAT("Collect %1 %2%3.", format("%d", arc_target),
-                    plural(iinf[treasureType(next_land)].name),
-                    arc_returning ? XLAT(" and return") :
-                        (next_land == laHunting) ? XLAT(" and survive") : ""));
+    arcCollectMessage(next_land);
     }
   }
 

@@ -858,7 +858,7 @@ EX void showStartMenu() {
 
   dialog::init();
   
-  dialog::addInfo(XLAT("Welcome to HyperRogue!"));
+  dialog::addInfo(XLAT("Welcome to HyperRogue arcade mod!"));
   dialog::addBreak(100);
 
   dialog::addBigItem(XLAT("HyperRogue classic"), 'c');

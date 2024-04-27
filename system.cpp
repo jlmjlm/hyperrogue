@@ -143,13 +143,15 @@ EX void welcomeMessage() {
   else if(bow::crossbow_mode())
     addMessage(XLAT("Welcome to HyperRanger!"));
   else
-    addMessage(XLAT("Welcome to HyperRogue!"));
+    addMessage(XLAT("Welcome to HyperRogue arcade mod!"));
 
   if(!safety && !daily::on) {
     auto lv = land_validity(specialland);
-    if(lv.flags & lv::display_error_message)
+    if((lv.flags & lv::display_error_message))
       addMessage(XLAT(lv.msg));
     }
+
+  arcCollectMessage(firstland);
 
   if(nohelp == 2) return;
 #if ISMAC

@@ -1920,7 +1920,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
             buildRedWall((cw + wstep + (hrand(2)?2:4)).cpeek(), 20);
           }
         }
-      if(celldist(c) == 7)
+      if(safety && celldist(c) == 7)
         c->wall = waNone;
       if(d == 7 && c->wall == waNone)
         buildPrizeMirror(c, 1000);
