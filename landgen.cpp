@@ -905,7 +905,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
 
     case laBurial:
       if(fargen) {
-        if(hrand(5000) < 25 && celldist(c) >= 5 && !safety) {
+        if(hrand(5000) < 25 && celldist(c) >= 5 /* && !safety */) {
           bool goodland = true;
           cell *c2 = createMov(c, hrand(c->type));
           if(!ls::any_chaos() && !ls::hv_structure()) for(auto cx: {c, c2})
@@ -1021,10 +1021,10 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           }
         }
       if(d == 8) c->landparam = 0;
-      ONEMPTY {
+      ONEMPTY_SAFE {
         if(hrand(5000) < PT(100 + 2 * (kills[moYeti] + kills[moWolf]), 200) && notDippingFor(itDiamond))
           c->item = itDiamond;
-        if(hrand_monster(8000) < 2 * (items[itDiamond] + yendor::hardness()))
+        if(hrand_monster(8000) < 2 * (items[itDiamond] + yendor::hardness()) && !safety)
           c->monst = hrand(2) ? moYeti : moWolf;
         }
       break;
@@ -1810,7 +1810,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       break;
 
     case laTortoise:
-      if(fargen /* || arc_target */) {
+      if(fargen) {
         using namespace tortoise;
         int f = hrand(30);
         if(f < 21 && ((getBits(c)>>f) & 1)) {
