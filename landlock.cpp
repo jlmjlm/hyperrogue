@@ -439,17 +439,7 @@ EX eLand pickLandArc() {
     addMessage("Congratulations! You have completed the Hyperstone Quest!");
     arc_target = 25;
   } else {
-    static const map<int, string> ch_names = {
-        { 25, "Quartermaster" },
-        { 50, "Half-Century" },
-        { 100, "Century" },
-        { 200, "Double-Century" },
-        { 400, "Quadruple-Century" },
-        { 800, "Octuple-Century" },
-    };
-    auto it = ch_names.find(arc_target);
-    if (it != ch_names.end())
-      addMessage(XLAT("CONGRATULATIONS! You have completed the %1 Challenge!", it->second));
+    addMessage(XLAT("CONGRATULATIONS! You have completed the %1!", hsQuestName()));
     arc_target *= 2;
   }
 

@@ -322,6 +322,18 @@ eLand nextHyperstone() {
   return laCrossroads;
   }
 
+EX const string hsQuestName() {
+  int hs = items[itHyperstone];
+  if (hs < 25) return "Hyperstone Quest";
+  if (hs < 50) return "Quartermaster Challenge";
+  if (hs < 100) return "Half-Century Challenge";
+  if (hs < 200) return "Century Challenge";
+  if (hs < 400) return "Double-Century Challenge";
+  if (hs < 800) return "Quadruple-Century Challenge";
+  return "Octuple-Century Challenge";
+}
+
+
 EX void showGameMenu() {
 
   cmode = sm::DOTOUR | sm::MISSION | sm::CENTER | sm::MAYDARK | sm::SIDE;
@@ -426,7 +438,7 @@ EX void showGameMenu() {
   else if(peace::on) ;
   else if(racing::on) ;
   else if(arc_target && !nextHyperstone())
-    dialog::addInfo(XLAT("Hyperstone Quest completed!"), iinf[itHyperstone].color);
+    dialog::addInfo(XLAT("%1 completed!", hsQuestName()), iinf[itHyperstone].color);
   else if(!in_full_game()) ;
   else if(tkills() < R100)
     dialog::addInfo(XLAT("Defeat %1 enemies to access the Graveyard", its(R100)));
