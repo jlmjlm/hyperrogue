@@ -397,6 +397,7 @@ EX void showGameMenu() {
     else if(casual && savecount == 0) {
       dialog::addInfo(XLAT("Find an Orb of Safety to save your game"));
       }
+    else if(arc_target) ;
     else if(gold() < R30)
       dialog::addInfo(XLAT("Collect %1 $$$ to access more worlds", its(R30)));
     else if(gold() < R60)
@@ -425,6 +426,8 @@ EX void showGameMenu() {
   else if(peace::on) ;
   else if(racing::on) ;
   else if(!in_full_game()) ;
+  else if(arc_target && !nextHyperstone())
+    dialog::addInfo(XLAT("Hyperstone Quest completed!"), iinf[itHyperstone].color);
   else if(tkills() < R100)
     dialog::addInfo(XLAT("Defeat %1 enemies to access the Graveyard", its(R100)));
   else if(kills[moVizier] == 0 && (items[itFernFlower] < U5 || items[itGold] < U5))

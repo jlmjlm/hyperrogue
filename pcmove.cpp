@@ -279,8 +279,8 @@ static void drainOrbPowers() {
 
 static const string plural(const string tr) {
   static const set<string> no_plural = { "Gold", "Spice", "Wine", "Silver",
-    "Royal Jelly", "Amber", "Ancient Jewelry", "Spinel", "Snake Oil",
-    "Lapis Lazuli", "Fuel" };
+    "Royal Jelly", "Amber", "Ancient Jewelry", "Spinel", "Snake Oil", "Coral",
+    "Lapis Lazuli", "Fuel", "Turquoise", "Green Grass", "Sea Glass" };
   static const map<const string, const string> tr_map {
     { "Ruby", "Rubies" },
     { "Elixir of Life", "Elixirs of Life" },
@@ -290,9 +290,7 @@ static const string plural(const string tr) {
     { "Bounty", "Bounties" },
     { "Black Lotus", "Black Lotuses" },
     { "Dodecahedron", "Dodecahedra" },
-    { "Green Grass", "Green Grasses" },
     { "Lava Lily", "Lava Lilies" },
-    { "Sea Glass", "Sea Glasses" },
     { "Tasty Jelly", "Tasty Jellies" },
     { "Water Lily", "Water Lilies" },
     { "Crystal Die", "Crystal Dice" },

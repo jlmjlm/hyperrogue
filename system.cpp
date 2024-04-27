@@ -284,6 +284,8 @@ EX void initgame() {
     maxTo(items[itOrbDigging], 5);
   if(firstland == laLivefjord)
     maxTo(items[itOrbWater], 5);
+  if(firstland == laKraken)
+    maxTo(items[itOrbWater], 2);
 
   if(firstland == laCA)
     items[itOrbAether] = 2;
