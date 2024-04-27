@@ -53,9 +53,9 @@ EX bool notDippingForExtra(eItem i, eItem x) {
 
 void buildRedWall(cell *c, int gemchance) {
   if(c->monst) return;
-  if(safety) return;
   int ki = PT(kills[moHexSnake] + kills[moRedTroll], 50);
   c->wall = waRed3;
+  if(safety) return;
   if(hrand(100+ki) < gemchance + ki)
     c->item = itRedGem;
   else if(gemchance) placeLocalSpecial(c, 8000, gemchance, gemchance);
@@ -1920,10 +1920,13 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
             buildRedWall((cw + wstep + (hrand(2)?2:4)).cpeek(), 20);
           }
         }
+      if(celldist(c) == 7)
+        c->wall = waNone;
       if(d == 7 && c->wall == waNone)
         buildPrizeMirror(c, 1000);
       ONEMPTY {
-        if(hrand_monster((doCross && celldist(c) <= 5) ?450:16000) < 30+items[itRedGem]+yendor::hardness() && !pseudohept(c) && !c->monst && !c->wall && !(!BITRUNCATED && S3==4)) {
+        if(hrand_monster((doCross && celldist(c) <= 5)?450:16000) < 30+items[itRedGem]+yendor::hardness()
+             && !pseudohept(c) && !c->monst && !c->wall && !(!BITRUNCATED && S3==4)) {
           int i = -1;
           for(int t=0; t<c->type; t++) if(c->move(t)->mpdist > c->mpdist && !pseudohept(c->move(t)))
             i = t;
