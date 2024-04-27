@@ -425,9 +425,9 @@ EX void showGameMenu() {
 #endif
   else if(peace::on) ;
   else if(racing::on) ;
-  else if(!in_full_game()) ;
   else if(arc_target && !nextHyperstone())
     dialog::addInfo(XLAT("Hyperstone Quest completed!"), iinf[itHyperstone].color);
+  else if(!in_full_game()) ;
   else if(tkills() < R100)
     dialog::addInfo(XLAT("Defeat %1 enemies to access the Graveyard", its(R100)));
   else if(kills[moVizier] == 0 && (items[itFernFlower] < U5 || items[itGold] < U5))
