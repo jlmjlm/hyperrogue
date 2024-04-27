@@ -273,7 +273,7 @@ EX void initgame() {
     maxTo(items[itOrbWinter], 10);
     maxTo(items[itOrbShell], 10);
     }
-  if(firstland == laClearing)
+  if(firstland == laJungle || firstland == laClearing)
     maxTo(items[itOrbShield], 3);
   if(firstland == laVolcano)
     maxTo(items[itOrbWinter], 5);

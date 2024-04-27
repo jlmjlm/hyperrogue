@@ -1663,7 +1663,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     case laCocytus:
       if(fargen)  {
         if(c->wall == waNone) c->wall = waFrozenLake;
-        if(hrand(100) < 5 && !safety && celldist(c) >= 3) {
+        if(hrand(100) < 5 && celldist(c) >= 3) {
           for(int i=0; i<c->type; i++) {
             cell *c2 = createMov(c, i);
             setdist(c2, d+1, c);
@@ -2083,7 +2083,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       break;
 
     case laHunting:
-      if(d == 7 && c->land == laHunting && !racing::on && !safety && !reptilecheat) {
+      if(d == 7 && c->land == laHunting && !racing::on && /*!safety &&*/ !reptilecheat) {
         if(hrand(1000) < 20 * ls::ls_mul_big()) {
           if(openplains(c)) {
             if(hrand(2) == 0) {
@@ -2292,7 +2292,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       break;
 
     case laJungle:
-      ONEMPTY {
+      ONEMPTY_SAFE {
         if(hrand(5000) < PT(25 + 2 * (kills[moIvyRoot] + kills[moMonkey]), 40) && notDippingFor(itRuby))
           c->item = itRuby;
         if(hrand_monster(15000) < 5 + 1 * (items[itRuby] + yendor::hardness()))
@@ -2525,7 +2525,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     case laCrossroads5:
       if(specialland != c->land) break;
       if(c->wall == waTower) c->land = laCamelot;
-      ONEMPTY {
+      ONEMPTY_SAFE {
         if(!BITRUNCATED && c->land == laCrossroads5 && hrand(100) < 60)
           c->wall = waBarrier;
         else if(!inv::on && items[itShard] >= 10 && hrand(8000) < 120*orbcrossfun(items[itShard]) && mirror::build(c)) ;
