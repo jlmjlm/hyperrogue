@@ -2023,9 +2023,9 @@ EX eMonster camelot_monster() {
 EX void buildCamelot(cell *c) {
   #if CAP_COMPLEX2
   int d = celldistAltRelative(c);
-  addMessage(format("building Camelot, d = %d = %d - %d = %d", d,
-                    celldistAlt(c), roundTableRadius(c),
-                    celldistAlt(c) - roundTableRadius(c)));
+  //addMessage(format("building Camelot, d = %d = %d - %d = %d", d,
+  //                  celldistAlt(c), roundTableRadius(c),
+  //                  celldistAlt(c) - roundTableRadius(c)));
   if(anthrax() || (d <= 14 && roundTableRadius(c) > 20)) {
     gen_alt(c);
     preventbarriers(c);
