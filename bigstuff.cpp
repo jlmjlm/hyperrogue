@@ -26,7 +26,7 @@ EX int newRoundTableRadius() {
 #if CAP_COMPLEX2
 /** should we generate 'Castle Anthrax' instead of Camelot (an infinite sequence of horocyclic Camelot-likes */
 EX bool anthrax() {
-  return ls::single() && hyperbolic && !cryst;
+  return !arc_target && ls::single() && hyperbolic && !cryst;
   }
 
 EX int getAnthraxData(cell *c, bool b) {
@@ -1483,6 +1483,7 @@ EX void set_euland3(cell *c, int co10, int co11, int alt, int hash) {
   if(c->land == laCamelot) {
     setland(c, laCrossroads);
     buildCamelot(c);
+    addMessage("Built Camelot in set_euland3");
     }
 
   if(c->land == laTerracotta) {
@@ -1848,7 +1849,7 @@ EX void build_walls(cell *c, cell *from) {
       int fval2 = createStep(c->master, bd)->fieldval;
       int wd = currfp_gmul(fval2, currfp_inverses(c->fval-1));
       if(currfp_distwall(wd) == 0) {
-        buildBarrier(c, bd); 
+        buildBarrier(c, bd);
         break;
         }
       }
@@ -1864,10 +1865,14 @@ EX void build_walls(cell *c, cell *from) {
 
 EX void start_camelot(cell *c) {
   int rtr = newRoundTableRadius();
-  heptagon *alt = create_altmap(c, ls::single() ? 2 : rtr+(hyperbolic && WDIM == 3 ? 11 : 14), ls::single() ? hsA : hsOrigin);
+  heptagon *alt =
+        create_altmap(c,
+           /* ls::single() ? 2 : */ rtr+(hyperbolic && WDIM == 3 ? 11 : 14),
+           /* ls::single() ? hsA : */ hsOrigin);
+  addMessage(XLAT("radius %1, altmap %2\n", format("%d", rtr), alt ? "T" : "F"));
   if(alt) {
     altmap::radius(alt) = rtr;
-    altmap::orig_land(alt) = ls::horodisk_structure() ? laCrossroads : c->land;
+    altmap::orig_land(alt) = laCrossroads;  //ls::horodisk_structure() ? laCrossroads : c->land;
     hv_land[alt] = laCamelot;
     }
   }
@@ -2018,6 +2023,9 @@ EX eMonster camelot_monster() {
 EX void buildCamelot(cell *c) {
   #if CAP_COMPLEX2
   int d = celldistAltRelative(c);
+  addMessage(format("building Camelot, d = %d = %d - %d = %d", d,
+                    celldistAlt(c), roundTableRadius(c),
+                    celldistAlt(c) - roundTableRadius(c)));
   if(anthrax() || (d <= 14 && roundTableRadius(c) > 20)) {
     gen_alt(c);
     preventbarriers(c);
@@ -2210,8 +2218,10 @@ EX void moreBigStuff(cell *c) {
 
   if(!ls::hv_structure())
   if((bearsCamelot(c->land) && !euclid && !quotient && !nil) || c->land == laCamelot) 
-  if(have_alt(c)) if(!(bt::in() && specialland != laCamelot)) 
+  if(have_alt(c)) if(!(bt::in() && specialland != laCamelot)) {
     buildCamelot(c);
+    //addMessage("Built Camelot in moreBigStuff part I");
+  }
   
   if(quotient) return;
 
@@ -2243,6 +2253,7 @@ EX void moreBigStuff(cell *c) {
       }
     if(have_alt(c) && hv_land[c->master->alt->alt] == laCamelot) {
       buildCamelot(c);
+      addMessage("Built Camelot in moreBigStuff part II");
       }
     else if(have_alt(c) && celldistAlt(c) <= horodisk_from) {
       eLand l = hv_land[c->master->alt->alt];

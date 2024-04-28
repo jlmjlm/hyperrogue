@@ -637,8 +637,10 @@ EX void mode_higlights() {
     dialog::add_action(dialog::add_confirmation([] {
       popScreenAll();
       resetModes();
-      crystal::set_crystal(8);
-      firstland = specialland = laCamelot;
+      //crystal::set_crystal(/*/ 7 /*/ 8 /**/);
+      //set_variation(eVariation::bitruncated); // XXXX
+      firstland = specialland = safetyland = arc_startland = laCamelot;
+      specialland = laCrossroads;
       land_structure = lsSingle;
       start_game();
       clearMessages();
