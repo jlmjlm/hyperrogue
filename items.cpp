@@ -275,12 +275,11 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
       changes.commit();
       }
 
-    if(c2->land == laCamelot &&
-      items[itHolyGrail] * 10 >= arc_target) {
-        // Done with Camelot, so let checkArcadeTarget() do its thing.
-        checkArcadeTarget();
-        return true;
-        }
+    if(c2->land == laCamelot && items[itHolyGrail] * 10 >= arc_target) {
+      // Done with Camelot, so let checkArcadeTarget() do its thing.
+      checkArcadeTarget();
+      return true;
+      }
 
     playSound(c2, "pickup-orb");
     if(shmup::on || multi::players > 1) {

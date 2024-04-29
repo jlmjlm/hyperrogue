@@ -96,7 +96,7 @@ EX vector<orbinfo> orbinfos = {
   {orbgenflags::S_NATIVE, laDryForest, 500, 4500, itOrbThorns},
   {orbgenflags::S_GUEST,  laDeadCaves, 1800, 0, itGreenStone},
   {orbgenflags::S_NAT_NT, laDeadCaves, 1800, 1500, itOrbDigging},
-  {orbgenflags::S_NATIVE, laEmerald, 30, 70, itOrbPsi},
+  {orbgenflags::S_NATIVE, laEmerald, 150, 350, itOrbPsi},
   {orbgenflags::S_NATIVE, laWineyard, 900, 1200, itOrbAether},
   {orbgenflags::S_NATIVE, laHive, 800, 1200, itOrbInvis},
   {orbgenflags::S_NATIVE, laPower, 0, 3000, itOrbFire},
@@ -614,12 +614,16 @@ EX void placeCrossroadOrbs(cell *c) {
     if(hrand(50+items[itHyperstone]) >= 50) continue;
     if(oi.orb == itOrbPsi) {
       if(isCrossroads(specialland)) {
-        if(!hrand(5)) c->item = oi.orb;
-        } else {
+        if(!hrand(10)) c->item = oi.orb;
+        }
+      else {
+        if(items[itHolyGrail] * 10 < arc_target) {
           c->wall = waCrateTarget;
           c->item = itHolyGrail;
+          }
         }
-      } else c->item = oi.orb;
+      }
+      else c->item = oi.orb;
     if(oi.orb == itOrbWater && c->land != laOcean) c->wall = waStrandedBoat;
     }
   }
