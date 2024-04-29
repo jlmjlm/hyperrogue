@@ -264,25 +264,29 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
       if(!eubinary) changes.value_keep(c2->master->alt->emeraldval);
       if(!eubinary) c2->master->alt->emeraldval |= GRAIL_FOUND;
       achievement_collection(c2->item);
-    } else {
-      if(changes.on) {
-        if(changes.checking) {
-          changes.rollback();
-          return true;
-          }
-        changes.commit();
-        }
-
-        playSound(c2, "pickup-orb");
-        if(shmup::on || multi::players > 1) {
-          shmup::delayed_safety = true;
-          shmup::delayed_safety_land = laCamelot;
-          c2->item = itNone;
-          }
-        else
-          activateSafety(laCamelot);
+      if(items[itHolyGrail] * 10 >= arc_target) {
+        // Done with Camelot, so let checkArcadeTarget() do its thing.
         return true;
+        }
       }
+
+    if(changes.on) {
+      if(changes.checking) {
+        changes.rollback();
+        return true;
+        }
+      changes.commit();
+      }
+
+      playSound(c2, "pickup-orb");
+      if(shmup::on || multi::players > 1) {
+        shmup::delayed_safety = true;
+        shmup::delayed_safety_land = laCamelot;
+        c2->item = itNone;
+        }
+      else
+        activateSafety(laCamelot);
+      return true;
     }
   else if(c2->item == itKey) {
     playSound(c2, "pickup-key");

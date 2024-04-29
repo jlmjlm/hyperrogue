@@ -287,7 +287,10 @@ EX void arcCollectMessage(eLand la) {
   }
 
 EX void checkArcadeTarget() {
-  if (items[treasureType(specialland)] >= arc_target) {
+  int landscore = items[treasureType(specialland)];
+  if (specialland == laCamelot) landscore *= 10;
+
+  if (landscore >= arc_target) {
     if ((specialland == laHaunted && cwt.at->wall != waCrateTarget) ||
         (specialland == laDungeon && cwt.at->land == laDungeon)) {
       if (arc_returning) {
@@ -884,7 +887,7 @@ bool pcmove::actual_move() {
     return perform_actual_move();
     }
 
-  if(c2->item == itHolyGrail && c2->wall != waCrateTarget &&
+  if(c2->item == itHolyGrail && c2->land == laCamelot &&
        roundTableRadius(c2) < newRoundTableRadius()) {
     if(vmsg(miRESTRICTED, siITEM, c2, moNone)) addMessage(XLAT("That was not a challenge. Find a larger castle!"));
     return false;
