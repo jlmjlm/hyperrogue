@@ -240,8 +240,8 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
   if(l == laCamelot && !ls::single())
     l = laCrossroads;
   */
-  firstland = (l == laCamelot) ? laCrossroads : l;
-  safetyland = (l == laOcean /* || l == laCamelot */) ? laCrossroads : l;
+  firstland = l;
+  safetyland = (l == laOcean || l == laCamelot) ? laCrossroads : l;
   safetyseed = hrandpos();
   specialland = l;
   clear_euland(firstland);
