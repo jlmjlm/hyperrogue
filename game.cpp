@@ -240,8 +240,8 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
   if(l == laCamelot && !ls::single())
     l = laCrossroads;
   */
-  firstland = l;
-  safetyland = (l == laOcean || l == laCamelot) ? laCrossroads : l;
+  firstland = (l == laCamelot) ? laCrossroads : l;
+  safetyland = (l == laOcean /* || l == laCamelot */) ? laCrossroads : l;
   safetyseed = hrandpos();
   specialland = l;
   clear_euland(firstland);
@@ -278,7 +278,7 @@ EX void activateSafety(eLand l) {
     }
   if(l == laHaunted)
     cwt.at->wall = waCrateTarget;
-  arc_returning = (l == laHaunted || l == laDungeon);
+  arc_returning = (l == laHaunted || l == laDungeon || l == laHunting);
   }
 
 EX void placeGolem(cell *on, cell *moveto, eMonster m) {

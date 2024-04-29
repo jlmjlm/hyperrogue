@@ -297,8 +297,15 @@ EX void checkArcadeTarget() {
       if (!arc_returning) bfs(true);
       return;
       }
-    if (specialland == laHunting && (havewhat & HF_HUNTER))
-      return;  // The final ambush is still active.
+    if (specialland == laHunting && (havewhat & HF_HUNTER)) {
+      // The final ambush is still active.
+      if (arc_returning) {
+        addMessage(XLAT("Done collecting.  Slay the hunting dogs!"));
+        arc_returning = false;
+      }
+      if (!arc_returning) bfs(true);
+      return;
+    }
     addMessage(XLAT("%1 complete!", linf[specialland].name));
     if (specialland == laPower) drainOrbPowers();
     playSound(NULL, "pickup-orb");
