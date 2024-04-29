@@ -49,7 +49,7 @@ EX int getAnthraxData(cell *c, bool b) {
 EX int roundTableRadius(cell *c) {
   if(eubinary) return 28;
   #if CAP_COMPLEX2
-  if(ls::single()) return getAnthraxData(c, true);
+  //if(ls::single()) return getAnthraxData(c, true);
   #endif
   if(!c->master->alt) return 28;
   return altmap::radius(c->master->alt->alt) & GRAIL_RADIUS_MASK;

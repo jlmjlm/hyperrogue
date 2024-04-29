@@ -621,9 +621,10 @@ EX void placeCrossroadOrbs(cell *c) {
           c->wall = waCrateTarget;
           c->item = itHolyGrail;
           }
+        //else c->wall = waCrateOnTarget;
         }
       }
-      else c->item = oi.orb;
+    else c->item = oi.orb;
     if(oi.orb == itOrbWater && c->land != laOcean) c->wall = waStrandedBoat;
     }
   }
