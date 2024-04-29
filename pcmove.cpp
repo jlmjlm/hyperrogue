@@ -889,7 +889,8 @@ bool pcmove::actual_move() {
 
   if(c2->item == itHolyGrail && c2->land == laCamelot &&
        roundTableRadius(c2) < newRoundTableRadius()) {
-    if(vmsg(miRESTRICTED, siITEM, c2, moNone)) addMessage(XLAT("That was not a challenge. Find a larger castle!"));
+    if(vmsg(miRESTRICTED, siITEM, c2, moNone))
+      addMessage(XLAT("That was not a challenge. Find a larger castle!"));
     return false;
     }
 

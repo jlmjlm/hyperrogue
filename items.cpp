@@ -254,6 +254,7 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
   else if(c2->item == itOrbYendor) 
     yendor::collected(c2);    
   else if(c2->item == itHolyGrail) {
+
     if(c2->land == laCamelot) {
       playSound(c2, "tada");
       int v = newRoundTableRadius() + 12;
@@ -264,10 +265,6 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
       if(!eubinary) changes.value_keep(c2->master->alt->emeraldval);
       if(!eubinary) c2->master->alt->emeraldval |= GRAIL_FOUND;
       achievement_collection(c2->item);
-      if(items[itHolyGrail] * 10 >= arc_target) {
-        // Done with Camelot, so let checkArcadeTarget() do its thing.
-        return true;
-        }
       }
 
     if(changes.on) {
@@ -278,15 +275,22 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
       changes.commit();
       }
 
-      playSound(c2, "pickup-orb");
-      if(shmup::on || multi::players > 1) {
-        shmup::delayed_safety = true;
-        shmup::delayed_safety_land = laCamelot;
-        c2->item = itNone;
+    if(c2->land == laCamelot &&
+      items[itHolyGrail] * 10 >= arc_target) {
+        // Done with Camelot, so let checkArcadeTarget() do its thing.
+        checkArcadeTarget();
+        return true;
         }
-      else
-        activateSafety(laCamelot);
-      return true;
+
+    playSound(c2, "pickup-orb");
+    if(shmup::on || multi::players > 1) {
+      shmup::delayed_safety = true;
+      shmup::delayed_safety_land = laCamelot;
+      c2->item = itNone;
+      }
+    else
+      activateSafety(laCamelot);
+    return true;
     }
   else if(c2->item == itKey) {
     playSound(c2, "pickup-key");

@@ -96,7 +96,7 @@ EX vector<orbinfo> orbinfos = {
   {orbgenflags::S_NATIVE, laDryForest, 500, 4500, itOrbThorns},
   {orbgenflags::S_GUEST,  laDeadCaves, 1800, 0, itGreenStone},
   {orbgenflags::S_NAT_NT, laDeadCaves, 1800, 1500, itOrbDigging},
-  {orbgenflags::S_NATIVE, laEmerald, 300, 700, itOrbPsi},
+  {orbgenflags::S_NATIVE, laEmerald, 30, 70, itOrbPsi},
   {orbgenflags::S_NATIVE, laWineyard, 900, 1200, itOrbAether},
   {orbgenflags::S_NATIVE, laHive, 800, 1200, itOrbInvis},
   {orbgenflags::S_NATIVE, laPower, 0, 3000, itOrbFire},
