@@ -276,9 +276,6 @@ EX void activateSafety(eLand l) {
     items[itOrbChoice] = 0;
     cwt.at->item = itOrbSafety;
     }
-  if(l == laHaunted)
-    cwt.at->wall = waCrateTarget;
-  arc_returning = (l == laHaunted || l == laDungeon || l == laHunting);
   }
 
 EX void placeGolem(cell *on, cell *moveto, eMonster m) {

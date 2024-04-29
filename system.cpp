@@ -218,6 +218,9 @@ EX void initgame() {
   //if(firstland == laMountain && !tactic::on && !ls::hv_structure()) firstland = laJungle;
   if(firstland == laPrincessQuest) firstland = laPalace;
   if(firstland == laMemory) firstland = laIce;
+
+  arc_returning = (firstland == laHaunted || firstland == laDungeon || firstland == laHunting);
+
   if(!ls::hv_structure())
   if((isGravityLand(firstland) && !isCyclic(firstland)) || (firstland == laOcean && !safety && !yendor::on)) {
     firstland = weirdhyperbolic ? laCrossroads4 : laCrossroads;
@@ -458,6 +461,10 @@ EX void initgame() {
     }
   if(!allowIncreasedSight()) vid.use_smart_range = 0;
   calcTidalPhase();
+
+  if(firstland == laHaunted) cwt.at->wall = waCrateTarget;
+  //addMessage(format("initgame: cwt.at->wall = %d", cwt.at->wall));
+
   callhooks(hooks_post_initgame);
   }
 
