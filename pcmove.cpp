@@ -282,8 +282,8 @@ EX bool arc_returning = false;
 EX void arcCollectMessage(eLand la) {
   addMessage(XLAT("Collect %1 %2%3.", format("%d", arc_target),
                   treasure_plural(iinf[treasureType(la)].name),
-                  arc_returning ? XLAT(" and return") :
-                      (la == laHunting) ? XLAT(" and survive") : ""));
+                  (la == laHunting) ? XLAT(" and survive") :
+                      arc_returning ? XLAT(" and return") : ""));
   }
 
 EX void checkArcadeTarget() {
@@ -884,7 +884,8 @@ bool pcmove::actual_move() {
     return perform_actual_move();
     }
 
-  if(c2->item == itHolyGrail && roundTableRadius(c2) < newRoundTableRadius()) {
+  if(c2->item == itHolyGrail && c2->wall != waCrateTarget &&
+       roundTableRadius(c2) < newRoundTableRadius()) {
     if(vmsg(miRESTRICTED, siITEM, c2, moNone)) addMessage(XLAT("That was not a challenge. Find a larger castle!"));
     return false;
     }

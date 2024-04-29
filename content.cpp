@@ -1659,8 +1659,8 @@ WALL( '$', 0xFD692F, "Crate", waCrateCrate, WF_WALL | WF_PUSHABLE, RESERVED, 0, 
     "These crates can be pushed."
     )
 
-WALL( '.', 0x40FD40, "Target", waCrateTarget, 0 | WF_ON, RESERVED, 0, sgNone,
-    "Return here to leave the Haunted Woods."
+WALL( '.', 0x40FD40, "Wormhole", waCrateTarget, 0 | WF_ON, RESERVED, 0, sgNone,
+    "Portal to another level."
     )
 
 WALL( '$', 0x40FD40, "Crate on Target", waCrateOnTarget, WF_WALL | WF_PUSHABLE, RESERVED, 0, sgNone, 

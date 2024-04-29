@@ -1381,6 +1381,8 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
   if(items[itOrbSpace]
     && CHK(c->item && !itemHiddenFromSight(c), XLAT("%The1 can only be used on items!", itOrbSpace))
     && CHK(!cwt.at->item, XLAT("Cannot use %the1 here!", itOrbSpace))
+    && CHK(!(c->item == itHolyGrail && c->land != laCamelot),
+                XLAT("Cannot use %the1 here!", itOrbSpace))
     && CHK(!saved_tortoise_on(c), XLAT("No, that would be heartless!"))
     && CHK(items[itOrbSpace] >= fixpower(spacedrain(c).first, isCheck(a)), XLAT("Not enough power for telekinesis!"))
     && CHK(!cantGetGrimoire(c, !isCheck(a)), XLAT("Cannot use %the1 here!", itOrbSpace))

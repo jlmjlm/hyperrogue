@@ -213,11 +213,11 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
     //if(!dual::state) items[c2->item] = 7;
     if(shmup::on || multi::players > 1) {
       shmup::delayed_safety = true;
-      shmup::delayed_safety_land = safetyland;
+      shmup::delayed_safety_land = specialland;
       c2->item = itNone;
       }
     else 
-      activateSafety(safetyland);
+      activateSafety(specialland);
     return true;
     }
   else if(c2->item == itBabyTortoise) {
@@ -254,15 +254,35 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
   else if(c2->item == itOrbYendor) 
     yendor::collected(c2);    
   else if(c2->item == itHolyGrail) {
-    playSound(c2, "tada");
-    int v = newRoundTableRadius() + 12;
-    items[itOrbTeleport] += v;
-    items[itOrbSpeed] += v;
-    items[itHolyGrail]++;
-    addMessage(XLAT("Congratulations! You have found the Holy Grail!"));
-    if(!eubinary) changes.value_keep(c2->master->alt->emeraldval);
-    if(!eubinary) c2->master->alt->emeraldval |= GRAIL_FOUND;
-    achievement_collection(c2->item);
+    if(c2->land == laCamelot) {
+      playSound(c2, "tada");
+      int v = newRoundTableRadius() + 12;
+      items[itOrbTeleport] += v;
+      items[itOrbSpeed] += v;
+      items[itHolyGrail]++;
+      addMessage(XLAT("Congratulations! You have found the Holy Grail!"));
+      if(!eubinary) changes.value_keep(c2->master->alt->emeraldval);
+      if(!eubinary) c2->master->alt->emeraldval |= GRAIL_FOUND;
+      achievement_collection(c2->item);
+    } else {
+      if(changes.on) {
+        if(changes.checking) {
+          changes.rollback();
+          return true;
+          }
+        changes.commit();
+        }
+
+        playSound(c2, "pickup-orb");
+        if(shmup::on || multi::players > 1) {
+          shmup::delayed_safety = true;
+          shmup::delayed_safety_land = laCamelot;
+          c2->item = itNone;
+          }
+        else
+          activateSafety(laCamelot);
+        return true;
+      }
     }
   else if(c2->item == itKey) {
     playSound(c2, "pickup-key");
