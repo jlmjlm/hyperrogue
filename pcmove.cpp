@@ -280,8 +280,16 @@ static void drainOrbPowers() {
 EX bool arc_returning = false;
 
 EX void arcCollectMessage(eLand la) {
-  addMessage(XLAT("Collect %1 %2%3.", format("%d", arc_target),
-                  treasure_plural(iinf[treasureType(la)].name),
+  int n = arc_target;
+  string s = iinf[treasureType(la)].name;
+
+  if (la == laCamelot)
+    n = (arc_target+9) / 10;
+
+  if (n != 1)
+    s = treasure_plural(s);
+
+  addMessage(XLAT("Collect %1 %2%3.", format("%d", n), s,
                   (la == laHunting) ? XLAT(" and survive") :
                       arc_returning ? XLAT(" and return") : ""));
   }

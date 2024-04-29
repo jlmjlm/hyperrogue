@@ -255,7 +255,8 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
     yendor::collected(c2);    
   else if(c2->item == itHolyGrail) {
 
-    if(c2->land == laCamelot) {
+    eLand la = c2->land;
+    if(la == laCamelot) {
       playSound(c2, "tada");
       int v = newRoundTableRadius() + 12;
       items[itOrbTeleport] += v;
@@ -275,7 +276,7 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
       changes.commit();
       }
 
-    if(c2->land == laCamelot && items[itHolyGrail] * 10 >= arc_target) {
+    if(la == laCamelot && items[itHolyGrail] * 10 >= arc_target) {
       // Done with Camelot, so let checkArcadeTarget() do its thing.
       checkArcadeTarget();
       return true;
@@ -287,8 +288,11 @@ EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
       shmup::delayed_safety_land = laCamelot;
       c2->item = itNone;
       }
-    else
+    else {
       activateSafety(laCamelot);
+      if(la != laCamelot)
+        arcCollectMessage(laCamelot);
+      }
     return true;
     }
   else if(c2->item == itKey) {
@@ -676,7 +680,7 @@ EX void collectMessage(cell *c2, eItem which) {
   else if(which == itGreenStone)
     addMessage(XLAT("Another Dead Orb."));
   else if(itemclass(which) != IC_TREASURE) {
-    if(!inv::activating)
+    if(!inv::activating && which != itHolyGrail)
       addMessage(XLAT("You have found %the1!", which));
     }
   else if(which == itBabyTortoise) {
