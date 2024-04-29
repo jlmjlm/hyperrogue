@@ -1483,7 +1483,7 @@ EX void set_euland3(cell *c, int co10, int co11, int alt, int hash) {
   if(c->land == laCamelot) {
     setland(c, laCrossroads);
     buildCamelot(c);
-    addMessage("Built Camelot in set_euland3");
+    //addMessage("Built Camelot in set_euland3");
     }
 
   if(c->land == laTerracotta) {
@@ -2253,7 +2253,7 @@ EX void moreBigStuff(cell *c) {
       }
     if(have_alt(c) && hv_land[c->master->alt->alt] == laCamelot) {
       buildCamelot(c);
-      addMessage("Built Camelot in moreBigStuff part II");
+      //addMessage("Built Camelot in moreBigStuff part II");
       }
     else if(have_alt(c) && celldistAlt(c) <= horodisk_from) {
       eLand l = hv_land[c->master->alt->alt];

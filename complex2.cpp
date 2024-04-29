@@ -378,7 +378,7 @@ EX void roundTableMessage(cell *c2) {
   if(!euclid && !c2->master->alt) return;
   int dd = celldistAltRelative(c2) - celldistAltRelative(cwt.at);
 
-  addMessage(format("rtr(c2)=%d vs newRTR()=%d", roundTableRadius(c2), newRoundTableRadius()));
+  //addMessage(format("rtr(c2)=%d vs newRTR()=%d", roundTableRadius(c2), newRoundTableRadius()));
   bool tooeasy = (roundTableRadius(c2) < newRoundTableRadius());
             
   if(dd>0) {
