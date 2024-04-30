@@ -1704,8 +1704,6 @@ EX void start_game() {
   #if CAP_ARCM
   arcm::current_or_fake().compute_geometry();
   #endif
-  //if(arc_startland) firstland = specialland = arc_startland;
-  //safetyland = (firstland == laOcean || firstland == laCamelot) ? laCrossroads : firstland;
   initcells();
   get_expansion().reset();
   init_disk_cells();
@@ -1730,7 +1728,6 @@ EX void start_game() {
     }
   canmove = true;
   restartGraph();
-  //safetyland = firstland;
   resetmusic();
   resetmusic();
 #if CAP_TEXTURE
