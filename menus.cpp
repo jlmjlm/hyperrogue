@@ -418,10 +418,13 @@ EX void show_achievement_eligibility() {
   #endif
   }
 
-EX void show_chaos() {
+#define NO(x) /* nothing */
+static void dont_show_chaos() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
   dialog::init(XLAT("land structure"));
+
+NO(
   chaosUnlocked = chaosUnlocked || autocheat;
 
   dialog::addHelp(
@@ -454,11 +457,14 @@ EX void show_chaos() {
     }
   
   dialog::addBreak(100);
+)
+
   dialog::addSelItem(XLAT("land"), XLAT1(linf[specialland].name), 'l');
   dialog::add_action(activate_ge_land_selection);
 
   show_achievement_eligibility();
 
+NO(
   dialog::addBreak(100);
   if(ls::horodisk_structure())
     add_edit(horodisk_from);
@@ -470,6 +476,8 @@ EX void show_chaos() {
     add_edit(curse_percentage);
   else
     dialog::addBreak(100);
+)
+
   dialog::addBack();
   dialog::display();
   }
@@ -706,12 +714,11 @@ EX eLandStructure default_land_structure() {
   }
 
 EX void menuitem_land_structure(char key) {
-
-  if(default_land_structure() == land_structure && !ineligible_starting_land)
+  /*if(default_land_structure() == land_structure && !ineligible_starting_land)
     dialog::addBoolItem(XLAT("land structure"), false, key);
-  else
+  else*/
     dialog::addSelItem(XLAT("land structure"), land_structure_name(true), key);
-  dialog::add_action_push(show_chaos);
+  dialog::add_action_push(dont_show_chaos);
   }
   
 EX void showChangeMode() {
@@ -742,7 +749,7 @@ EX void showChangeMode() {
     mouseovers = XLAT("One wrong move and it is game over!");
   
   multi::cpid = 0;
-  //menuitem_land_structure('l');
+  menuitem_land_structure('l');
 
   dialog::addBoolItem(XLAT("custom land list"), use_custom_land_list, 'L');
   dialog::add_action_push(customize_land_list);
