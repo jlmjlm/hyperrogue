@@ -268,6 +268,13 @@ bool pcmove::vmsg(moveissue mi) {
   return errormsgs && !checkonly;
   }
 
+
+static void drainOrbPowers() {
+  for(int i=0; i<ittypes; i++)
+    if(itemclass(eItem(i)) == IC_ORB)
+      items[i] = 0;
+  }
+#if 0
 static void drainOrbPowers() {
   int n=0;
   for(int i=0; i<ittypes; i++)
@@ -276,6 +283,7 @@ static void drainOrbPowers() {
   if(n)
     addMessage(XLAT("As you leave, your powers are drained!"));
 }
+#endif
 
 EX bool arc_returning = false;
 
@@ -318,7 +326,8 @@ EX void checkArcadeTarget() {
       return;
     }
     addMessage(XLAT("%1 complete!", linf[specialland].name));
-    if (specialland == laPower) drainOrbPowers();
+    //if (specialland == laPower) drainOrbPowers();
+    drainOrbPowers();
     playSound(NULL, "pickup-orb");
     eLand next_land = pickLandArc();
     if (isElemental(next_land)) next_land = laElementalWall;
