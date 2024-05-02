@@ -550,7 +550,9 @@ EX void updateHi(eItem it, int v) {
 EX void gainItem(eItem it) {
   int g = gold();
   bool lhu = landUnlocked(laHell);
-  items[it]++; if(it != itLotus) updateHi(it, items[it]);
+  items[it]++;
+  if(it == itBull /* Spinel */) items[it]++;
+  if(it != itLotus) updateHi(it, items[it]);
   if(it == itRevolver && items[it] > 6) items[it] = 6;
   achievement_collection(it);
   multi::treasures[multi::cpid]++;

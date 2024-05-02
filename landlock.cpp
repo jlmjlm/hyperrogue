@@ -400,7 +400,7 @@ EX eLand pickLandRPM(eLand old) {
   }
 
 EX eLand pickLandArc() {
-  printf("arc_target is %d\n", arc_target);
+  //printf("arc_target is %d\n", arc_target);
   if (arc_target <= 0) {
     addMessage(format("Invalid arc_target (%d)", arc_target));
     arc_target = 10;
@@ -414,7 +414,7 @@ EX eLand pickLandArc() {
     if (landUnlockedIngame(la) && !isCrossroads(la) &&
         items[treasureType(la)] < arc_target && !excluded.count(la)) {
       possible.push_back(la);
-      printf("Adding %s\n", linf[i].name);
+      //printf("Adding %s\n", linf[i].name);
     }
   }
   printf("%d lands to pick from!\n", static_cast<int>(possible.size()));
