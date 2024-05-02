@@ -584,6 +584,8 @@ EX void placeCrossroadOrbs(cell *c) {
     if(!isCrossroads(specialland)) {
       if(!among(oi.orb, itOrbSafety, itOrbYendor, itOrbLove, itOrbPsi))
         continue;
+      if(specialland == laCamelot && (oi.orb == itOrbYendor || oi.orb == itOrbPsi))
+        continue;
       }
     if(!(oi.flags & orbgenflags::CROSS10)) continue;
     if(!oi.gchance) continue;
