@@ -1894,6 +1894,7 @@ EX void movecost(cell* from, cell *to, int phase) {
   if(geometry == gNormal && celldist(to) == 0 && !usedSafety && gold() >= 100 && (phase & 2))
     achievement_gain_once("COMEBACK");
 
+#if 0   // Tortoise always "OK".
   bool tortoiseOK =
     to->land == from->land || to->land == laTortoise ||
     (to->land == laDragon && from->land != laTortoise) ||
@@ -1907,6 +1908,7 @@ EX void movecost(cell* from, cell *to, int phase) {
     addMessage(XLAT("You leave %the1.", itBabyTortoise));
     items[itBabyTortoise]--;
     }
+#endif
   }
 
 }
