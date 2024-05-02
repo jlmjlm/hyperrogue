@@ -332,6 +332,7 @@ EX void checkArcadeTarget() {
     eLand next_land = pickLandArc();
     if (isElemental(next_land)) next_land = laElementalWall;
     if (!dual::state) items[itOrbSafety] = 7;
+    recallCell.at = NULL;
     activateSafety(next_land);
     arcCollectMessage(next_land);
     }
