@@ -111,7 +111,7 @@ EX vector<orbinfo> orbinfos = {
   {orbgenflags::S_GUEST,  laPalace, 0, 0, itOrbFrog},
   {orbgenflags::S_NATIVE, laZebra, 500, 2100, itOrbFrog},
   {orbgenflags::S_NAT_NT, laLivefjord, 0, 1800, itOrbFish},
-  {orbgenflags::S_NAT_NT, laPrincessQuest, 0, 200, itOrbLove},
+  {orbgenflags::S_NATIVE, laPrincessQuest, 0, 200, itOrbLove},
   {orbgenflags::S_NATIVE, laIvoryTower, 500, 4000, itOrbMatter},
   {orbgenflags::S_NAT_NT, laElementalWall, 1500, 4000, itOrbSummon},
   {orbgenflags::S_NATIVE, laStorms, 1000, 2500, itOrbStunning},
