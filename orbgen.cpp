@@ -586,6 +586,9 @@ EX void placeCrossroadOrbs(cell *c) {
         continue;
       if(specialland == laCamelot && (oi.orb == itOrbYendor || oi.orb == itOrbPsi))
         continue;
+      if(oi.orb == itOrbYendor && arc_target == 10 &&
+           among(specialland, laDungeon, laEndorian))
+        continue;
       }
     if(!(oi.flags & orbgenflags::CROSS10)) continue;
     if(!oi.gchance) continue;
