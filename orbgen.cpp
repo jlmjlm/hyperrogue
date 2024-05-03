@@ -639,7 +639,7 @@ EX void placeOceanOrbs(cell *c) {
     if(!(oi.flags & orbgenflags::CROSS10)) continue;
 
     int treas = items[treasureType(oi.l)] * landMultiplier(oi.l);
-    int mintreas = among(oi.orb, itOrbSafety, itOrbYendor, itOrbLove) ? 10 : 25;
+    int mintreas = among(oi.orb, itOrbSafety, itOrbYendor, itOrbLove, itOrbEmpathy) ? 10 : 25;
 
     if(inv::on) {
       if(oi.flags & orbgenflags::OSM_CROSS25)
