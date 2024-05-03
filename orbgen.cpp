@@ -634,14 +634,12 @@ EX void placeCrossroadOrbs(cell *c) {
 EX void placeOceanOrbs(cell *c) {
   if(peace::on) return;
   for(auto& oi: orbinfos) {
-    if(specialland != laOcean) {
-      if(!among(oi.orb, itOrbSafety, itOrbYendor, itOrbLove))
-        continue;
-      }
+    if(specialland != laOcean && oi.orb != itOrbSafety)
+      continue;
     if(!(oi.flags & orbgenflags::CROSS10)) continue;
 
     int treas = items[treasureType(oi.l)] * landMultiplier(oi.l);
-    int mintreas = 10;
+    int mintreas = among(oi.orb, itOrbSafety, itOrbYendor, itOrbLove) ? 10 : 25;
 
     if(inv::on) {
       if(oi.flags & orbgenflags::OSM_CROSS25)
