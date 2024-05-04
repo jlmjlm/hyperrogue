@@ -191,7 +191,7 @@ EX void initgame() {
 
   yendor::init(1);
 
-  printf("lands(%d,%d,%d,%d)\n", safetyland, specialland, firstland, arc_startland);
+  addMessage(format("lands(%d,%d,%d,%d)\n", safetyland, specialland, firstland, arc_startland));
   if(safety && safetyseed) {
     shrand(safetyseed);
     if(specialland == laOcean) safetyland = laCrossroads;
