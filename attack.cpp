@@ -1218,6 +1218,7 @@ EX void killHardcorePlayer(int id, flagtype flags) {
     canmove = false;
     achievement_final(true);
     arc_stat = arcDead;
+    items[itOrbSafety] = 0;
     }
   }
 
