@@ -220,7 +220,7 @@ EX void saveRecall(cellwalker cw2) {
   }
 
 EX void teleportToLand(eLand l, bool make_it_safe) {
-  if(make_it_safe) arc_dying = false;
+  if(make_it_safe) arc_stat = arcAlive;
   if(recallCell.at && activateRecall()) 
     return;
   savePrincesses();

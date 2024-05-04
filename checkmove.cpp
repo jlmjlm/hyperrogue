@@ -406,6 +406,7 @@ static int yasc_recode(int x) {
 
 EX void end_run() {
   create_yasc_message();
+  arc_stat = arcDead;
   achievement_final(true);
   if((cmode & sm::NORMAL)) showMissionScreen();
   puts("AIIIIIIEEEEEEE!");
@@ -475,8 +476,8 @@ EX void checkmove() {
 
   yasc_message = "";
   if(!canmove) {
-    if (arc_target)
-      arc_dying = true;
+    if(arc_target)
+      arc_stat = arcDying;
     else
       end_run();
     }

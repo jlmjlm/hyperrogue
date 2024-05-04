@@ -56,7 +56,7 @@ EX int asteroids_generated, asteroid_orbs_generated;
 
 EX int arc_target = 0;
 EX eLand arc_startland = laNone;
-EX bool arc_dying = false;
+EX pcstat arc_stat = arcAlive;
 
 EX time_t timerstart, savetime;
 EX bool timerstopped;
@@ -1699,7 +1699,7 @@ EX void start_game() {
   game_active = true;
   gamegen_failure = false;
   ignored_memory_warning = false;
-  arc_dying = false;
+  arc_stat = arcAlive;
   check_cgi();
   cgi.require_basics();
   #if CAP_ARCM

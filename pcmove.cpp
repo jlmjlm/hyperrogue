@@ -339,8 +339,9 @@ static void checkArcadeTargetI() {
   }
 
 EX void checkArcadeTarget() {
-  checkArcadeTargetI();
-  if(arc_dying)
+  if(arc_stat != arcDead)
+    checkArcadeTargetI();
+  if(arc_stat != arcAlive)
     end_run();
 }
 

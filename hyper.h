@@ -250,6 +250,8 @@ struct charstyle {
   bool lefthanded;
   };
 
+enum pcstat { arcAlive, arcDying, arcDead };
+
 enum eStereo { sOFF, sAnaglyph, sLR, sODS, sPanini, sStereographic, sEquirectangular, sCylindrical };
 
 enum eModel : int;
