@@ -302,7 +302,7 @@ EX void arcCollectMessage(eLand la) {
                       arc_returning ? XLAT(" and return") : ""));
   }
 
-EX void checkArcadeTarget() {
+static void checkArcadeTargetI() {
   int landscore = items[treasureType(specialland)];
   if (specialland == laCamelot) landscore *= 10;
 
@@ -337,6 +337,12 @@ EX void checkArcadeTarget() {
     arcCollectMessage(next_land);
     }
   }
+
+EX void checkArcadeTarget() {
+  checkArcadeTargetI();
+  if(arc_dying)
+    end_run();
+}
 
 EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   checked_move_issue.type = miVALID;

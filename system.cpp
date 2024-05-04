@@ -56,6 +56,7 @@ EX int asteroids_generated, asteroid_orbs_generated;
 
 EX int arc_target = 0;
 EX eLand arc_startland = laNone;
+EX bool arc_dying = false;
 
 EX time_t timerstart, savetime;
 EX bool timerstopped;
@@ -190,8 +191,7 @@ EX void initgame() {
 
   yendor::init(1);
 
-  addMessage(format("lands(%d,%d,%d,%d)", safetyland, specialland,
-                    firstland, arc_startland));
+  printf("lands(%d,%d,%d,%d)\n", safetyland, specialland, firstland, arc_startland);
   if(safety && safetyseed) {
     shrand(safetyseed);
     if(specialland == laOcean) safetyland = laCrossroads;
@@ -1699,6 +1699,7 @@ EX void start_game() {
   game_active = true;
   gamegen_failure = false;
   ignored_memory_warning = false;
+  arc_dying = false;
   check_cgi();
   cgi.require_basics();
   #if CAP_ARCM

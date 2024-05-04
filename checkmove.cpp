@@ -399,9 +399,16 @@ EX void create_yasc_message() {
   println(hlog, "YASC_MESSAGE: ", yasc_message);
   }
 
-int yasc_recode(int x) {
+static int yasc_recode(int x) {
   if(cwt.at->type < 10 || x == 0) return x;
   return yasc_recode(x / 10) * 100 + (x % 10);
+  }
+
+EX void end_run() {
+  create_yasc_message();
+  achievement_final(true);
+  if((cmode & sm::NORMAL)) showMissionScreen();
+  puts("AIIIIIIEEEEEEE!");
   }
 
 EX void checkmove() {
@@ -466,12 +473,13 @@ EX void checkmove() {
     }
 #endif
 
+  yasc_message = "";
   if(!canmove) {
-    create_yasc_message();
-    achievement_final(true);
-    if(cmode & sm::NORMAL) showMissionScreen();
+    if (arc_target)
+      arc_dying = true;
+    else
+      end_run();
     }
-  else yasc_message = "";
 
   if(canmove && timerstopped) {
     timerstart = time(NULL);
