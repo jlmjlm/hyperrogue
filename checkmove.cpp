@@ -408,6 +408,7 @@ EX void end_run() {
   create_yasc_message();
   arc_stat = arcDead;
   achievement_final(true);
+  items[itOrbSafety] = 0;
   if((cmode & sm::NORMAL)) showMissionScreen();
   puts("AIIIIIIEEEEEEE!");
   }
