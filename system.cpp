@@ -1227,7 +1227,7 @@ EX void loadsave() {
       if(fscanf(f, "%9999s", buf) <= 0) break;
       sc.ver = buf;
       if(sc.ver == "CHEATER!" && save_cheats) {
-        fgets(buf, 12000, f);
+        if(fgets(buf, 12000, f) == NULL) break;
         if(fscanf(f, "%9999s", buf) <= 0) break;
         sc.ver = buf;
         }
@@ -1631,6 +1631,7 @@ EX void switch_game_mode(char switchWhat) {
       land_structure = princess::challenge ? lsSingle : lsNiceWalls;
       inv::on = false;
       racing::on = false;
+      use_custom_land_list = false;
       dual::disable();
       break;
     

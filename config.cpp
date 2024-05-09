@@ -1050,8 +1050,8 @@ EX void initConfig() {
   param_f(linepatterns::tree_starter, "tree_starter")
   -> editable(0, 1, 0.05, "tree-drawing parameter", "How much of edges to draw for tree patterns (to show how the tree edges are oriented).", 't');
 
-  param_char(patterns::whichCanvas, "whichCanvas", 0);
-  param_i(patterns::rwalls, "randomwalls");
+  // param_char(patterns::whichCanvas, "whichCanvas", 0); %TODO
+  param_i(ccolor::rwalls, "randomwalls");
 
   param_b(vid.grid, "grid");
   param_b(models::desitter_projections, "desitter_projections", false);
@@ -1347,7 +1347,7 @@ EX void initConfig() {
   ->set_extra(draw_crosshair);
   
   param_b(mapeditor::drawplayer, "drawplayer");
-  param_color((color_t&) patterns::canvasback, "color:canvasback", false);
+  param_color((color_t&) ccolor::plain.ctab[0], "color:canvasback", false);
 
   param_color(backcolor, "color:background", false);
   param_color(forecolor, "color:foreground", false);
@@ -1359,8 +1359,8 @@ EX void initConfig() {
   param_color(stdgridcolor, "color:stdgrid", true);
   param_f(vid.multiplier_grid, "mgrid", "mult:grid", 1);
   param_color(dialog::dialogcolor, "color:dialog", false);
-  for(auto& p: colortables)
-    savecolortable(p.second, s0+"canvas"+p.first);
+  for(auto p: ccolor::all)
+    savecolortable(p->ctab, s0+"canvas:"+p->name);
   savecolortable(distcolors, "distance");
   savecolortable(minecolors, "mines");
   #if CAP_COMPLEX2
@@ -3121,7 +3121,15 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   param_b(vid.fixed_yz, "fixed YZ", true);
   param_b(frustum_culling, "frustum_culling");
   param_b(numerical_minefield, "numerical_minefield")
-  ->editable("display mine counts numerically", 'n');
+  -> editable("toggle numerical display", 'n');
+  param_b(mine_hollow, "mine_hollow")
+  -> editable("hollow mine symbols", 'h');
+  param_b(mine_markers, "mine_markers")
+  -> editable("markers on possible mines", 'm');
+  param_i(mine_opacity, "minefield opacity", 255)
+   ->editable(0, 255, 51, "opacity of undiscovered minefield", "3D modes only\n\n0 = invisible, 255 = fully opaque", 'o');
+  param_enum(mine_zero_display, "minefield_zero", "minefield_zero", 1)
+  ->editable({{"OFF", "never display zeros"}, {"3D", "only in 3D modes"}, {"ON", "always display zeros"}}, "display zeros in minefield", 'z');
   param_b(dont_display_minecount, "dont_display_minecount");
   #if MAXMDIM >= 4
   param_enum(draw_sky, "draw_sky", "draw_sky", skyAutomatic)
@@ -3337,6 +3345,7 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     "land size in landscape structure",
     "Each cell gets three coordinates, each of which change smoothly, using the same method as used for the generation of landscapes e.g. in Dragon Chasms. "
     "Then, we find a cell of the bitruncated cubic honeycomb at these cordinates, and this cell determines which land it is. The bigger the value, the larger the lands.", 'R')
+  ->set_sets([] { dialog::bound_low(1); })
   ->set_reaction([] { if(game_active) { stop_game(); start_game(); } });
 
   param_i(curse_percentage, "curse_percentage")->editable(0, 100, 1,
@@ -3455,7 +3464,7 @@ EX void refresh_canvas() {
   int at = 0;
   while(at < isize(cl.lst)) {
     cell *c2 = cl.lst[at];
-    c2->landparam = patterns::generateCanvas(c2);
+    c2->landparam = ccolor::generateCanvas(c2);
     at++;
     
     forCellEx(c3, c2) cl.add(c3);
@@ -3546,13 +3555,13 @@ EX void show_color_dialog() {
   dialog::add_action([] () { dialog::openColorDialog(dialog::dialogcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
 
   dialog::addBreak(50);
-  if(specialland == laCanvas && colortables.count(patterns::whichCanvas)) {
+  if(specialland == laCanvas && ccolor::which->ctab.size()) {
     dialog::addItem(XLAT("pattern colors"), 'P');
-    dialog::add_action_push([] { edit_color_table(colortables[patterns::whichCanvas], refresh_canvas, true); });
+    dialog::add_action_push([] { edit_color_table(ccolor::which->ctab, refresh_canvas, true); });
 
-    if(patterns::whichCanvas == 'R') {
+    if(ccolor::which == &ccolor::shape_mirror) {
       dialog::addItem(XLAT("unreversed colors"), 'U');
-      dialog::add_action_push([] { edit_color_table(colortables['A'], refresh_canvas, true); });
+      dialog::add_action_push([] { edit_color_table(ccolor::shape.ctab, refresh_canvas, true); });
       }
     }
  
@@ -3969,7 +3978,7 @@ EX int read_color_args() {
     PHASEFROM(2); shift(); modelcolor = argcolor(32);
     }
   else if(argis("-apeirocolor")) {
-    PHASEFROM(2); shift(); patterns::apeirogonal_color = argcolor(32);
+    PHASEFROM(2); shift(); ccolor::apeirogonal_color = argcolor(32);
     }
   else if(argis("-ring")) {
     PHASEFROM(2); shift(); ringcolor = argcolor(32);

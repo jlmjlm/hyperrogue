@@ -86,7 +86,8 @@ int movearound() {
 int move_restart() {
   indenter_finish im("move_restart");
   ld llo = loglik_chosen();
-  array<array<int, 128>, 2> distances_map = {0};
+  array<array<int, 128>, 2> distances_map;
+  for(int a=0; a<2; a++) for(int b=0; b<128; b++) distances_map[a][b] = 0;
   int moves = 0;
 //  int im = 0;
   
@@ -319,7 +320,7 @@ void load_embedded(const string s) {
     while(true) {
       char who[500], where[500];
       who[0] = 0;
-      fscanf(f, "%s%s", who, where);
+      if(fscanf(f, "%s%s", who, where) < 0) throw hstream_exception("error loading embedding");
       if(who[0] == 0) break;
       if(!ids.count(who)) printf("unknown vertex: %s\n", who);
       string wh = where;

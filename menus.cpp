@@ -374,6 +374,9 @@ EX void showCreative() {
     }
 #endif
 
+  dialog::addItem(XLAT("line patterns"), 'l');
+  dialog::add_action_push(linepatterns::showMenu);
+
 //  dialog::addBoolItem(XLAT("expansion"), viewdists, 'x');
   
   dialog::addBreak(50);
@@ -1009,7 +1012,7 @@ EX void showStartMenu() {
       stop_game();
       enable_canvas();
       cheater = true;
-      patterns::canvasback = 0xFFFFFF;
+      ccolor::set_plain(0xFFFFFF);
       mapeditor::drawplayer = false;
       start_game();
       clearMessages();

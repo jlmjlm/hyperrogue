@@ -10,7 +10,9 @@
 #include "hyper.h"
 namespace hr {
 
+#if HDR
 #define NUMLEADER 90
+#endif
 
 EX bool test_achievements = false;
 
@@ -86,9 +88,16 @@ EX const char* leadernames[NUMLEADER] = {
   "Crossbow (geometric)", // 89
   };
 
+#if HDR
+#define LB_PRINCESS 36
 #define LB_STATISTICS 62
-#define LB_HALLOWEEN  63
+#define LB_HALLOWEEN 63
+#define LB_YENDOR_CHALLENGE 40
+#define LB_PURE_TACTICS 41
+#define LB_PURE_TACTICS_SHMUP 49
+#define LB_PURE_TACTICS_COOP 50
 #define LB_RACING 81
+#endif
 
 EX bool haveLeaderboard(int id);
 EX int get_currentscore(int id);
@@ -682,6 +691,7 @@ EX void achievement_score(int cat, int number) {
     return;
   if(racing::on && cat != LB_RACING) return;
   if(bow::weapon) return;
+  if(use_custom_land_list) return;
   upload_score(cat, number);
 #endif
   }
@@ -913,6 +923,7 @@ EX void achievement_victory(bool hyper) {
   if(tactic::on) return;
   if(!ls::nice_walls()) return;
   if(ineligible_starting_land) return;
+  if(use_custom_land_list) return;
   LATE( achievement_victory(hyper); )
   DEBB(DF_STEAM, ("after checks"))
 
