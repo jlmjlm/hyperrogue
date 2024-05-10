@@ -376,6 +376,7 @@ EX void full_ystrafe_camera(ld t) {
 EX ld third_person_rotation = 0;
 
 EX void full_rotate_camera(int dir, ld val) {
+  if(!val) return;
   if(rug::rug_control() && lshiftclick) {
     val *= camera_rot_speed;
     hyperpoint h;
@@ -524,7 +525,7 @@ EX void handleKeyNormal(int sym, int uni) {
 
   if(!(uni >= 'A' && uni <= 'Z') && DEFAULTCONTROL && !game_keys_scroll) {
     for(int i=0; i<8; i++)
-      if(among(sym, keys_vi[i], keys_wasd[i], (uni >= '0' && uni <= '9') ? -1 : keys_numpad[i]))
+      if(among(sym, keys_vi[i], keys_wasd[i], (uni >= '0' && uni <= '9' && !ISMAC) ? -1 : keys_numpad[i]))
         movepckeydir(i);
     }
 

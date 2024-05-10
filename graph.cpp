@@ -880,6 +880,7 @@ EX bool mark_compass(cell *c, shiftpoint& P1) {
 //  queuestr(V, 1, its(compassDist(c)), 0x10101 * int(128 - 100 * sin(ticks / 150.)), 1);
     queue_goal_text(P1, 1, its(-compassDist(c)), 0x10101 * int(128 - 100 * sintick(150)));
     addauraspecial(P1, 0xFF0000, 0);
+    addradar(P, 'X', iinf[itCompass].color, 0xFF, true);
     }
   return true;
   }
@@ -4819,12 +4820,12 @@ EX void drawMarkers() {
             int cd2 = celldistance(cwt.at, yi[yii].path[i2]);
             if(cd2 != DISTANCE_UNKNOWN) {
               cd = cd2 + (YDIST-1-i2);
-              println(hlog, "i2 = ", i2, " cd = ", celldistance(cwt.at, keycell));
               }
             }
           queue_goal_text(H, 1, its(cd), 0x10101 * int(128 - 100 * sintick(150)));
           #endif
           addauraspecial(H, iinf[itOrbYendor].color, 0);
+          addradar(ggmatrix(keycell), 'X', iinf[itKey].color, kind_outline(itKey), true);
           }
         }
       }
