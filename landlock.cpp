@@ -407,16 +407,15 @@ EX eLand pickLandArc() {
   }
   static const set<eLand> excluded {
     /* Side quests: */ laCamelot, laPrincessQuest,
-    /* Component: */ laHauntedWall, laHauntedBorder, laWarpSea,
+    /* Component: */ laHauntedWall, laHauntedBorder, laWarpSea, laMercuryRiver,
             laMirrorWall, laMirrored, laMirrorWall2, laMirrored2,
-            laMercuryRiver,
   };
   vector<eLand> possible;
   for (int i = 1; i < landtypes; i++) {
     eLand la = eLand(i);
     if (isElemental(la) && la != laElementalWall)
       continue;
-    if (landUnlockedIngame(la) && !isCrossroads(la) &&
+    if (landUnlockedIngame(la) && !isCrossroads(la) && !isTechnicalLand(la) &&
         items[treasureType(la)] < arc_target && !excluded.count(la)) {
       possible.push_back(la);
       printf("Adding %s\n", linf[i].name);
@@ -430,6 +429,7 @@ EX eLand pickLandArc() {
   for (int i = 1; i < landtypes; i++) {
     eLand la = eLand(i);
     if (isLandIngame(la) && !landUnlockedIngame(la) && !isCrossroads(la) &&
+        !isTechnicalLand(la) &&
         items[treasureType(la)] < arc_target && !excluded.count(la))
       return la;
   }
