@@ -270,6 +270,7 @@ bool pcmove::vmsg(moveissue mi) {
 
 
 static void drainOrbPowers() {
+  items[itRevolver] = 0;
   for(int i=0; i<ittypes; i++)
     if(itemclass(eItem(i)) == IC_ORB && i != itOrbLove)
       items[i] = 0;
