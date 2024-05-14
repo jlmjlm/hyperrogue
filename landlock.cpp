@@ -388,7 +388,7 @@ EX bool rlyehComplete() {
 bool lchance(eLand l) { 
   if(ls::single() || racing::on || ((geometry || GOLDBERG) && specialland == laElementalWall)) return true;
   if(ls::any_chaos()) return hrand(100) < 25;
-  return hrand(100) >= 40 * kills[elementalOf(l)] / (elementalKills()+1); 
+  return hrand(100) >= 40 * kills[elementalOf(l)] / (elementalKills()+1);
   }
 
 EX eLand pickLandRPM(eLand old) {
@@ -405,7 +405,12 @@ EX eLand pickLandArc() {
     addMessage(format("Invalid arc_target (%d)", arc_target));
     arc_target = 10;
   }
-  static const set<eLand> excluded { laCamelot, laPrincessQuest };
+  static const set<eLand> excluded {
+    /* Side quests: */ laCamelot, laPrincessQuest,
+    /* Component: */ laHauntedWall, laHauntedBorder, laWarpSea,
+            laMirrorWall, laMirrored, laMirrorWall2, laMirrored2,
+            laMercuryRiver,
+  };
   vector<eLand> possible;
   for (int i = 1; i < landtypes; i++) {
     eLand la = eLand(i);
@@ -414,7 +419,7 @@ EX eLand pickLandArc() {
     if (landUnlockedIngame(la) && !isCrossroads(la) &&
         items[treasureType(la)] < arc_target && !excluded.count(la)) {
       possible.push_back(la);
-      //printf("Adding %s\n", linf[i].name);
+      printf("Adding %s\n", linf[i].name);
     }
   }
   printf("%d lands to pick from\n", static_cast<int>(possible.size()));
@@ -460,7 +465,7 @@ EX eLand pickluck(eLand l1, eLand l2) {
 
 /* bool noChaos(eLand l) {
   if(l == laOcean || l == laTemple) return false;
-  return 
+  return
     isCrossroads(l) || isCyclic(l) || isHaunted(l) || 
     l == laCaribbean || isGravityLand(l) || l == laPrincessQuest ||
     l == laPrairie || l == laHalloween;
