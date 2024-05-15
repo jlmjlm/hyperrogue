@@ -4807,6 +4807,7 @@ EX void drawMarkers() {
             keycell = yi[yii].path[i]; last_i = i;
             }
         if(keycell) {
+          printf("keycell set at last_i = %d\n", last_i);
           for(int i = last_i+1; i<YDIST; i++) {
             cell *c = yi[yii].path[i];
             if(inscreenrange(c))
@@ -5804,9 +5805,9 @@ EX void normalscreen() {
 #if CAP_TOUR
   else if(tour::on) 
     displayButton(vid.xres-8, vid.yres-vid.fsize, XLAT("(ESC) tour menu"), SDLK_ESCAPE, 16);
-  else
 #endif
-    displayButton(vid.xres-8, vid.yres-vid.fsize, XLAT("(v) menu"), 'v', 16);
+  else
+    displayButton(vid.xres-8, vid.yres-vid.fsize, XLAT("t:%1", its(turncount)), 'v', 16);
   keyhandler = handleKeyNormal;
 
   if(!playerfound && !anims::any_on() && !sphere && !no_find_player && mapeditor::drawplayer)

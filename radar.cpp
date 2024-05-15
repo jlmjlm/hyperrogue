@@ -24,11 +24,21 @@ pair<bool, hyperpoint> makeradar(shiftpoint h, bool distant) {
   if(WDIM == 3) {
     ld d = hdist0(h);
     if(distant) {
-      h1 = h1 / hypot_d(3, h1);
+      auto scale = hypot_d(3, h1);
+      printf("Downscaling h1 by %f\n", scale);
+      h1 /= scale;
       }
     else {
-      if(d >= vid.radarrange) return {false, h1};
-      if(d) h1 = h1 * (d / vid.radarrange / hypot_d(3, h1));
+      if(d >= vid.radarrange) {
+        //printf("%f >= %f: too distant\n", d, vid.radarrange);
+        return {false, h1};
+        }
+      if(d) {
+        ld scale = d / vid.radarrange / hypot_d(3, h1);
+        //printf("scaling h1 by %f\n", /*h1,*/ scale);
+        h1 *= scale;
+        }
+      //else printf("no-op: d = %f\n", d);
       }
     }
   else {
