@@ -179,7 +179,6 @@ static void maxTo(int &var, int val) {
 /** \brief initialize the game */
 EX void initgame() {
   DEBBI(DF_INIT, ("initGame"));
-  //safety = false;
   callhooks(hooks_initgame);
 
   if(!safety) fix_land_structure_choice();
