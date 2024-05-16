@@ -236,7 +236,7 @@ EX void buildCredits() {
   help += XLAT(
     "special thanks to the following people for their bug reports, feature requests, porting, and other help:\n\n%1\n\n",
     "Konstantin Stupnik, ortoslon, chrysn, Adam Borowski, Damyan Ivanov, Ryan Farnsley, mcobit, Darren Grey, tricosahedron, Maciej Chojecki, Marek Čtrnáct, "
-    "wonderfullizardofoz, Piotr Migdał, tehora, Michael Heerdegen, Sprite Guard, zelda0x181e, Vipul, snowyowl0, Patashu, phenomist, Alan Malloy, Tom Fryers, Sinquetica, _monad, CtrlAltDestroy, jruderman, "
+    "wonderfullizardofoz, Piotr Migdał, Tehora Rogue, Michael Heerdegen, Sprite Guard, zelda0x181e, Vipul, snowyowl0, Patashu, phenomist, Alan Malloy, Tom Fryers, Sinquetica, _monad, CtrlAltDestroy, jruderman, "
     "Kojiguchi Kazuki, baconcow, Alan, SurelyYouJest, hotdogPi, DivisionByZero, xXxWeedGokuxXx, jpystynen, Dmitry Marakasov, Alexandre Moine, Arthur O'Dwyer, "
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
     "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
@@ -553,6 +553,20 @@ EX string generateHelpForItem(eItem it) {
   return help;
   }
 
+void mine_dialog() {
+  cmode = sm::SIDE;
+  gamescreen();
+  dialog::init("Minefield graphics");
+  add_edit(numerical_minefield);
+  add_edit(mine_zero_display);
+  add_edit(mine_opacity);
+  add_edit(mine_hollow);
+  add_edit(mine_markers);
+  dialog::addItem(XLAT("minefield colors"), 'c');
+  dialog::add_action_push([] { edit_color_table(minecolors); });
+  dialog::display();
+  }
+
 void addMinefieldExplanation(string& s) {
 
   s += XLAT(
@@ -568,7 +582,7 @@ void addMinefieldExplanation(string& s) {
   s += XLAT("Known mines may be marked by touching while in drag mode. Your allies won't step on marked mines.");
 #endif
 
-  help_extensions.push_back(help_extension{'n', XLAT("toggle numerical display"), [] () { numerical_minefield = !numerical_minefield; }});
+  help_extensions.push_back(help_extension{'c', XLAT("configure"), [] () { pushScreen(mine_dialog); } });
   }
 
 EX string generateHelpForWall(eWall w) {

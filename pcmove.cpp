@@ -1375,8 +1375,10 @@ bool pcmove::perform_actual_move() {
   handle_friendly_ivy();
 
   if(items[itOrbDigging]) {
-    invismove = false;
-    if(earthMove(mi)) markOrb(itOrbDigging);
+    if(earthMove(mi)) {
+      invismove = false;
+      markOrb(itOrbDigging);
+      }
     }
 
   movecost(cwt.at, c2, 1);

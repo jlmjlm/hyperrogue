@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "13.0g"
-#define VERNUM_HEX 0xAA07
+#define VER "13.0i"
+#define VERNUM_HEX 0xAA09
 
 #include "sysconfig.h"
 
@@ -220,15 +220,6 @@ void addMessage(string s, char spamtype = 0);
 #define VALENCE current_valence()
 
 #define NUMWITCH 7
-
-// achievements
-
-#define LB_YENDOR_CHALLENGE 40
-#define LB_PURE_TACTICS 41
-#define NUMLEADER 90
-#define LB_PURE_TACTICS_SHMUP 49
-#define LB_PURE_TACTICS_COOP 50
-#define LB_RACING 81
 
 #if ISMOBILE || ISWEB || ISPANDORA || 1
 typedef double ld;
@@ -782,6 +773,7 @@ enum orbAction { roMouse, roKeyboard, roCheck, roMouseForce, roMultiCheck, roMul
 #define pmodel (pconf.model)
 
 static constexpr int DISTANCE_UNKNOWN = 127;
+static constexpr int DISTANCE_UNKNOWN_BIG = 99999999;
 
 template<class T, class U> int addHook(hookset<T>& m, int prio, U&& hook) {
   return m.add(prio, static_cast<U&&>(hook));

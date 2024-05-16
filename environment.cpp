@@ -370,7 +370,7 @@ EX void bfs(bool kill_treasure IS(false)) {
         c2->wall = waSea;
 
       if(c2 && signed(c2->cpdist) > d+1) {
-        if(WDIM == 3 && !gmatrix.count(c2)) {
+        if(WDIM == 3 && (d > 2 && !gmatrix.count(c2))) {
           if(!first7) first7 = qb;
           continue;
           }

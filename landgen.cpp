@@ -298,6 +298,12 @@ EX eItem random_curse() {
   return pick(itCurseWeakness, itCurseDraining, itCurseWater, itCurseFatigue, itCurseRepulsion, itCurseGluttony);
   }
 
+EX void clear_item(cell *c) {
+  if(c->item == itOrbWater && c->wall == waStrandedBoat)
+    c->wall = waNone;
+  c->item = itNone;
+  }
+
 EX void giantLandSwitch(cell *c, int d, cell *from) {
   bool fargen = d == 9;
   switch(c->land) {
@@ -558,7 +564,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           // no Plates or Trapdoors in the Princess cell
           if(d < 3 && (c->wall == waClosePlate || c->wall == waOpenPlate || c->wall == waTrapdoor))
             c->wall = waNone;
-          if(d > 1) c->item = itNone;
+          if(d > 1) clear_item(c);
           // the Princess herself
           if(d == 0) {
             c->monst = moPrincess;
@@ -765,7 +771,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           }
         }
       // seal entrances to the Land of Power.
-      if(d == 7 && ctof(c)) {
+      if(d == 7 && ctof(c) && land_structure != lsLandscape) {
         bool onwall = false;
         for(int i=0; i<c->type; i++) if(c->move(i) && c->move(i)->land == laBarrier)
           onwall = true;
@@ -775,12 +781,15 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           cell *c3 = c2->modmove(c->c.spin(i) + 3);
           if(!c3) continue;
           if(c3->land != laPower && c3->land != laBarrier)
-          if(c2->wall != waFire && c2->wall != waGlass) {
+          if(c2->wall != waEternalFire && c2->wall != waGlass) {
             if(isFire(c)) c->monst = moWitchWinter;
             else if(c->wall == waGlass) c->monst = moWitchGhost;
             else c->monst = moEvilGolem;
             }
           }
+        }
+      if(d == 7 && land_structure == lsLandscape) {
+        forCellEx(c2, c) if(c2->land != laPower) c->wall = waEternalFire;
         }
       ONEMPTY {
         if(hrand(5000+50*items[itPower]) < 1200) {
@@ -2425,7 +2434,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         if(hrand(1500) < PT(30 + kills[moHexDemon] + kills[moAltDemon] + kills[moMonk] + kills[moPair] + kills[moCrusher], 100) && notDippingFor(itRuins)) {
           c->item = itRuins;
           forCellEx(c2, c) if(c2->monst == moMonk)
-            c->item = itNone;
+            clear_item(c);
           }
         if(hrand_monster(7000) < kf && !c->monst) {
           c->monst = genRuinMonster(c);
@@ -2563,9 +2572,9 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     case laHauntedWall:
       if(d == 7) {
         c->wall = waNone;
-
-        c->item = itNone; c->monst = moNone;
-
+  
+        clear_item(c); c->monst = moNone;
+        
         if(hrand(100) < 25)
           c->wall = hrand(2) ? waBigTree : waSmallTree;
 
@@ -2941,7 +2950,7 @@ EX void set_land_for_geometry(cell *c) {
       return;
       }
     if(land_structure == lsLandscape) {
-      if(landscape_div < 0) landscape_div = 1;
+      if(landscape_div <= 0) landscape_div = 1;
       array<int, 3> a;
       for(int i=0; i<3; i++) a[i] = getCdata(c, i);
       auto& ld = landscape_div;
@@ -3084,12 +3093,11 @@ EX void setdist(cell *c, int d, cell *from) {
 #else
   #define UNLESS_DAILY_ON(x) x
 #endif
-
-  UNLESS_DAILY_ON( set_land_for_geometry(c); )
-  }
-
+      UNLESS_DAILY_ON( set_land_for_geometry(c); )
+    }
+  
   if(d == BARLEV && c->land == laCanvas) {
-    color_t col = patterns::generateCanvas(c);
+    color_t col = ccolor::generateCanvas(c);
     c->landparam = col;
     c->wall = canvas_default_wall;
     if((GDIM == 3 || geom3::flipped) && (col & 0x1000000)) c->wall = waWaxWall;

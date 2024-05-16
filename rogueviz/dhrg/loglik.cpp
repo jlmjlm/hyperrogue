@@ -139,8 +139,7 @@ void cellcoords() {
 // needs cellcoords/rvcoords/origcoords
 void build_disttable() {
   indenter_finish im("build_disttable");
-  int tab[N];
-  for(int i=0; i<N; i++) tab[i] = N;
+  vector<int> tab(N, N);
   disttable0.clear();
   disttable1.clear();
 
@@ -269,7 +268,7 @@ void writestats() {
   ld placement_loglik = loglik_placement();
   
   for(int u=0; u<MAXDIST; u++) if(tally[u]) {
-    println(hlog, hr::format("* %4d: %8d / %12Ld = %lf %.10" PLDF " %.10" PLDF, 
+    println(hlog, hr::format("* %4d: %8d / %12lld = %lf %.10" PLDF " %.10" PLDF,
       u, edgetally[u], tally[u], double(edgetally[u]) / tally[u], 
       saved_logistic.yes(u), current_logistic.yes(u)));
     }
@@ -338,8 +337,7 @@ void build_disttable_approx() {
   for(int k=0; k<threads; k++)
     v.emplace_back([&,k] () {
       auto& dt = results[k];
-      int tab[N];
-      for(int i=0; i<N; i++) tab[i] = N;
+      vector<int>  tab(N, N);
       auto p = k ? nullptr : new progressbar(N/threads, "build_disttable_approx");
       for(int i=k; i<N; i+=threads) {
         if(p) (*p)++;

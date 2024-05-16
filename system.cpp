@@ -463,7 +463,6 @@ EX void initgame() {
   calcTidalPhase();
 
   if(firstland == laHaunted) cwt.at->wall = waCrateTarget;
-  //addMessage(format("initgame: cwt.at->wall = %d", cwt.at->wall));
 
   callhooks(hooks_post_initgame);
   }
@@ -1675,6 +1674,7 @@ EX void switch_game_mode(char switchWhat) {
       land_structure = princess::challenge ? lsSingle : lsNiceWalls;
       inv::on = false;
       racing::on = false;
+      use_custom_land_list = false;
       dual::disable();
       break;
 
