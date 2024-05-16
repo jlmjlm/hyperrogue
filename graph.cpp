@@ -4807,7 +4807,7 @@ EX void drawMarkers() {
             keycell = yi[yii].path[i]; last_i = i;
             }
         if(keycell) {
-          printf("keycell set at last_i = %d\n", last_i);
+          //printf("keycell set at last_i = %d\n", last_i);
           for(int i = last_i+1; i<YDIST; i++) {
             cell *c = yi[yii].path[i];
             if(inscreenrange(c))

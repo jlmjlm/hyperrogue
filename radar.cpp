@@ -25,7 +25,7 @@ pair<bool, hyperpoint> makeradar(shiftpoint h, bool distant) {
     ld d = hdist0(h);
     if(distant) {
       auto scale = hypot_d(3, h1);
-      printf("Downscaling h1 by %f\n", scale);
+      //printf("Downscaling h1 by %f\n", scale);
       h1 /= scale;
       }
     else {
