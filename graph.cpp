@@ -5672,6 +5672,7 @@ EX bool just_refreshing;
 
 EX int menu_darkening = 2;
 EX bool centered_menus = false;
+EX bool show_turns = false;
 
 EX void gamescreen() {
 
@@ -5805,7 +5806,8 @@ EX void normalscreen() {
     displayButton(vid.xres-8, vid.yres-vid.fsize, XLAT("(ESC) tour menu"), SDLK_ESCAPE, 16);
 #endif
   else
-    displayButton(vid.xres-8, vid.yres-vid.fsize, XLAT("(v) menu"), 'v', 16);
+    displayButton(vid.xres-8, vid.yres-vid.fsize,
+        show_turns ? "t:" + its(turncount) : XLAT("(v) menu"), 'v', 16);
   keyhandler = handleKeyNormal;
 
   if(!playerfound && !anims::any_on() && !sphere && !no_find_player && mapeditor::drawplayer)
