@@ -5800,7 +5800,7 @@ EX void normalscreen() {
   if(viewdists && show_distance_lists) cmode |= sm::SIDE | sm::MAYDARK;
   gamescreen(); drawStats();
   if(show_turns)
-    displayButton(vid.xres-8, vid.yres-vid.fsize, "t:" + its(turncount), 'v', 16);
+    displayButtonS(vid.xres-8, vid.yres-vid.fsize, "t:" + its(turncount), 0xFFFFFF, 16, 21);
   else if(nomenukey || ISMOBILE)
     ;
 #if CAP_TOUR
