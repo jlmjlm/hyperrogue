@@ -70,11 +70,19 @@ EX namespace dialog {
     scaler sc;
     int *intval; ld intbuf;
     bool animatable;
+    bool *boolval;
     void draw() override;
     void apply_edit();
     void apply_slider();
     string disp(ld x);
     void reset_str() { s = disp(*editwhat); }
+    };
+
+  /** bool dialog */
+  struct bool_dialog : extdialog {
+    bool *editwhat, dft;
+    reaction_t switcher;
+    void draw() override;
     };
 #endif
 
@@ -215,12 +223,16 @@ EX namespace dialog {
   EX string keyname(int k) {
     if(k == 0) return "";
     if(k == SDLK_ESCAPE) return "Esc";
-    if(k == SDLK_F5) return "F5";
-    if(k == SDLK_F10) return "F10";
-    if(k == SDLK_F9) return "F9";
     if(k == SDLK_F1) return "F1";
-    if(k == SDLK_F4) return "F4";
+    if(k == SDLK_F2) return "F2";
     if(k == SDLK_F3) return "F3";
+    if(k == SDLK_F4) return "F4";
+    if(k == SDLK_F5) return "F5";
+    if(k == SDLK_F6) return "F6";
+    if(k == SDLK_F7) return "F7";
+    if(k == SDLK_F8) return "F8";
+    if(k == SDLK_F9) return "F9";
+    if(k == SDLK_F10) return "F10";
     if(k >= 10000 && k < 10500) return "";
     if(k == SDLK_HOME) return "Home";
     if(k == SDLK_BACKSPACE) return "Backspace";
@@ -1227,6 +1239,7 @@ EX namespace dialog {
           if(p) p->load_as_animation(formula);
           }
         catch(hr_parse_exception&) { }
+        catch(param_exception&) { }
         };
       dialog::get_di().dialogflags |= dialogflags;
       });
@@ -1298,6 +1311,7 @@ EX namespace dialog {
       }
     catch(const hr_parse_exception&) { 
       }
+    catch(param_exception&) { }
     }
 
   EX void bound_low(ld val) {
@@ -1368,12 +1382,12 @@ EX namespace dialog {
     dialog::addBreak(50);
     auto f = find_edit(!ptr ? nullptr : ne.intval ? (void*) ne.intval : (void*) ne.editwhat);
     if(f)
-      dialog::addHelp(XLAT("Parameter names, e.g. '%1'", f->parameter_name));
+      dialog::addHelp(XLAT("Parameter names, e.g. '%1'", f->name));
     else
       dialog::addHelp(XLAT("Parameter names"));
     dialog::addBreak(50);
     for(auto& ap: anims::aps) {
-      dialog::addInfo(ap.par->parameter_name + " = " + ap.formula);
+      dialog::addInfo(ap.par->name + " = " + ap.formula);
       }
     #endif
     dialog::addBreak(50);
@@ -1484,7 +1498,43 @@ EX namespace dialog {
         }
       else if(doexiton(sym, uni)) ne.popfinal();
       };
-    }  
+    }
+
+  void bool_dialog::draw() {
+    cmode = dialogflags;
+    gamescreen();
+    init(title);
+
+    dialog::addBreak(100);
+
+    auto switch_to = [this] (bool b) {
+      bool do_switch = (*editwhat != b);
+      auto sw = switcher;
+      auto re = reaction;
+      popScreen();
+      if(do_switch) { sw(); if(re) re(); }
+      };
+
+    dialog::addBoolItem(XLAT("disable"), false, '0');
+    dialog::add_action([switch_to] { switch_to(false); });
+
+    dialog::addBoolItem(XLAT("enable"), true, '1');
+    dialog::add_action([switch_to] { switch_to(true); });
+
+    dialog::addBoolItem(XLAT("switch"), !*editwhat, 's');
+    dialog::add_action([switch_to, this] { switch_to(!*editwhat); });
+
+    dialog::addBoolItem(XLAT("set default"), dft, 'd');
+    dialog::add_action([switch_to, this] { switch_to(dft); });
+
+    dialog::addBreak(100);
+
+    if(help != "") addHelp(help);
+
+    if(extra_options) extra_options();
+
+    display();
+    }
 
   int nlpage = 1;
   int wheelshift = 0;
@@ -1563,6 +1613,17 @@ EX namespace dialog {
     ne.reset_str();
     pushScreen(ne);
     return get_ne();
+    }
+
+  EX extdialog& editBool(bool& b, bool dft, string title, string help, const reaction_t& switcher) {
+    bool_dialog be;
+    be.editwhat = &b;
+    be.dft = dft;
+    be.title = title;
+    be.help = help;
+    be.switcher = switcher;
+    pushScreen(be);
+    return get_di();
     }
 
   EX number_dialog& editNumber(int& x, int vmin, int vmax, ld step, int dft, string title, string help) {

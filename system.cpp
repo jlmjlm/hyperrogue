@@ -54,7 +54,7 @@ EX int truelotus;
 
 EX int asteroids_generated, asteroid_orbs_generated;
 
-EX time_t timerstart, savetime;
+EX time_t timerstart, savetime, tickstart;
 EX bool timerstopped;
 EX int savecount;
 EX int save_turns;
@@ -224,6 +224,7 @@ EX void initgame() {
   clearing::imputed = 0;
   rosephase = 0;
   shmup::count_pauses = 0;
+  illegal_moves = 0;
 
   splitrocks = 0;
 
@@ -377,6 +378,7 @@ EX void initgame() {
   if(!safety) {
     usedSafety = false;
     timerstart = time(NULL); turncount = 0; rosewave = 0; rosephase = 0;
+    tickstart = ticks;
     noiseuntil = 0;
     sagephase = 0; hardcoreAt = 0;
     timerstopped = false;
@@ -1763,6 +1765,8 @@ EX void restore_all_golems() {
     }
   }
 
+EX bool save_loaded;
+
 EX void initAll() {
   callhooks(hooks_initialize);
   init_floorcolors();
@@ -1783,6 +1787,7 @@ EX void initAll() {
 
 #if CAP_SAVE
   select_savefile();
+  save_loaded = true;
   loadsave();
   if(IRREGULAR && !irr::base) irr::auto_creator();
 #endif
@@ -1828,7 +1833,7 @@ EX void save_mode_to_file(const string& fname) {
   if(custom_welcome != "") println(f, "CMSG ", custom_welcome);
 
   for(auto& ap: allowed_params) {
-    auto& s = params[ap]->saver;
+    auto& s = params[ap];
     if(s->dosave())
       println(f, ap, "=", s->save());
     }

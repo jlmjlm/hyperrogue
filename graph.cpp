@@ -209,6 +209,7 @@ void drawSpeed(const shiftmatrix& V, ld scale=1) {
   }
 
 void drawSafety(const shiftmatrix& V, int ct) {
+  if(inHighQual) return;
 #if CAP_QUEUE
   ld ds = ptick(50);
   color_t col = darkena(iinf[itOrbSafety].color, 0, 0xFF);
@@ -5674,7 +5675,8 @@ EX bool just_refreshing;
 
 EX int menu_darkening = 2;
 EX bool centered_menus = false;
-EX bool show_turns = false;
+
+EX string menu_format = "";
 
 EX void gamescreen() {
 
@@ -5801,8 +5803,15 @@ EX void normalscreen() {
   cmode = sm::NORMAL | sm::DOTOUR | sm::CENTER;
   if(viewdists && show_distance_lists) cmode |= sm::SIDE | sm::MAYDARK;
   gamescreen(); drawStats();
+
+#if 0
   if(show_turns)
     displayButtonS(vid.xres-8, vid.yres-vid.fsize, "t:" + its(turncount), 0xFFFFFF, 16, 21);
+#else
+  if(menu_format != "")
+    displayButton(vid.xres-8, vid.yres-vid.fsize, eval_programmable_string(menu_format), 'v', 16);
+#endif
+
   else if(nomenukey || ISMOBILE)
     ;
 #if CAP_TOUR
@@ -5934,8 +5943,11 @@ EX void drawscreen() {
   color_t col = linf[cwt.at->land].color;
   if(cwt.at->land == laRedRock) col = 0xC00000;
   if(titlecolor) col = titlecolor;
-  if(nohelp != 1)
-    displayfr(vid.xres/2, vid.fsize,   2, vid.fsize, mouseovers, col, 8);
+  if(nohelp != 1) {
+    int size = vid.fsize;
+    while(size > 3 && textwidth(size, mouseovers) > vid.xres) size--;
+    displayfr(vid.xres/2, vid.fsize,   2, size, mouseovers, col, 8);
+    }
 #endif
 
   drawmessages();

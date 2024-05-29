@@ -1564,10 +1564,10 @@ EX namespace ccolor {
 
   EX int jhole = 0;
   EX int jblock = 0;
-  EX int rwalls = 50;
+  EX ld rwalls = 50;
+  EX bool live_canvas;
 
   EX void edit_rwalls() {
-    if(WDIM == 2) return;
     dialog::editNumber(rwalls, 0, 100, 10, 50, XLAT("probability of a wall (%)"), "");
     dialog::get_di().reaction = [] { stop_game(); start_game(); };
     }
@@ -1607,11 +1607,7 @@ EX namespace ccolor {
   EX data shape = data("shape", always_available, CCO {
     #if CAP_ARCM
     if(arcm::in()) {
-      int id = arcm::id_of(c->master);
-      int tid = arcm::current.tilegroup[id];
-      int tid2 = arcm::current.tilegroup[id^1];
-      if(tid2 >= 0) tid = min(tid, tid2);
-      return cco.ctab[tid];
+      return cco.ctab[arcm::get_graphical_id(c)];
       }
     #endif
     if(arb::in()) {
@@ -1651,10 +1647,17 @@ EX namespace ccolor {
     0x404040, 0x606060, 0x808080
     });
 
+  EX map<cell*, pair<int, ld>> percentages;
+  auto pct_hook = addHook(hooks_clearmemory, 40, [] { percentages = {}; });
+
   EX data plain = data("single color", always_available, CCO {
-    color_t r = isize(cco.ctab) == 1 ? cco.ctab[0] : cco.ctab[cco.ctab.size()];
-    if(hrand(100) < rwalls) r |= 0x1000000;
-    if(c == cwt.at) r &= 0xFFFFFF;
+    if(!percentages.count(c)) {
+      percentages[c].first = hrand(1000000);
+      percentages[c].second = c == cwt.at ? 100 : hrand(10000) / 100.;
+      }
+    auto& p = percentages[c];
+    color_t r = cco.ctab[gmod(p.first, cco.ctab.size())];
+    if(p.second < rwalls) r |= 0x1000000;
     return r;
     },
     {linf[laCanvas].color >> 2});
@@ -1669,18 +1672,13 @@ EX namespace ccolor {
     return r;
     }, {0, 0xFFFFFF});
 
-  EX string color_formula = "to01(rgb(x,y,z))";
+  EX string color_formula = "rgb(to01(x),to01(y),to01(z))";
 
   EX data formula = data("formula", always_available, CCO {
-    color_t res;
-    for(int i=0; i<4; i++) {
-      ld v = real(patterns::compute_map_function(c, 1+i, color_formula));
-      if(i == 3) part(res, i) = (v > 0);
-      else if(v < 0) part(res, i) = 0;
-      else if(v > 1) part(res, i) = 255;
-      else part(res, i) = int(v * 255 + .5);
-      }
-    return res;
+    color_t col = patterns::compute_map_function(c, color_formula);
+    bool wall = (col & 0xFF);
+    col >>= 8; if(wall) col |= 0x1000000;
+    return col;
     }, {});
 
   EX data threecolor = data("threecolor", [] { return geosupport_threecolor(); }, CCO {
@@ -1887,14 +1885,17 @@ EX namespace ccolor {
     return;
     }
 
-  void config_formula(bool instant) {
+  EX void config_formula(bool instant) {
     string s = XLAT(
-      "This lets you specify the color pattern as a function of the cell. "
+      "This lets you specify the color pattern as a function of the cell.\n");
+    s += XLAT("rgb(r,g,b)\n");
+    s += XLAT("indexed(f) (where f is a function of p, p=1 for red, 2 for green, 3 for blue)");
+    s += XLAT(
       "Available parameters:\n\n"
       "x, y, z (hyperboloid/sphere/plane coordinates in non-crystal geometries)\n"
       "ex, ey, ez (in Euclidean geometries)\n"
       "x0, x1, x2... (crystal geometry only)\n"
-      "0 is black, 1 is white, rgb(1,0,0) is red, ifp(p-2,1,0) is blue (p=1 for red, 2 for green, 3 for blue).");
+      );
 
     if(MDIM == 4) s += XLAT(
       "w (fourth coordinate)\n"
@@ -2062,9 +2063,8 @@ EX namespace patterns {
     }
   
 
-  EX cld compute_map_function(cell *c, int p, const string& formula) {
+  EX color_t compute_map_function(cell *c, const string& formula) {
     exp_parser ep;
-    ep.extra_params["p"] = p;
 
     hyperpoint h = calc_relative_matrix(c, currentmap->gamestart(), C0) * C0;
     ep.extra_params["x"] = h[0];
@@ -2085,6 +2085,13 @@ EX namespace patterns {
     ep.extra_params["chess"] = chessvalue(c);
     ep.extra_params["ph"] = pseudohept(c);
     ep.extra_params["kph"] = kraken_pseudohept(c);
+    ep.extra_params["windmap"] = windmap::at(c) / 256.;
+    ep.extra_params["cdata0"] = getCdata(c, 0);
+    ep.extra_params["cdata1"] = getCdata(c, 1);
+    ep.extra_params["cdata2"] = getCdata(c, 2);
+    ep.extra_params["cdata3"] = getCdata(c, 3);
+    ep.extra_params["sides"] = c->type;
+    ep.extra_params["shape"] = shvid(c);
     if(true) {
       ep.extra_params["md"] = c->master->distance;
       ep.extra_params["me"] = c->master->emeraldval;
@@ -2137,7 +2144,7 @@ EX namespace patterns {
         
     ep.s = formula;
     try {
-      return ep.parse();
+      return ep.parsecolor();
       }
     catch(hr_parse_exception&) {
       return 0;
@@ -3287,14 +3294,6 @@ int read_pattern_args() {
     enable_canvas();
     ccolor::which = &ccolor::formula;
     shift(); ccolor::set_formula(args());
-    }
-  else if(argis("-innerwall")) {
-    PHASEFROM(2);
-    patterns::innerwalls = true;
-    }
-  else if(argis("-noinnerwall")) {
-    PHASEFROM(2);
-    patterns::innerwalls = false;
     }
   else if(argis("-d:line")) 
     launch_dialog(linepatterns::showMenu);

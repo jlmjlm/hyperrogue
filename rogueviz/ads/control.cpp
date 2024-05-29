@@ -82,7 +82,7 @@ void fire() {
 
 bool handleKey(int sym, int uni) {
   if(cmode & sm::NORMAL) {
-    char* t = scfg_ads.keyaction;
+    int* t = scfg_ads.keyaction;
     if(t[sym] >= 16 && t[sym] < 32) return true;
     if(sym == 'v') pushScreen(game_menu);
     if(sym == SDLK_ESCAPE) pushScreen(game_menu);
@@ -159,7 +159,7 @@ bool ads_turn(int idelta) {
   if(a[16+7] && !la[16+7]) auto_rotate = !auto_rotate;
   if(a[16+8] && !la[16+8]) pushScreen(game_menu);
 
-  if(auto_angle) pconf.model_orientation += ang;
+  if(auto_angle) pconf.mori().get() = spin(ang) * pconf.mori().get();
 
   if(true) {
     
@@ -219,7 +219,7 @@ bool ads_turn(int idelta) {
     else view_pt += tc;
     }
 
-  if(auto_angle) pconf.model_orientation -= ang;
+  if(auto_angle) pconf.mori().get() = spin(-ang) * pconf.mori().get();
   
   fixmatrix_ads(current.T);
   fixmatrix_ads(new_vctrV.T);

@@ -1078,6 +1078,20 @@ void archimedean_tiling::parse() {
   prepare();  
   }
 
+EX bool load_symbol(const string& s, bool switch_geom) {
+  archimedean_tiling at; at.parse(s);
+  if(at.errors) {
+    DEBB(DF_ERROR | DF_GEOM, ("error: ", at.errormsg));
+    return false;
+    }
+  if(!switch_geom && geometry != gArchimedean) return true;
+  stop_game();
+  set_geometry(gArchimedean);
+  current = at;
+  if(!delayed_start) start_game();
+  return true;
+  }
+
 #if CAP_COMMANDLINE  
 int readArgs() {
   using namespace arg;
@@ -1085,16 +1099,8 @@ int readArgs() {
   if(0) ;
   else if(argis("-symbol")) {
     PHASEFROM(2);
-    archimedean_tiling at;
-    shift(); at.parse(args());
-    if(at.errors) {
-      DEBB(DF_ERROR | DF_GEOM, ("error: ", at.errormsg));
-      }
-    else {
-      set_geometry(gArchimedean);
-      current = at;
-      showstartmenu = false;
-      }
+    shift(); load_symbol(args(), true);
+    showstartmenu = false;
     }
   else if(argis("-dual")) { PHASEFROM(2); set_variation(eVariation::dual); }
   else if(argis("-d:arcm")) 
@@ -1352,6 +1358,13 @@ function<void()> setcanvas(ccolor::data& c) {
 
 dialog::string_dialog se;
 
+EX void init_symbol_edit() {
+  symbol_editing = true;
+  edited = current;
+  se.start_editing(edited.symbol);
+  edited.parse();
+  }
+
 EX void show() {
   if(lastsample < isize(samples)) {
     string s = samples[lastsample].first;
@@ -1405,12 +1418,7 @@ EX void show() {
   else {
     string cs = in() ? current.symbol : XLAT("OFF");
     dialog::addSelItem("edit", cs, '/');  
-    dialog::add_action([] () { 
-      symbol_editing = true;
-      edited = current;
-      se.start_editing(edited.symbol);
-      edited.parse();
-      });
+    dialog::add_action(init_symbol_edit);
     dialog::addBreak(100);
     int nextpos = spos;
     int shown = 0;
@@ -1464,7 +1472,9 @@ EX void show() {
       });
     
     if(in()) {
-      dialog::addSelItem(XLAT("size of the world"), current.world_size(), 0);
+      dialog::addSelItem(XLAT("size of the world"), current.world_size(), 'S');
+      add_size_action();
+
       dialog::addSelItem(XLAT("edge length"), current.get_class() == gcEuclid ? (fts(current.edgelength) + XLAT(" (arbitrary)")) : fts(current.edgelength), 0);
 
       dialog::addItem(XLAT("color by symmetries"), 't');
@@ -1568,6 +1578,14 @@ EX int degree(heptagon *h) {
 
 EX bool is_vertex(heptagon *h) {
   return id_of(h) >= 2 * current.N;
+  }
+
+EX int get_graphical_id(cell *c) {
+  int id = arcm::id_of(c->master);
+  int tid = arcm::current.tilegroup[id];
+  int tid2 = arcm::current.tilegroup[id^1];
+  if(tid2 >= 0) tid = min(tid, tid2);
+  return tid;
   }
 
 bool archimedean_tiling::get_step_values(int& steps, int& single_step) {
