@@ -241,6 +241,10 @@ EX bool landUnlocked(eLand l) {
   back:
   
   if(princess::challenge) return among(l, laPalace, laPrincessQuest);
+
+  if(ls::any_chaos() && isCrossroads(l)) {
+    return hyperstonesUnlocked();
+    }
   
   switch(l) {
     #define LAND(a,b,c,d,e,f,g) case c:
@@ -817,6 +821,7 @@ namespace lv {
   land_validity_t out_of_theme = { 3, qm2 &~ lv::appears_in_full, "Out of theme for the full game."};
   land_validity_t no_game = { 2, q2 &~ lv::appears_in_full, "No game here."};  
   land_validity_t not_in_chaos = { 0, q0, "Does not work in chaos mode."};  
+  //land_validity_t cr_in_chaos = { 0, q0, "Does not work in chaos mode."};
   land_validity_t not_in_landscape = { 0, q0, "Does not work in landscape mode."};
   land_validity_t not_in_full_game = {2, qm2 &~ lv::appears_in_full, "Not in the full game."};
   land_validity_t not_in_full_game3 = {3, qm2 &~ lv::appears_in_full, "Not in the full game."};
@@ -1334,13 +1339,13 @@ EX land_validity_t& land_validity(eLand l) {
     if(INVERSE) return not_implemented;
     }
   
-  if(ls::any_chaos() && isCrossroads(l))
-    return not_in_chaos;
-  
+//  if(ls::any_chaos() && isCrossroads(l))
+//    return cr_in_chaos;
+
   // this pattern does not work on elliptic and small spheres
   if((l == laBlizzard || l == laVolcano) && elliptic && S7 < 5 && !arcm::in())
     return not_enough_space;
-  
+
   // ... and it works in gp only partially
   if((l == laBlizzard || l == laVolcano) && GOLDBERG && (old_daily_id < 33 || !sphere))
     return partially_implemented;
@@ -1351,7 +1356,7 @@ EX land_validity_t& land_validity(eLand l) {
   if(l == laKraken && (S7&1) && !has_nice_dual()) {
     return dont_work_but_ingame;
     }
-  
+
   // works in most spheres, Zebra quotient, and stdeucx
   if(l == laWhirlwind) {
     if(geometry == gZebraQuotient)
