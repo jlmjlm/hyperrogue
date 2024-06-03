@@ -821,7 +821,6 @@ namespace lv {
   land_validity_t out_of_theme = { 3, qm2 &~ lv::appears_in_full, "Out of theme for the full game."};
   land_validity_t no_game = { 2, q2 &~ lv::appears_in_full, "No game here."};  
   land_validity_t not_in_chaos = { 0, q0, "Does not work in chaos mode."};  
-  //land_validity_t cr_in_chaos = { 0, q0, "Does not work in chaos mode."};
   land_validity_t not_in_landscape = { 0, q0, "Does not work in landscape mode."};
   land_validity_t not_in_full_game = {2, qm2 &~ lv::appears_in_full, "Not in the full game."};
   land_validity_t not_in_full_game3 = {3, qm2 &~ lv::appears_in_full, "Not in the full game."};
@@ -1339,9 +1338,6 @@ EX land_validity_t& land_validity(eLand l) {
     if(INVERSE) return not_implemented;
     }
   
-//  if(ls::any_chaos() && isCrossroads(l))
-//    return cr_in_chaos;
-
   // this pattern does not work on elliptic and small spheres
   if((l == laBlizzard || l == laVolcano) && elliptic && S7 < 5 && !arcm::in())
     return not_enough_space;
