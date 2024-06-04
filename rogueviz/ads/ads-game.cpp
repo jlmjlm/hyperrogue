@@ -45,7 +45,7 @@ namespace hr {
 namespace ads_game {
 
 void change_default_key(int key, int val) {
-  char* t = scfg_ads.keyaction;
+  int* t = scfg_ads.keyaction;
   t[key] = val;
   }
 
@@ -154,8 +154,8 @@ void default_settings() {
   lps_add(lps_relhell, vid.drawmousecircle, false);
   lps_add(lps_relhell, draw_centerover, false);
   lps_add(lps_relhell, vid.axes3, false);
-  lps_add(lps_relhell, patterns::whichCanvas, 'r');
-  lps_add(lps_relhell, patterns::rwalls, 0);
+  lps_add(lps_relhell, ccolor::which, &ccolor::random);
+  lps_add(lps_relhell, ccolor::rwalls, 0);
   lps_add(lps_relhell, vid.fov, 150.);
 
   lps_add(lps_relhell_ds_spacetime_klein, pmodel, mdDisk);
@@ -213,7 +213,7 @@ auto shot_hooks =
 + addHook(hooks_configfile, 100, [] {
     param_f(ads_how_much_invincibility, "ads_invinc")
     -> editable(0, TAU, TAU/4, "AdS invincibility time", "How long does the period of invincibility after crashing last, in absolute units.", 'i');
-    param_f(ds_how_much_invincibility, "ads_invinc")
+    param_f(ds_how_much_invincibility, "ds_invinc")
     -> editable(0, TAU, TAU/4, "dS invincibility time", "How long does the period of invincibility after crashing last, in absolute units.", 'i');
     param_b(auto_angle, "ads_auto_angle")
     -> editable("automatically rotate the projection", 'a');
@@ -287,7 +287,7 @@ auto shot_hooks =
     param_i(spacetime_qty, "ads_spacetime_qty")
     -> editable(0, 100, 5, "step quantity in the spacetime display", "", 'q');
 
-    addsaver(ghost_color, "color:ghost");
+    param_color(ghost_color, "color:ghost", true);
 
     rsrc_config();
     });

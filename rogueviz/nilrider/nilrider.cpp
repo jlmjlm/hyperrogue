@@ -248,7 +248,7 @@ void run() {
   dialog::add_key_action(PSEUDOKEY_SIM, toggle_replay);
   dialog::display();
 
-  char* t = scfg_nilrider.keyaction;
+  int* t = scfg_nilrider.keyaction;
   for(int i=1; i<512; i++) {
     auto& ka = dialog::key_actions;
     if(t[i] == 16+5) ka[i] = ka[PSEUDOKEY_PAUSE];
@@ -544,7 +544,7 @@ void main_menu() {
 bool on;
 
 void change_default_key(int key, int val) {
-  char* t = scfg_nilrider.keyaction;
+  int* t = scfg_nilrider.keyaction;
   t[key] = val;
   }
 
@@ -585,12 +585,13 @@ local_parameter_set lps_nilrider("nilrider:");
 
 void default_settings() {
   lps_add(lps_nilrider, vid.cells_drawn_limit, 1);
-  lps_add(lps_nilrider, (color_t&) patterns::canvasback, 0);
+  lps_add(lps_nilrider, ccolor::plain.ctab, colortable{0});
   lps_add(lps_nilrider, smooth_scrolling, true);
   lps_add(lps_nilrider, mapeditor::drawplayer, false);
   lps_add(lps_nilrider, backcolor, 0xC0C0FFFF);
   lps_add(lps_nilrider, logfog, 1);
-  lps_add(lps_nilrider, patterns::whichCanvas, 0);
+  lps_add(lps_nilrider, ccolor::which, &ccolor::plain);
+  lps_add(lps_nilrider, ccolor::rwalls, 0);
 
   #if CAP_VR
   lps_add(lps_nilrider, vrhr::hsm, vrhr::eHeadset::reference);
@@ -611,10 +612,10 @@ void initialize() {
   
   curlev->init();
 
-  param_enum(planning_mode, "nil_planning", "nil_planning", false)
+  param_enum(planning_mode, "nil_planning", false)
     -> editable({{"manual", "control the unicycle manually"}, {"planning", "try to plan the optimal route!"}}, "game mode", 'p');
 
-  param_enum(stepped_display, "stepped_display", "stepped_display", false)
+  param_enum(stepped_display, "stepped_display", false)
     -> editable({{"smooth", "ride on a smooth surface"}, {"blocky", "makes slopes more visible -- actual physics are not affected"}}, "game mode", 's');
 
   param_i(nilrider_tempo, "nilrider_tempo");
