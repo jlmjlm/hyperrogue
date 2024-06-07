@@ -16,6 +16,8 @@ score *currentgame;
 int scorefrom = 0;
 bool scorerev = false;
 
+int which_mode;
+
 string csub(const string& str, int q) {
   int i = 0;
   for(int j=0; j<q && i<isize(str); j++) getnext(str.c_str(), i);
@@ -66,6 +68,8 @@ int modediff(score *S) {
   }
     
 string modedesc(score *S) {
+  modecode_t mc = S->box[scores::MODECODE_BOX];
+  if(mc && mode_description_of.count(mc)) return mode_description_of[mc];
   eGeometry g = (eGeometry) S->box[116]; 
   if(S->box[238]) g = gSphere;
   if(S->box[239]) g = gElliptic;
@@ -214,6 +218,8 @@ void show() {
     if(id >= isize(scores)) break;
         
     score& S(scores[id]);
+
+    if(S.box[MODECODE_BOX] != which_mode && which_mode != -1) { id++; continue; }
     
     if(omit) { omit--; rank++; id++; continue; }
     
@@ -315,7 +321,7 @@ void show() {
     };
   }
 
-void load() {
+void load_only() {
   if(scorefile == "") return;
   scores.clear();
   FILE *f = fopen(scorefile.c_str(), "rt");
@@ -368,15 +374,28 @@ void load() {
       }
     }
 
+  fclose(f);
+
+  qty_scores_for.clear();
+  for(auto s: scores::scores) {
+    int modeid = s.box[scores::MODECODE_BOX];
+    qty_scores_for[get_identify(modeid)]++;
+    }
+  }
+
+void load() {
+  load_only();
+  which_mode = -1;
+
+  saved_modecode = modecode();
   saveBox();
-  score sc; 
+  score sc;
   for(int i=0; i<POSSCORE; i++) sc.box[i] = save.box[i];
   sc.box[POSSCORE] = 0;
   sc.box[MAXBOX-1] = 1; sc.ver = "NOW";
   sc.yasc_message = canmove ? "on the run" : yasc_message;
   scores.push_back(sc);
   
-  fclose(f);
   clearMessages();
   // addMessage(its(isize(scores))+" games have been recorded in "+scorefile);
   pushScreen(show);
@@ -388,7 +407,11 @@ void load() {
     });
   }
 
-}}
+}
+
+EX map<int, int> qty_scores_for;
+
+}
 
 #endif
 

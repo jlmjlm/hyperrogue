@@ -171,6 +171,8 @@ EX void initgame() {
   DEBBI(DF_INIT, ("initGame"));
   callhooks(hooks_initgame);
 
+  modecode();
+
   if(!safety) fix_land_structure_choice();
 
   if(multi::players < 1 || multi::players > MAXPLAYER)
@@ -979,7 +981,9 @@ void loadBox() {
   boxid = 0; loading = true; applyBoxes(); loading = false;
   }
 
-const int MODECODE_BOX = 387;
+#if HDR
+constexpr int MODECODE_BOX = 387;
+#endif
 
 modecode_t fill_modecode() {
   dynamicval<int> sp1(multi::players, save.box[197]);
@@ -1225,6 +1229,11 @@ EX void loadsave() {
       while(s != "" && s.back() < 32) s.pop_back();
       load_modecode_line(s);
       }
+    if(buf[0] == 'N' && buf[1] == 'A') {
+      string s = buf;
+      while(s != "" && s.back() < 32) s.pop_back();
+      load_modename_line(s);
+      }
     if(buf[0] == 'H' && buf[1] == 'y') {
       if(fscanf(f, "%9999s", buf) <= 0) break;
       sc.ver = buf;
@@ -1287,7 +1296,7 @@ EX void loadsave() {
           && !(land == laOcean && verless(ver, "8.0f"))
           && !(land == laTerracotta && verless(ver, "10.3e"))
           && !(land == laWildWest && verless(ver, "11.3b") && !verless(ver, "11.3")))
-          tactic::record(l2, score, xc);
+          tactic::record(l2, score, get_identify(xc));
         anticheat::nextid(tactic::id, ver, cert);
         }
       }
@@ -1305,6 +1314,7 @@ EX void loadsave() {
 
       if(won) if(anticheat::check(cert, ver, won ? "WON" : "LOST", tc, t, ts, xc*999 + cid + 256 * oy)) {
         if(xc == 19 && cid == 25) xc = 0;
+        xc = get_identify(xc);
         if(cid > 0 && cid < YENDORLEVELS)
         if(!(verless(ver, "8.0f") && oy > 1 && cid == 15))
         if(!(verless(ver, "9.3b") && oy > 1 && (cid == 27 || cid == 28)))
@@ -1345,9 +1355,10 @@ EX void load_last_save() {
   for(int i=boxid; i<MAXBOX; i++) save.box[i] = 0;
 //  for(int i=160; i<200; i++) printf("%d: %d ", i, save.box[i]);
 
-  if(meaning.count(sc.box[MODECODE_BOX])) {
+  modecode_t mc = sc.box[MODECODE_BOX];
+  if(mc >= FIRST_MODECODE && meaning.count(mc)) {
     shstream ss;
-    ss.s = meaning[sc.box[MODECODE_BOX]];
+    ss.s = meaning[mc];
     ss.read(ss.vernum);
     if(ss.vernum < 0xAA05)
       mapstream::load_geometry(ss);
@@ -1831,6 +1842,7 @@ EX void save_mode_to_file(const string& fname) {
   println(f, modheader);
   println(f, s);
   if(custom_welcome != "") println(f, "CMSG ", custom_welcome);
+  if(modename.count(current_modecode)) println(f, "NAME ", modename[current_modecode]);
 
   for(auto& ap: allowed_params) {
     auto& s = params[ap];
@@ -1848,10 +1860,12 @@ EX void load_mode_from_file(const string& fname) {
   shstream ss;
   ss.s = from_hexstring(hex + "00");
   custom_welcome = "";
+  string custom_name = "";
   while(true) {
     string s = scanline_noblank(f);
     if(s == "") break;
     else if(s.substr(0, 5) == "CMSG ") custom_welcome = s.substr(5);
+    else if(s.substr(0, 5) == "NAME ") custom_name = s.substr(5);
     else {
       auto pos = s.find("=");
       if(pos != string::npos) {
@@ -1867,6 +1881,7 @@ EX void load_mode_from_file(const string& fname) {
     }
   stop_game();
   load_mode_data_with_zero(ss);
+  if(custom_name != "") { modecode(); update_modename(custom_name); }
   start_game();
   }
 

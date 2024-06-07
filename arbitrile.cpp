@@ -1637,16 +1637,21 @@ struct hrmap_arbi : hrmap {
 
 EX hrmap *new_map() { return new hrmap_arbi; }
 
-EX void run(string fname) {
+EX void run_raw(string fname) {
   stop_game();
+  set_geometry(gArbitrary);
+  load(fname);
+  ginf[gArbitrary].tiling_name = current.name;
+  tes = fname;
+  convert::base_geometry = gArbitrary;
+  }
+
+EX void run(string fname) {
   eGeometry g = geometry;
   arbi_tiling t = current;
   auto v = variation;
-  set_geometry(gArbitrary);
   try {
-     load(fname);
-     ginf[gArbitrary].tiling_name = current.name;
-     tes = fname;
+     run_raw(fname);
      }
    catch(hr_polygon_error& poly) {
      set_geometry(g);
@@ -1733,7 +1738,7 @@ EX void set_sliders() {
 /** convert a tessellation (e.g. Archimedean, regular, etc.) to the arb::current internal representation */
 EX namespace convert {
 
-EX eGeometry base_geometry;
+EX eGeometry base_geometry = gArbitrary;
 EX eVariation base_variation;
 
 struct id_record {
@@ -1987,7 +1992,8 @@ EX void convert() {
 
   auto& ac = arb::current;
   ac.order++; 
-  ac.comment = ac.filename = "converted from: " + full_geometry_name();
+  ac.filename = full_geometry_name();
+  ac.comment = "converted from: " + ac.filename;
   ac.cscale = cgi.scalefactor;
   ac.boundary_ratio = 1;
   ac.floor_scale = cgi.hexvdist / cgi.scalefactor;
@@ -1997,6 +2003,7 @@ EX void convert() {
 
   ginf[gArbitrary].g = cginf.g;
   ginf[gArbitrary].flags = cgflags & qCLOSED;
+  ginf[gArbitrary].tiling_name = full_geometry_name();
   
   for(int i=0; i<N; i++) {
     auto id = identification[old_shvids[i]];
@@ -2085,7 +2092,7 @@ int readArgs() {
   else if(argis("-tes") || argis("-arbi")) {
     PHASEFROM(2);
     shift(); 
-    run(args());
+    run_raw(args());
     }
   else if(argis("-tes-opt")) {
      arg::run_arguments(current.options);
