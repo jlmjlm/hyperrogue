@@ -1390,7 +1390,7 @@ EX land_validity_t& land_validity(eLand l) {
     if(closed_or_bounded) return unbounded_only;
     if(INVERSE) return not_implemented;
     }
-  
+
   // this pattern does not work on elliptic and small spheres
   if((l == laBlizzard || l == laVolcano) && elliptic && S7 < 5 && !arcm::in())
     return not_enough_space;

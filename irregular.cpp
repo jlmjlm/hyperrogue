@@ -63,7 +63,7 @@ EX hrmap *base;
 
 EX euc::torus_config_full base_config;
 
-bool gridmaking;
+EX bool gridmaking;
 
 int rearrange_index;
 
@@ -770,7 +770,6 @@ EX int celldist(cell *c, bool alts) {
 eGeometry orig_geometry, base_geometry;
 
 void start_game_on_created_map() {    
-  popScreen();
   for(hrmap *& hm : allmaps) if(hm == base) hm = NULL;
   stop_game();
   geometry = orig_geometry;
@@ -918,19 +917,23 @@ EX void load_map_bin(hstream& f) {
 
 EX void load_map_full(hstream& f) {
   init();
-  load_map_bin(f);
-  while(runlevel < 10) step(1000);
-  start_game_on_created_map();
+  try {
+    load_map_bin(f);
+    while(runlevel < 10) step(1000);
+    start_game_on_created_map();
+    }
+  catch(hr_exception& e) {
+    cancel_map_creation();
+    throw e;
+    }
   }
 
-void cancel_map_creation() {
+EX void cancel_map_creation() {
   base = NULL;
   runlevel = 0;
-  popScreen();
   gridmaking = false;
   stop_game();
   geometry = orig_geometry;
-  start_game();
   }
 
 string irrmapfile = "irregularmap.txt";
@@ -982,9 +985,9 @@ void show_gridmaker() {
     dialog::addInfo(status[i]);
   dialog::addBreak(100);
   dialog::addSelItem(XLAT("activate"), runlevel == 10 ? XLAT("ready") : XLAT("wait..."), 'f');
-  if(runlevel == 10) dialog::add_action(start_game_on_created_map);
+  if(runlevel == 10) dialog::add_action([] { popScreen(); start_game_on_created_map(); });
   dialog::addItem(XLAT("cancel"), 'c');
-  dialog::add_action(cancel_map_creation);
+  dialog::add_action([] { cancel_map_creation(); popScreen(); start_game(); });
   dialog::addItem(XLAT("save"), 's');
   dialog::add_action([] () {
     dialog::openFileDialog(irrmapfile, XLAT("irregular to save:"), ".txt", [] () {

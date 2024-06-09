@@ -1063,9 +1063,7 @@ EX void initConfig() {
 
   param_b(display_yasc_codes, "yasc", false)
   -> editable("YASC codes", 'Y')
-  -> set_reaction([] { 
-    addMessage(XLAT("YASC codes: Sides-Entity-Restrict-Threat-Wall"));  
-    });
+  -> help("YASC codes: Sides-Entity-Restrict-Threat-Wall");
 
   param_b(vid.relative_font, "relative_font", true)
   -> editable("set relative font size", 'r')
@@ -1461,7 +1459,6 @@ EX void initConfig() {
   param_b(texture::texture_aura, "texture-aura", false);
 #endif
 
-  param_i(vid.use_smart_range, "smart-range", 0);
   param_f(vid.smart_range_detail, "smart-range-detail", 8)
   ->editable(1, 50, 1, "minimum visible cell in pixels", "", 'd')
   ->set_extra([] { add_cells_drawn('C'); });
