@@ -461,7 +461,8 @@ EX string mode_description() {
   else if(hardcore) md += " partial hardcore";
   if(daily::on) md += " strange";
   if(bow::crossbow_mode()) md += " b/" + bow::bowName[bow::style];
-  if(land_structure != default_land_structure())
+  if(arc_target) md += " arcade";
+  else if(land_structure != default_land_structure())
     md += " " + land_structure_name(true);
   if(randomPatternsMode) md += " RPM";
   if(use_custom_land_list) md += " custom";
@@ -723,13 +724,13 @@ EX void drawStats() {
     vers += mode_description();
     if(peace::on) vers += " peace";
     if(racing::on) vers += " racing";
-    if(arc_target) vers += " arcade";
+
 #if 0
-    if(daily::on) vers += " strange";
-    if(bow::crossbow_mode()) vers += " b/" + bow::bowName[bow::style];
-    //if(arc_target) vers += " arcade";
+    if(arc_target) vers += " arcade";
     else if(land_structure != default_land_structure())
       vers += " " + land_structure_name(true);
+    if(daily::on) vers += " strange";
+    if(bow::crossbow_mode()) vers += " b/" + bow::bowName[bow::style];
 #endif
     if(princess::challenge) vers += " Princess";
     if(yendor::on) vers += " Yendor";
