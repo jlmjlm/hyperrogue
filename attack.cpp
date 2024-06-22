@@ -951,7 +951,8 @@ EX void fightmessage(eMonster victim, eMonster attacker, bool stun, flagtype fla
         addMessage(XLAT("You pierce %the1.", victim)); // normal
       }
     else if(items[itOrbSlaying]) {
-      playSound(NULL, "hit-crush"+pick123());
+      //playSound(NULL, "hit-crush"+pick123());
+      playSound(NULL, "closegate");
       addMessage(XLAT("You crush %the1!", victim)); // normal
       }
     else if(stun && items[itCurseWeakness]) {
