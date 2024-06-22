@@ -171,7 +171,7 @@ EX void initgame() {
   DEBBI(DF_INIT, ("initGame"));
   callhooks(hooks_initgame);
 
-  modecode();
+  modecode(1);
 
   if(!safety) fix_land_structure_choice();
 
@@ -361,6 +361,10 @@ EX void initgame() {
   else {
     makeEmpty(cwt.at);
     }
+
+  // make the starting point safe in this setting
+  if(specialland == laPalace && geometry == gNormal && PURE)
+    cwt.at->wall = waOpenPlate;
 
   if(specialland == laMinefield && closed_or_bounded) {
     bfs();
@@ -988,7 +992,7 @@ constexpr int MODECODE_BOX = 387;
 modecode_t fill_modecode() {
   dynamicval<int> sp1(multi::players, save.box[197]);
   dynamicval<eGeometry> sp2(geometry, (eGeometry) save.box[116]);
-  if(among(geometry, gArchimedean, gProduct, gRotSpace, gArbitrary))
+  if(among(geometry, gArchimedean, gProduct, gTwistedProduct, gArbitrary))
     return 6; /* these would not be saved nor loaded correctly */
   dynamicval<bool> sp3(shmup::on, save.box[119]);
   dynamicval<eLandStructure> sp4(land_structure, (eLandStructure) save.box[196]);
@@ -1451,9 +1455,8 @@ EX void set_geometry(eGeometry target) {
   if(geometry != target) {
     stop_game();
     ors::reset();
-    if(among(target, gProduct, gRotSpace)) {
+    if(among(target, gProduct, gTwistedProduct)) {
       if(vid.always3) { vid.always3 = false; geom3::apply_always3(); }
-      if(target == gRotSpace) hybrid::csteps = 0;
       hybrid::configure(target);
       }
     geometry = target;
@@ -1484,11 +1487,6 @@ EX void set_geometry(eGeometry target) {
     if(geometry == gArbitrary) {
       arb::convert::base_geometry = geometry;
       arb::convert::base_variation = variation;
-      }
-
-    if(rotspace) {
-      check_cgi(); cgi.require_basics();
-      hybrid::csteps = cgi.psl_steps;
       }
     }
   }

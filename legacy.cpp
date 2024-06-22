@@ -5,6 +5,12 @@
 namespace hr {
 
 #if CAP_LEGACY
+
+#if HDR
+/** legacy name */
+constexpr eGeometry gRotSpace = gTwistedProduct;
+#endif
+
 namespace shmup {
 
 void scanchar(FILE *f, char& c) {
@@ -403,6 +409,14 @@ int read_legacy_args() {
     /* shift_arg_formula(models::rotation);
     if(GDIM == 3) shift_arg_formula(models::rotation_xz);
     if(GDIM == 3) shift_arg_formula(models::rotation_xy2); */
+    }
+  else if(argis("-nilh")) {
+    PHASEFROM(2);
+    stop_game();
+    shift();
+    nilv::nil_structure_index = argi() == 8 ? 1 : 0;
+    nilv::set_flags();
+    start_game();
     }
   else if(argis("-yca")) {
     PHASEFROM(2);

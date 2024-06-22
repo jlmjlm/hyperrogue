@@ -905,16 +905,24 @@ EX namespace nilv {
     }
   
   #if HDR
+  bool mvec_uses_hex();
+
+  /** This type is used for indexed Nil cells. See mvec_to_point to convert from this to hyperpoint the tile is centered at.
+      In non-hex Nils, these correspond exactly to coordinates in nmHeis model (with nilwidth equal 1).
+      In hex Nils, these would be valid in nmSym models if the 'z' coordinates were halved. (But, they are sheared, as for usual hex coordinates in HyperRogue.)
+   **/
   struct mvec : array<int, 3> {
-    /** these are in nmHeis */
     explicit mvec() = default;
     constexpr explicit mvec(int x, int y, int z) : array<int, 3>{{x, y, z}} {}
     mvec inverse() {  
       auto& a = *this;
+      if(mvec_uses_hex()) return mvec(-a[0], -a[1], -a[2]);
       return mvec(-a[0], -a[1], -a[2]+a[1] * a[0]); 
       }
     mvec operator * (const mvec b) {
       auto& a = *this;
+      if(mvec_uses_hex())
+        return mvec(a[0]+b[0], a[1]+b[1], a[2]+b[2]+a[0]*b[1]-a[1]*b[0]);
       return mvec(a[0] + b[0], a[1] + b[1], a[2] + b[2] + a[0] * b[1]);
       }
     };
@@ -924,16 +932,36 @@ EX namespace nilv {
 
   EX ld nilwidth = 1;
       
-  hyperpoint mvec_to_point(mvec m) { return convert(hpxy3(m[0] * nilwidth, m[1] * nilwidth, m[2] * nilwidth * nilwidth), nmHeis, model_used); }
+  EX bool mvec_uses_hex() { return current_ns().mvec_hex; }
+
+  EX hyperpoint mvec_to_point(mvec m) {
+    if(mvec_uses_hex())
+      return convert(hpxy3((m[0] + m[1] / 2.) * nilwidth, (m[1] * sqrt(3)/2) * nilwidth, m[2] * sqrt(3) / 4 * nilwidth * nilwidth), nmSym, model_used);
+    return convert(hpxy3(m[0] * nilwidth, m[1] * nilwidth, m[2] * nilwidth * nilwidth), nmHeis, model_used);
+    }
   
   #if HDR
   struct nilstructure {
     vector<mvec> movevectors;
     vector<vector<hyperpoint>> facevertices;
+    bool mvec_hex;
+    vector<int> other_side;
+    string name;
     };
   #endif
   
   EX hyperpoint heis(ld x, ld y, ld z) { return convert(point31(x, y, z), nmHeis, model_used); }
+
+  EX hyperpoint hexrota(ld x, ld y, ld z) { return convert(point31(x/2, y * sqrt(3)/6, z / 24 * sqrt(3)), nmSym, model_used); }
+
+  EX int nil_structure_index;
+
+  /** this returns nil_structure_index if it is used, otherwise -1 (if not nil) or -2 (if nil but not using nil_structure_index */
+  EX int get_nsi() {
+    if(!nil) return -1;
+    if(mtwisted) return -2;
+    return nil_structure_index;
+    }
 
   nilstructure ns6 = {
     {{ mvec(-1,0,0), mvec(0,-1,0), mvec(0,0,-1), mvec(1,0,0), mvec(0,1,0), mvec(0,0,1) }},
@@ -945,7 +973,10 @@ EX namespace nilv {
     { heis(0.5,0.5,-0.25), heis(0.5,0.5,0.75), heis(0.5,-0.5,0.25), heis(0.5,-0.5,-0.75), },
     { heis(-0.5,0.5,-0.5), heis(-0.5,0.5,0.5), heis(0.5,0.5,0.5), heis(0.5,0.5,-0.5), },
     { heis(0,0,0.5), heis(-0.5,0.5,0.25), heis(-0.5,-0.5,0.75), heis(0,0,0.5), heis(-0.5,-0.5,0.75), heis(-0.5,-0.5,0.5), heis(0,0,0.5), heis(-0.5,-0.5,0.5), heis(0.5,-0.5,0.5), heis(0,0,0.5), heis(0.5,-0.5,0.5), heis(0.5,-0.5,0.25), heis(0,0,0.5), heis(0.5,-0.5,0.25), heis(0.5,0.5,0.75), heis(0,0,0.5), heis(0.5,0.5,0.75), heis(0.5,0.5,0.5), heis(0,0,0.5), heis(0.5,0.5,0.5), heis(-0.5,0.5,0.5), heis(0,0,0.5), heis(-0.5,0.5,0.5), heis(-0.5,0.5,0.25), },
-    }}
+    }},
+    false,
+    {3,4,5,0,1,2},
+    "six sides"
     };
   
   nilstructure ns8 = {
@@ -960,10 +991,34 @@ EX namespace nilv {
       { heis(0.5,0.5,-0.75), heis(0.5,0.5,0.25), heis(0.5,-0.5,-0.75), },
       { heis(-0.5,0.5,0.75), heis(-0.5,0.5,-0.25), heis(0.5,0.5,-0.75), heis(0.5,0.5,0.25), },
       { heis(-0.5,-0.5,0.75), heis(-0.5,0.5,0.75), heis(0.5,0.5,0.25), heis(0.5,-0.5,0.25), },
-      }}
+      }},
+    false,
+    {4,5,6,7,0,1,2,3},
+    "eight sides"
     };
+
+  nilstructure nshex = {
+    {{ mvec(1,0,0), mvec(1,-1,0), mvec(0,-1,0), mvec(-1,0,0), mvec(-1,1,0), mvec(0,1,0), mvec(0,0,-1), mvec(0,0,1) }}, 
+
+    {{
+{hexrota(1,-1,2),hexrota(1,-1,-4),hexrota(1,1,-2),hexrota(1,1,4)},
+{hexrota(0,-2,2),hexrota(0,-2,-4),hexrota(1,-1,-2),hexrota(1,-1,4)},
+{hexrota(-1,-1,2),hexrota(-1,-1,-4),hexrota(0,-2,-2),hexrota(0,-2,4)},
+{hexrota(-1,1,2),hexrota(-1,1,-4),hexrota(-1,-1,-2),hexrota(-1,-1,4)},
+{hexrota(0,2,2),hexrota(0,2,-4),hexrota(-1,1,-2),hexrota(-1,1,4)},
+{hexrota(1,1,2),hexrota(1,1,-4),hexrota(0,2,-2),hexrota(0,2,4)},
+{hexrota(0,0,-3),hexrota(1,1,-2),hexrota(1,-1,-4),hexrota(0,0,-3),hexrota(1,-1,-4),hexrota(1,-1,-2),hexrota(0,0,-3),hexrota(1,-1,-2),hexrota(0,-2,-4),hexrota(0,0,-3),hexrota(0,-2,-4),hexrota(0,-2,-2),hexrota(0,0,-3),hexrota(0,-2,-2),hexrota(-1,-1,-4),hexrota(0,0,-3),hexrota(-1,-1,-4),hexrota(-1,-1,-2),hexrota(0,0,-3),hexrota(-1,-1,-2),hexrota(-1,1,-4),hexrota(0,0,-3),hexrota(-1,1,-4),hexrota(-1,1,-2),hexrota(0,0,-3),hexrota(-1,1,-2),hexrota(0,2,-4),hexrota(0,0,-3),hexrota(0,2,-4),hexrota(0,2,-2),hexrota(0,0,-3),hexrota(0,2,-2),hexrota(1,1,-4),hexrota(0,0,-3),hexrota(1,1,-4),hexrota(1,1,-2)},
+{hexrota(0,0,3),hexrota(1,1,4),hexrota(1,-1,2),hexrota(0,0,3),hexrota(1,-1,2),hexrota(1,-1,4),hexrota(0,0,3),hexrota(1,-1,4),hexrota(0,-2,2),hexrota(0,0,3),hexrota(0,-2,2),hexrota(0,-2,4),hexrota(0,0,3),hexrota(0,-2,4),hexrota(-1,-1,2),hexrota(0,0,3),hexrota(-1,-1,2),hexrota(-1,-1,4),hexrota(0,0,3),hexrota(-1,-1,4),hexrota(-1,1,2),hexrota(0,0,3),hexrota(-1,1,2),hexrota(-1,1,4),hexrota(0,0,3),hexrota(-1,1,4),hexrota(0,2,2),hexrota(0,0,3),hexrota(0,2,2),hexrota(0,2,4),hexrota(0,0,3),hexrota(0,2,4),hexrota(1,1,2),hexrota(0,0,3),hexrota(1,1,2),hexrota(1,1,4)}
+       }},
+
+    true,
+    {3,4,5,0,1,2,7,6},
+    "hex"
+    };
+
+  EX vector<nilstructure*> nil_structures = { &ns6, &ns8, &nshex };
   
-  EX nilstructure& current_ns() { return S7 == 6 ? ns6 : ns8; }
+  EX nilstructure& current_ns() { return *nil_structures[nil_structure_index]; }
 
   EX array<int,3> nilperiod, nilperiod_edit;
   int S7_edit;
@@ -997,9 +1052,19 @@ EX namespace nilv {
     heptagon *create_step(heptagon *parent, int d) override {
       auto p = coords[parent];
       auto q = p * current_ns().movevectors[d];
-      for(int a=0; a<3; a++) q[a] = zgmod(q[a], nilperiod[a]);
+      for(int a=0; a<3; a++) {
+        auto oq = q[a];
+        q[a] = zgmod(q[a], nilperiod[a]);
+        if(mvec_uses_hex()) {
+          if(a == 0) q[2] -= (oq - q[a]) * q[1];
+          if(a == 1) q[2] += (oq - q[a]) * q[0];
+          }
+        else {
+          if(a == 0) q[2] -= (oq - q[a]) * q[1];
+          }
+        }
       auto child = get_at(q);
-      parent->c.connect(d, child, (d + S7/2) % S7, false);
+      parent->c.connect(d, child, current_ns().other_side[d], false);
       return child;
       }
 
@@ -1018,6 +1083,7 @@ EX namespace nilv {
   EX heptagon *get_heptagon_at(mvec m) { return ((hrmap_nil*)currentmap)->get_at(m); }
 
   EX void set_flags() {
+    ginf[gNil].sides = isize(current_ns().movevectors);
     int coords = 0;
     for(int a=0; a<3; a++) if(nilperiod[a]) coords++;
     set_flag(ginf[gNil].flags, qANYQ, coords);
@@ -1054,9 +1120,9 @@ EX color_t colorize(cell *c, char whichCanvas) {
 
 EX void prepare_niltorus3() {
   nilperiod_edit = nilperiod;
-  S7_edit = ginf[gNil].sides;
+  S7_edit = nil_structure_index;
   }
-  
+
 EX void show_niltorus3() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
@@ -1071,10 +1137,11 @@ EX void show_niltorus3() {
       dialog::bound_low(0);
       });      
     }
-  dialog::addSelItem(XLAT("honeycomb"), its(S7_edit), 'h');
-  dialog::add_action([] { S7_edit = S7_edit ^ 6 ^ 8; });
-  
-  bool ok = (!nilperiod_edit[1]) || (nilperiod_edit[2] && nilperiod_edit[1] % nilperiod_edit[2] == 0);
+  dialog::addSelItem(XLAT("honeycomb"), XLAT(nil_structures[S7_edit]->name), 'h');
+  dialog::add_action([] { S7_edit = (S7_edit+1)%isize(nil_structures);  });
+
+  int hx = nil_structures[S7_edit]->mvec_hex ? 2 : 1;
+  bool ok = !zgmod(nilperiod_edit[0]*nilperiod_edit[1]*hx, nilperiod_edit[2]);
 
   dialog::addBreak(50);
 
@@ -1083,13 +1150,13 @@ EX void show_niltorus3() {
     dialog::add_action([] {
       stop_game();
       nilperiod = nilperiod_edit;
-      ginf[gNil].sides = S7_edit;
+      nil_structure_index = S7_edit;
       set_flags();
       geometry = gNil;
       start_game();
       });
     }
-  else dialog::addInfo(XLAT("Y period must be divisible by Z period"));
+  else dialog::addInfo(XLAT("Y period * X period (*2 for hex) must be divisible by Z period"));
     
   dialog::addBreak(50);
   dialog::addBack();
@@ -1140,12 +1207,13 @@ EX namespace hybrid {
     underlying = geometry;
     underlying_cgip = cgip;
     bool sph = sphere;
+    bool euc = euclid;
     auto keep = ginf[g].menu_displayed_name;
     ginf[g] = ginf[underlying];
     ginf[g].menu_displayed_name = keep;
-    if(g == gRotSpace) {
-      ginf[g].g = sph ? giSphere3 : giSL2;
-      ginf[g].tiling_name = "Iso(" + ginf[g].tiling_name + ")";
+    if(g == gTwistedProduct) {
+      ginf[g].g = euc ? giNil : sph ? giSphere3 : giSL2;
+      ginf[g].tiling_name = "twisted " + ginf[g].tiling_name + "xZ";
       string& qn = ginf[g].quotient_name;
       if(csteps && csteps != (sph ? cgi.psl_steps*2 : 0)) {
         string qplus;
@@ -1162,7 +1230,7 @@ EX namespace hybrid {
         ginf[g].flags |= qANYQ;
       }
     else {
-      ginf[g].cclass = g == gRotSpace ? gcSL2 : gcProduct;
+      ginf[g].cclass = gcProduct;
       ginf[g].g.gameplay_dimension++;
       ginf[g].g.graphical_dimension++;
       ginf[g].tiling_name += "xZ";
@@ -1178,6 +1246,40 @@ EX namespace hybrid {
     geometry = underlying;
     configure(g);
     geometry = g;
+    }
+
+  EX void enable_rotspace() {
+    if(euclid) {
+      start_game();
+      int q = cwt.at->type;
+      stop_game();
+      hybrid::csteps = q;
+      set_plevel(TAU / q);
+      set_geometry(gProduct);
+      hybrid::reconfigure();
+      }
+    else {
+      stop_game();
+      set_geometry(gTwistedProduct);
+      check_cgi(); cgi.require_basics();
+      hybrid::csteps = cgi.psl_steps;
+      hybrid::reconfigure();
+      }
+    }
+
+  EX void fixup_csteps() {
+    check_cgi(); cgi.require_basics();
+    if(!hybrid::csteps || gmod(cgi.psl_steps, hybrid::csteps)) {
+      hybrid::csteps = cgi.psl_steps;
+      if(nil) {
+        auto& T = euc::eu_input.user_axes;
+        hybrid::csteps = abs(T[0][0] * T[1][1] - T[0][1] * T[1][0]);
+        if(S3 == 3) hybrid::csteps *= 2;
+        if(BITRUNCATED) hybrid::csteps *= S3;
+        if(INVERSE) hybrid::csteps *= 2;
+        }
+      hybrid::reconfigure();
+      }
     }
 
   EX hrmap *pmap;
@@ -1197,6 +1299,14 @@ EX namespace hybrid {
   #define PIA(x) hr::hybrid::in_actual([&] { return (x); })
   #endif
   
+  EX void set_plevel(ld lev) {
+    stop_game();
+    vid.plevel_factor = 1;
+    check_cgi(); cgi.prepare_basics();
+    vid.plevel_factor = lev / cgi.plevel;
+    check_cgi();
+    }
+
   struct hrmap_hybrid : hrmap {
     
     hrmap *underlying_map;
@@ -1211,6 +1321,7 @@ EX namespace hybrid {
 
     const int SHIFT_UNKNOWN = 30000;
     map<cell*, vector<int>> shifts;
+    map<cell*, ld> orig_height;
   
     EX vector<int>& make_shift(cell *c) {
       auto& res = shifts[c];
@@ -1230,7 +1341,28 @@ EX namespace hybrid {
       if(S3 >= OINF) return 0;
       auto& v = get_shift_current(cw0);
       if(v != SHIFT_UNKNOWN) return v;
-      
+
+      /** note: will not be done in fix_bounded_cycles because then it is already called in underlying map, but that is fine */
+      if(nil) {
+        /** we prevent possible 'two candidate' errors by computing the correct value, we know all the positions in the underlying map, so we can do that */
+        transmatrix uT, uU, uT1;
+        in_underlying([&] {
+          uT = currentmap->relative_matrix(cw0.at, currentmap->gamestart(), C0);
+          uU = currentmap->adj(cw0.at, cw0.spin);
+          uT1 = currentmap->relative_matrix(cw0.cpeek(), currentmap->gamestart(), C0);
+          });
+        transmatrix lT = twist::lift_matrix(uT);
+        transmatrix lU = twist::lift_matrix(uU);
+        transmatrix lT1 = twist::lift_matrix(uT1);
+        if(!orig_height.count(cw0.at)) orig_height[cw0.at] = (lT*C0) [2] / nilv::nilwidth / nilv::nilwidth;
+        ld diff = (lT * lU * iso_inverse(lT1) * C0)[2] / nilv::nilwidth / nilv::nilwidth - orig_height[cw0.at];
+        if(!orig_height.count(cw0.peek())) orig_height[cw0.peek()] = -diff;
+        diff += orig_height[cw0.peek()];
+        if(abs(frac(diff / cgi.plevel + 0.5) - 0.5) > 1e-6) throw hr_exception("not an integer in get_shift");
+        v = floor(diff / cgi.plevel + 0.5);
+        return v;
+        }
+
       vector<int> candidates;
       
       for(int a: {1, -1}) {
@@ -1248,10 +1380,14 @@ EX namespace hybrid {
         }
       
       if(candidates.size() == 2 && candidates[0] != candidates[1]) {
+        if(!quotient) println(hlog, "two candidates in shift : ", candidates);
         int val = candidates[0] - candidates[1];
+        int old_disc_quotient = disc_quotient;
         if(disc_quotient == 0) disc_quotient = val;
         disc_quotient = gcd(val, disc_quotient);
         if(disc_quotient < 0) disc_quotient = -disc_quotient;
+        if(old_disc_quotient != disc_quotient && !in_underlying([] { return quotient || sphere; }))
+          addMessage(XLAT("ERROR: failed to solve the twist values, the map will be incorrect", its(disc_quotient)));
         }
   
       int val = 0;
@@ -1295,11 +1431,11 @@ EX namespace hybrid {
         cw++;
         }
       while(cw != cw0);
-      return total + cgi.single_step * (sphere ? -1 : 1);
+      return total + cgi.single_step * ((sphere || euclid) ? -1 : 1);
       }
     
     EX void fix_bounded_cycles() {
-      if(!rotspace) return;
+      if(!mtwisted) return;
       if(!closed_manifold) return;
       in_underlying([&] {
         cellwalker final(currentmap->gamestart(), 0);
@@ -1314,6 +1450,7 @@ EX namespace hybrid {
               cw++;
               }              
             else {
+              get_shift(cw);
               get_shift_current(cw) -= cd;
               get_shift_current(cw+wstep) += cd;
               cw++;
@@ -1325,7 +1462,12 @@ EX namespace hybrid {
 
         if(debugflags & DF_GEOM) for(cell *c: ac) for(int i=0; i<c->type; i++) {
           cellwalker cw(c, i);
-          if(cycle_discrepancy(cw)) println(hlog, cw, cycle_discrepancy(cw));
+          if(cycle_discrepancy(cw)) println(hlog, cw, " ", cycle_discrepancy(cw));
+          }
+        if(debugflags & DF_GEOM) for(cell *c: ac) for(int i=0; i<c->type; i++) {
+          auto err = get_shift(cellwalker(c, i)) + get_shift(cellwalker(c, i)+wstep);
+          if(err)
+            println(hlog, "two-side error: ", err, " on ", cellwalker(c, i));
           }
         });
       }
@@ -1417,7 +1559,7 @@ EX namespace hybrid {
       auto cu1 = m->in_underlying([&] { return cu->cmove(d); });
       int d1 = cu->c.spin(d);
       int s = 0;
-      if(geometry == gRotSpace) {
+      if(geometry == gTwistedProduct) {
         auto cm = (hrmap_hybrid*)currentmap;
         m->in_underlying([&] { cm->ensure_shifts(cu); });
         s = ((hrmap_hybrid*)currentmap)->get_shift(cellwalker(cu, d));
@@ -1517,7 +1659,7 @@ EX namespace hybrid {
         tf = hdist0(hm)/2;
         alpha = atan2(hm[1], hm[0]);
         });
-      return spin(alpha) * rots::uxpush(tf) * rots::uypush(he) * rots::uzpush(lev) * C0;
+      return spin(alpha) * twist::uxpush(tf) * twist::uypush(he) * twist::uzpush(lev) * C0;
       #else
       throw hr_exception();
       #endif
@@ -1603,7 +1745,7 @@ EX namespace hybrid {
     static int s;
     s = csteps / cgi.single_step;
     string str = "";
-    if(rotspace)
+    if(mtwisted)
       str = XLAT(
         "If the 2D underlying manifold is bounded, the period should be a divisor of the 'rotation space' "
         "value (PSL(2,R)) times the Euler characteristics of the underlying manifold. "
@@ -1623,7 +1765,7 @@ EX namespace hybrid {
         };
       };
     dialog::get_di().extra_options = [=] () {
-      if(rotspace) {
+      if(mtwisted) {
         int e_steps = cgi.psl_steps / gcd(cgi.single_step, cgi.psl_steps); 
         bool ubounded = PIU(closed_manifold);
         dialog::addSelItem( sphere ? XLAT("elliptic") : XLAT("PSL(2,R)"), its(e_steps), 'P');
@@ -1643,6 +1785,85 @@ EX namespace hybrid {
         }
       dialog::get_di().reaction_final = set_s(s, false);
       };
+    }
+
+  EX ld underlying_scale = 0;
+  EX bool drawing_underlying = false;
+  EX bool underlying_as_pc = true;
+
+  EX void draw_underlying(bool cornermode) {
+    if(underlying_scale <= 0) return;
+    ld d = hybrid::get_where(centerover).second;
+    d *= cgi.plevel;
+    transmatrix T = twist::uzpush(-d) * spin(-2*d);
+
+    if(det(T) < 0) T = centralsym * T;
+
+    ld orig_d = d;
+    if(mproduct) d = 0;
+
+    hyperpoint h = inverse(View * spin(master_to_c7_angle()) * T) * C0;
+
+    auto g = std::move(gmatrix);
+    auto g0 = std::move(gmatrix0);
+
+    ld alpha = atan2(ortho_inverse(NLP) * point3(1, 0, 0));
+
+    dynamicval<transmatrix> dn(NLP);
+    dynamicval<transmatrix> dv(View);
+
+    bool inprod = mproduct;
+    transmatrix pView = View;
+
+    if(inprod) {
+      ld z = zlevel(tC0(View));
+
+      /* special case when we are actually in E2xE as a rotation space */
+      if(in_e2xe() && abs(cgi.plevel * hybrid::csteps - TAU) < 1e-6) alpha = orig_d - z;
+
+      println(hlog, "depth = ", cgi.plevel * hybrid::csteps, " orig_d = ", orig_d, " z = ", z);
+
+      pView = spin(alpha) * View;
+
+      for(int a=0; a<3; a++) pView[a] *= exp(-z);
+      }
+
+    cell *co = hybrid::get_where(centerover).first;
+
+    hybrid::in_underlying_geometry([&] {
+      cgi.require_shapes();
+      dynamicval<int> pcc(corner_centering, cornermode ? 1 : 2);
+      dynamicval<bool> pf(playerfound, true);
+      dynamicval<cell*> m5(centerover, co);
+      dynamicval<transmatrix> m2(View, inprod ? pView : ypush(0) * twist::qtm(h));
+      if(PURE && !inprod) View = View * pispin;
+      View = inverse(stretch::mstretch_matrix) * spin(2*d) * View;
+      dynamicval<shiftmatrix> m3(playerV, shiftless(Id));
+      dynamicval<transmatrix> m4(actual_view_transform, Id);
+      dynamicval<shiftmatrix> m6(cwtV, shiftless(Id));
+      dynamicval<eModel> pm(pmodel, mdDisk);
+      dynamicval<ld> pss(pconf.scale, (sphere ? 10 : euclid ? .4 : 1) * underlying_scale);
+      dynamicval<ld> psa(pconf.alpha, sphere ? 10 : 1);
+      dynamicval<hrmap*> p(hybrid::pmap, NULL);
+      dynamicval<int> psr(sightrange_bonus, 0);
+
+      dynamicval<int> psx(vid.use_smart_range, 2);
+      dynamicval<ld> psy(vid.smart_range_detail, 1);
+      dynamicval<bool> pdu(drawing_underlying, true);
+
+      calcparam();
+      reset_projection(); current_display->set_all(0, 0);
+      ptds.clear();
+      drawthemap();
+      if(underlying_as_pc) drawPlayer(moPlayer, centerover, sphere ? shiftless(xpush(M_PI) * spin90()) : shiftless(spin90()), 0xFFFFFFFF, 0);
+      drawqueue();
+      if(!underlying_as_pc) displaychr(current_display->xcenter, current_display->ycenter, 0, 24 * mapfontscale / 100, '+', 0xFFFFFFFF);
+      glflush();
+      });
+    gmatrix = std::move(g);
+    gmatrix0 = std::move(g0);
+    calcparam();
+    reset_projection(); current_display->set_all(0, 0); make_actual_view();
     }
 
 EX }
@@ -2158,22 +2379,24 @@ EX namespace slr {
 
 EX }
 
-EX namespace rots {
-  EX ld underlying_scale = 0;
+EX namespace twist {
   
 #if MAXMDIM >= 4
   EX transmatrix uxpush(ld x) { 
     if(sl2) return xpush(x);
+    if(nil) return xpush(x*2*nilv::nilwidth);
     return cspin(1, 3, x) * cspin(0, 2, x);
     }
 
   EX transmatrix uypush(ld y) { 
     if(sl2) return ypush(y);
+    if(nil) return ypush(y*2*nilv::nilwidth);
     return cspin(0, 3, -y) * cspin(1, 2, y);
     }
      
   EX transmatrix uzpush(ld z) {
     if(sl2) return zpush(z);
+    if(nil) return zpush(z*nilv::nilwidth*nilv::nilwidth) * spin(-2*z);
     return cspin(3, 2, -z) * cspin(0, 1, -z);
     }
   
@@ -2195,11 +2418,11 @@ EX namespace rots {
   
   EX std::map<int, transmatrix> saved_matrices_ray;
 
-  struct hrmap_rotation_space : hybrid::hrmap_hybrid {
+  struct hrmap_twisted : hybrid::hrmap_hybrid {
 
     std::map<int, transmatrix> saved_matrices;
 
-    transmatrix adj(cell *c1, int i) override {    
+    transmatrix adj(cell *c1, int i) override {
       if(i == c1->type-2) return uzpush(-cgi.plevel) * spin(-2*cgi.plevel);
       if(i == c1->type-1) return uzpush(+cgi.plevel) * spin(+2*cgi.plevel);
       cell *c2 = c1->cmove(i);
@@ -2256,7 +2479,17 @@ EX namespace rots {
       }
     };
 
-  /** reinterpret the given point of rotspace as a rotation matrix in the underlying geometry (note: this is the inverse) */
+  EX void clear_twisted_matrices() {
+    saved_matrices_ray.clear();
+    for(auto& m: allmaps) {
+      auto m1 = dynamic_cast<hrmap_twisted*> (m);
+      if(m1) m1->saved_matrices.clear();
+      }
+    }
+
+
+  /** reinterpret the given point of rotspace as a rotation matrix in the underlying geometry (note: this is the inverse)
+   *  note: you should already be in underlying geometry */
   EX transmatrix qtm(hyperpoint h) {
 
     ld& x = h[0];
@@ -2302,70 +2535,6 @@ EX namespace rots {
 
 
     return M;
-    }
-    
-  EX bool drawing_underlying = false;
-  
-  EX void draw_underlying(bool cornermode) {
-    if(underlying_scale <= 0) return;
-    ld d = hybrid::get_where(centerover).second;
-    d *= cgi.plevel;
-    transmatrix T = rots::uzpush(-d) * spin(-2*d);
-  
-    if(det(T) < 0) T = centralsym * T;
-    
-    if(mproduct) d = 0;
-  
-    hyperpoint h = inverse(View * spin(master_to_c7_angle()) * T) * C0;
-    
-    auto g = std::move(gmatrix);
-    auto g0 = std::move(gmatrix0);
-    
-    ld alpha = atan2(ortho_inverse(NLP) * point3(1, 0, 0));
-    
-    bool inprod = mproduct;
-    transmatrix pView = View;
-    if(inprod) {
-      pView = spin(alpha) * View;
-      ld z = zlevel(tC0(View));
-      for(int a=0; a<3; a++) pView[a] *= exp(-z);
-      }
-    
-    cell *co = hybrid::get_where(centerover).first;
-  
-    hybrid::in_underlying_geometry([&] {
-      cgi.require_shapes();
-      dynamicval<int> pcc(corner_centering, cornermode ? 1 : 2);
-      dynamicval<bool> pf(playerfound, true);
-      dynamicval<cell*> m5(centerover, co);
-      dynamicval<transmatrix> m2(View, inprod ? pView : ypush(0) * qtm(h));
-      if(PURE && !inprod) View = View * pispin;
-      View = inverse(stretch::mstretch_matrix) * spin(2*d) * View;
-      dynamicval<shiftmatrix> m3(playerV, shiftless(Id));
-      dynamicval<transmatrix> m4(actual_view_transform, Id);
-      dynamicval<shiftmatrix> m6(cwtV, shiftless(Id));
-      dynamicval<eModel> pm(pmodel, mdDisk);
-      dynamicval<ld> pss(pconf.scale, (sphere ? 10 : euclid ? .4 : 1) * underlying_scale);
-      dynamicval<ld> psa(pconf.alpha, sphere ? 10 : 1);
-      dynamicval<hrmap*> p(hybrid::pmap, NULL);
-      dynamicval<int> psr(sightrange_bonus, 0);
-
-      dynamicval<int> psx(vid.use_smart_range, 2);
-      dynamicval<ld> psy(vid.smart_range_detail, 1);
-      dynamicval<bool> pdu(drawing_underlying, true);
-
-      calcparam();
-      reset_projection(); current_display->set_all(0, 0);
-      ptds.clear();
-      drawthemap();
-      drawqueue();
-      displaychr(current_display->xcenter, current_display->ycenter, 0, 24 * mapfontscale / 100, '+', 0xFFFFFFFF);
-      glflush();
-      });
-    gmatrix = std::move(g);
-    gmatrix0 = std::move(g0);
-    calcparam();
-    reset_projection(); current_display->set_all(0, 0);
     }
 
   /** @brief exponential function for both slr and Berger sphere */
@@ -2555,7 +2724,7 @@ EX namespace stretch {
     }
 
   EX bool applicable() {
-    return rotspace || (cgflags & qSTRETCHABLE);
+    return (mtwisted && !nil) || (cgflags & qSTRETCHABLE);
     }
 
   EX bool in() {
@@ -2947,12 +3116,12 @@ EX namespace nisot {
     #endif
     if(mproduct) return new product::hrmap_product;
     #if MAXMDIM >= 4
+    if(mhybrid) return new twist::hrmap_twisted;
     if(nil) return new nilv::hrmap_nil;
-    if(mhybrid) return new rots::hrmap_rotation_space;
     #endif
     return NULL;
     }
-  
+
   #if CAP_COMMANDLINE
   auto config = addHook(hooks_args, 0, [] () {
     using namespace arg;
@@ -2983,19 +3152,31 @@ EX namespace nisot {
       set_geometry(gProduct);
       return 0;
       }
+    else if(argis("-prodlevel")) {
+      /* specify an exact value for cgi.plevel */
+      shift(); hybrid::set_plevel(argf());
+      return 0;
+      }
     else if(argis("-s2xe")) {
       PHASEFROM(2);
       shift(); s2xe::qrings = argi();
       return 0;
       }
+    else if(argis("-twisted-product")) {
+      PHASEFROM(2);
+      bool quo = sphere || quotient;
+      set_geometry(gTwistedProduct);
+      if(quo) hybrid::fixup_csteps();
+      return 0;
+      }
     else if(argis("-rotspace")) {
       PHASEFROM(2);
-      set_geometry(gRotSpace);
+      hybrid::enable_rotspace();
       return 0;
       }
     else if(argis("-rot_uscale")) {
       PHASEFROM(2);
-      shift_arg_formula(rots::underlying_scale);
+      shift_arg_formula(hybrid::underlying_scale);
       return 0;
       }
     else if(argis("-nilperiod")) {
@@ -3010,12 +3191,14 @@ EX namespace nisot {
       shift_arg_formula(nilv::nilwidth);
       return 0;
       }
-    else if(argis("-nilh")) {
+    else if(argis("-nilsi")) {
       PHASEFROM(2);
       stop_game();
-      shift(); ginf[gNil].sides = argi();
+      shift(); 
+      nilv::nil_structure_index = argi();
       nilv::set_flags();
       start_game();
+      return 0;
       }
     else if(argis("-rk-steps")) {
       PHASEFROM(2);

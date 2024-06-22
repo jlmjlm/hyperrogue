@@ -122,13 +122,13 @@ EX void draw_radar(bool cornermode) {
   
   ld cx = dual::state ? (dual::currently_loaded ? vid.xres/2+rad+2 : vid.xres/2-rad-2) :
           subscreens::in ? cd->xtop + cd->xsize - rad - 2 :
-          cornermode ? rad+2 : vid.xres-rad-2;
+          cornermode ? rad+2+vid.fsize : vid.xres-rad-2-vid.fsize;
   ld cy = subscreens::in ? cd->ytop + cd->ysize - rad - 2 - vid.fsize :
           vid.yres-rad-2 - vid.fsize;
   
   auto sId = shiftless(Id);
 
-  for(int i=0; i<360; i++)
+  for(int i=0; i<=360; i++)
     curvepoint(atscreenpos(cx-cos(i * degree)*rad, cy-sin(i*degree)*rad, 1) * C0);
   queuecurve(sId, 0xFFFFFFFF, 0x000000FF, PPR::ZERO);      
 
@@ -137,13 +137,13 @@ EX void draw_radar(bool cornermode) {
   ld si = sin(alpha);
   
   if(sph && !d3) {
-    for(int i=0; i<360; i++)
+    for(int i=0; i<=360; i++)
       curvepoint(atscreenpos(cx-cos(i * degree)*rad, cy-sin(i*degree)*rad*si, 1) * C0);
     queuecurve(sId, 0, 0x200000FF, PPR::ZERO);
     }
 
   if(d3) {
-    for(int i=0; i<360; i++)
+    for(int i=0; i<=360; i++)
       curvepoint(atscreenpos(cx-cos(i * degree)*rad, cy-sin(i*degree)*rad*si, 1) * C0);
     queuecurve(sId, 0xFF0000FF, 0x200000FF, PPR::ZERO);
   

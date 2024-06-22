@@ -1678,6 +1678,7 @@ EX bool confusingGeometry() {
   #if MAXMDIM >= 4
   if(reg3::ultra_mirror_in()) return true;
   #endif
+  if(mproduct) return (hybrid::csteps && !PIU(fake::in() && !fake::multiple)) || PIU(confusingGeometry());
   return quotient || elliptic || (fake::in() && fake::multiple);
   }
 
@@ -2020,8 +2021,12 @@ void hrmap_standard::draw_at(cell *at, const shiftmatrix& where) {
     }
   }
 
+EX bool has_fixed_yz() {
+  return (embedded_plane || mhybrid || nil || euclid || sol || nih || (cgflags & qSTRETCHABLE) || (hyperbolic && bt::in()));
+  }
+
 EX bool keep_vertical() {
-  if((WDIM == 2 || gproduct) && GDIM == 3 && vid.fixed_yz) return !CAP_ORIENTATION;
+  if(vid.fixed_yz && has_fixed_yz()) return !CAP_ORIENTATION;
   if(downseek.qty) return true;
   return false;
   }
@@ -2033,8 +2038,18 @@ EX hyperpoint vertical_vector() {
     if(gproduct) Rot = NLP * Rot;
     return Rot * lztangent(vid.wall_height);
     }
-  if(gproduct && vid.fixed_yz) {
+  if(mproduct && vid.fixed_yz) {
     return get_view_orientation() * lztangent(1);
+    }
+  if(((cgflags & qSTRETCHABLE) || (mtwisted && sphere)) && vid.fixed_yz) {
+    return stretch::itranslate(View * C0) * View * lztangent(1);
+    }
+  if((nil || euclid || sol || nih) && vid.fixed_yz) {
+    return View * lztangent(1);
+    }
+  if(hyperbolic && bt::in() && vid.fixed_yz) {
+    hyperpoint h = inverse(View) * C0;
+    return View * parabolic13_at(deparabolic13(h)) * xtangent(1);
     }
   if(ds.qty && gproduct)
     return get_view_orientation() * product::inverse_exp(ds.point);
@@ -3276,7 +3291,7 @@ EX bool do_draw(cell *c, const shiftmatrix& T) {
     }
 
   #if MAXMDIM >= 4
-  if(rots::drawing_underlying && euclid && hdist0(tC0(T)) > 6) return false;
+  if(hybrid::drawing_underlying && euclid && hdist0(tC0(T)) > 6) return false;
   #endif
   if(just_gmatrix && sphere) return true;
   if(!do_draw(c)) return false;

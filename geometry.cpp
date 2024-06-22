@@ -132,6 +132,8 @@ struct subcellshape {
   vector<vector<char>> next_dir;
   /** useful in product geometries */
   vector<hyperpoint> walltester;
+  /** needed for twisted */
+  ld angle_of_zero;
 
   /** compute all the properties based on `faces`, for the main heptagon cellshape */
   void compute_hept();
@@ -168,9 +170,6 @@ struct geometry_information {
   /** distance between hexagon vertex and hexagon center */
   ld hexvdist;
   
-  /** distance between heptagon vertex and hexagon center (either hcrossf or something else) */
-  ld hepvdist;
-
   /** distance from heptagon center to heptagon vertex (either hexf or hcrossf) */
   ld rhexf;
 
@@ -372,6 +371,7 @@ hpcshape
   vector<hyperpoint> walltester;
   
   vector<int> wallstart;
+  vector<ld> angle_of_zero; /* needed for twisted, especially Archimedean */
   vector<transmatrix> raywall;
 
   vector<struct plain_floorshape*> all_plain_floorshapes;
@@ -468,7 +468,7 @@ hpcshape
   void pushShape(usershapelayer& ds);
   void make_sidewalls();
   void procedural_shapes();
-  void make_wall(int id, const vector<hyperpoint> vertices, vector<ld> weights = equal_weights);
+  void make_wall(int wo, int id, const vector<hyperpoint> vertices, vector<ld> weights = equal_weights);
   
   void reserve_wall3d(int i);
   void compute_cornerbonus();
@@ -522,6 +522,8 @@ hpcshape
   struct gpdata_t {
     vector<array<array<array<transmatrix, 6>, GOLDBERG_LIMIT>, GOLDBERG_LIMIT>> Tf;
     transmatrix corners;
+    transmatrix corners_for_triangle;
+    transmatrix rotator;
     ld alpha;
     int area;
     int pshid[3][8][GOLDBERG_LIMIT][GOLDBERG_LIMIT][8];
@@ -582,6 +584,10 @@ EX bool is_subcube_based(eVariation var) {
 
 EX bool is_reg3_variation(eVariation var) {
   return var == eVariation::coxeter;
+  }
+
+EX bool special_fake() {
+  return fake::in() && (BITRUNCATED || (S3 == 4 && gp::param.first == 1 && gp::param.second == 1));
   }
 
 void geometry_information::prepare_basics() {
@@ -693,6 +699,27 @@ void geometry_information::prepare_basics() {
   hexhexdist = fake::in() ?
     2 * hdist0(mid(xspinpush0(M_PI/S6, hexvdist), xspinpush0(-M_PI/S6, hexvdist)))
     : hdist(xpush0(crossf), xspinpush0(TAU/S7, crossf));
+
+  if(special_fake()) {
+    vector<pair<ld, ld>> vals;
+    int s6 = BITRUNCATED ? S3*2 : S3;
+    vals.emplace_back(S7, BITRUNCATED ? fake::around / 3 : fake::around / 2);
+    vals.emplace_back(s6, BITRUNCATED ? fake::around * 2 / 3 : fake::around / 2);
+    ld edgelength = euclid ? 1 : arcm::compute_edgelength(vals);
+
+    // circumradius and inradius, for S7 and S6 shapes
+    auto c7 = asin_auto(sin_auto(edgelength/2) / sin(M_PI / S7));
+    auto c6 = asin_auto(sin_auto(edgelength/2) / sin(M_PI / s6));
+    auto i7 = hdist0(mid(xpush0(c7), cspin(0, 1, TAU/S7) * xpush0(c7)));
+    auto i6 = hdist0(mid(xpush0(c6), cspin(0, 1, TAU/s6) * xpush0(c6)));
+
+    // note: tessf and hcrossf remain undefined
+    crossf = i7 + i6;
+    hexf = c7;
+    hexhexdist = i6 + i6;
+    hexvdist = c6;
+    rhexf = c7;
+    }
   
   DEBB(DF_GEOM | DF_POLY,
     (hr::format("S7=%d S6=%d hexf = " LDF" hcross = " LDF" tessf = " LDF" hexshift = " LDF " hexhex = " LDF " hexv = " LDF "\n", S7, S6, hexf, hcrossf, tessf, hexshift, 
@@ -733,7 +760,7 @@ void geometry_information::prepare_basics() {
   #if CAP_BT
   else if(bt::in()) bt::create_faces();
   #endif
-  else if(nil) nilv::create_faces();
+  else if(nil && !mtwisted) nilv::create_faces();
   #endif
   
   scalefactor = crossf / hcrossf7;
@@ -809,7 +836,7 @@ void geometry_information::prepare_basics() {
   
   plevel = vid.plevel_factor * scalefactor;
   single_step = 1;
-  if(mhybrid && !mproduct) {
+  if(mtwisted && ginf[hybrid::underlying].cclass != gcEuclid) {
     #if CAP_ARCM
     if(hybrid::underlying == gArchimedean) 
       arcm::current.get_step_values(psl_steps, single_step);
@@ -825,6 +852,14 @@ void geometry_information::prepare_basics() {
       }
     DEBB(DF_GEOM | DF_POLY, ("steps = ", psl_steps, " / ", single_step));
     plevel = M_PI * single_step / psl_steps;
+    }
+  if(mtwisted && ginf[hybrid::underlying].cclass == gcEuclid) {
+    single_step = 1;
+    if(hybrid::underlying == gArchimedean) plevel = arcm::current.dual_tile_area();
+    if(hybrid::underlying == gEuclid && PURE) plevel = sqrt(3)/4.;
+    if(hybrid::underlying == gEuclidSquare && PURE) plevel = 1;
+    if(hybrid::underlying == gEuclidSquare && BITRUNCATED) plevel = 0.25;
+    if(hybrid::underlying == gEuclid && BITRUNCATED) plevel = sqrt(3)/12.;
     }
   
   set_sibling_limit();
@@ -1335,19 +1370,19 @@ EX void check_cgi() {
   cgip = &cgis[s];
   cgi.timestamp = ++ntimestamp;
   if(mhybrid) hybrid::underlying_cgip->timestamp = ntimestamp;
-  if(fake::in()) fake::underlying_cgip->timestamp = ntimestamp;
+  if(fake::in() || (mhybrid && PIU(fake::in()))) fake::underlying_cgip->timestamp = ntimestamp;
   #if CAP_ARCM
   if(arcm::alt_cgip[0]) arcm::alt_cgip[0]->timestamp = ntimestamp;
   if(arcm::alt_cgip[1]) arcm::alt_cgip[1]->timestamp = ntimestamp;
   #endif
   
-  int limit = 4;
-  for(auto& t: cgis) if(t.second.use_count) limit++;
+  int limit = 3;
+  for(auto& t: cgis) if(t.second.use_count || t.second.timestamp == ntimestamp) limit++;
   if(isize(cgis) > limit) {
     vector<pair<int, string>> timestamps;
     for(auto& t: cgis) if(!t.second.use_count) timestamps.emplace_back(-t.second.timestamp, t.first);
     sort(timestamps.begin(), timestamps.end());
-    while(isize(timestamps) > 4) {
+    while(isize(timestamps) > limit && timestamps.back().first != -ntimestamp) {
       DEBB(DF_GEOM, ("erasing geometry ", timestamps.back().second));
       cgis.erase(timestamps.back().second);
       timestamps.pop_back();

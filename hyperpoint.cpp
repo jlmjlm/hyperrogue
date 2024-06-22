@@ -420,7 +420,7 @@ EX hyperpoint hpxy(ld x, ld y) {
     return cgi.emb->base_to_actual(h);
     }
   if(sl2) return hyperpoint(x, y, 0, sqrt(1+x*x+y*y));
-  if(rotspace) return hyperpoint(x, y, 0, sqrt(1-x*x-y*y));
+  if(mtwisted) return hyperpoint(x, y, 0, sqrt(1-x*x-y*y));
   return PIU(hpxyz(x,y, translatable ? 1 : sphere ? sqrt(1-x*x-y*y) : sqrt(1+x*x+y*y)));
   }
 
@@ -1648,7 +1648,7 @@ EX hyperpoint direct_exp(hyperpoint v) {
   #endif
   #if MAXMDIM >= 4
   if(nil) return nilv::formula_exp(v);
-  if(sl2 || stretch::in()) return stretch::mstretch ? nisot::numerical_exp(v) : rots::formula_exp(v);
+  if(sl2 || stretch::in()) return stretch::mstretch ? nisot::numerical_exp(v) : twist::formula_exp(v);
   #endif
   if(gproduct) return product::direct_exp(v);
   ld d = hypot_d(GDIM, v);

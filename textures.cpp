@@ -1025,7 +1025,7 @@ void init_textureconfig() {
   
   param_str(csymbol, "symbol", "");
   
-  swap(texturesavers, params); texturesavers.clear();
+  swap(texturesavers, params);
 #endif
   }
 
@@ -1102,11 +1102,12 @@ bool texture_config::load() {
         stop_game();
         }
       set_geometry(targetgeometry);
+      set_variation(targetvariation);
       start_game();
       return config.load();
       }
-    
-    if(variation != targetvariation) {
+    else if(variation != targetvariation) {
+      stop_game();
       set_variation(targetvariation);
       start_game();
       return config.load();
@@ -1735,10 +1736,6 @@ int textureArgs() {
     shift(); config.configname = args();
     }
 
-  else if(argis("-txc")) {
-    shift(); config.configname = args();
-    }
-
   else if(argis("-txpsize")) {
     shift(); txp.twidth = argi();
     }
@@ -1748,7 +1745,7 @@ int textureArgs() {
     }
 
   else if(argis("-txcl")) {
-    PHASE(3); drawscreen();
+    PHASE(3);
     config.load();
     }
 

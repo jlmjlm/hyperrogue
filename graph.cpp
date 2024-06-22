@@ -4356,6 +4356,7 @@ EX subcellshape& generate_subcellshape_if_needed(cell *c, int id) {
   for(int i=0; i<c1->type; i++)
     ss.faces.push_back({hybrid::get_corner(c1, i, 0, -1), hybrid::get_corner(c1, i, 0, +1), hybrid::get_corner(c1, i, 1, +1), hybrid::get_corner(c1, i, 1, -1)});
 
+  ss.angle_of_zero = -PIU(atan2(currentmap->adj(c1, 0)*C0));
   for(int a: {0,1}) {
     vector<hyperpoint> l;
     int z = a ? 1 : -1;
@@ -4372,6 +4373,7 @@ EX subcellshape& generate_subcellshape_if_needed(cell *c, int id) {
         l.push_back(hybrid::get_corner(c1, i, 0, z));
         }
     if(a == 0) std::reverse(l.begin()+1, l.end());
+    if(a == 1) std::rotate(l.begin(), l.begin()+3, l.end());
     ss.faces.push_back(l);
     }
   
@@ -4395,9 +4397,9 @@ int hrmap::wall_offset(cell *c) {
     if(!cgi.wallstart.empty()) cgi.wallstart.pop_back();
     cgi.reserve_wall3d(wo + isize(ss.faces));
 
-    
+    rk_shape = &ss;
     for(int i=0; i<isize(ss.faces); i++) {
-      cgi.make_wall(wo + i, ss.faces[i]);
+      cgi.make_wall(wo, i, ss.faces[i]);
       cgi.walltester[wo + i] = ss.walltester[i];
       }
     
@@ -5576,7 +5578,7 @@ EX void calcparam() {
   
   ld aradius = sphere ? cd->radius / (pconf.alpha - 1) : cd->radius;
   #if MAXMDIM >= 4
-  if(euclid && rots::drawing_underlying) aradius *= 2.5;
+  if(euclid && hybrid::drawing_underlying) aradius *= 2.5;
   #endif
   
   if(dronemode) { cd->ycenter -= cd->radius; cd->ycenter += vid.fsize/2; cd->ycenter += vid.fsize/2; cd->radius *= 2; }
