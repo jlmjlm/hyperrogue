@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "13.0p"
-#define VERNUM_HEX 0xAA10
+#define VER "13.0q"
+#define VERNUM_HEX 0xAA11
 
 #include "sysconfig.h"
 
@@ -258,6 +258,7 @@ struct projection_configuration {
   ld offside, offside2;
   ld aitoff_parameter, miller_parameter, loximuthal_parameter, winkel_parameter;
   bool show_hyperboloid_flat;
+  bool small_hyperboloid;
   bool collignon_reflected;
   string formula;
   eModel basic_model;

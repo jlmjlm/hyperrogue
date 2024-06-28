@@ -587,7 +587,7 @@ EX bool is_reg3_variation(eVariation var) {
   }
 
 EX bool special_fake() {
-  return fake::in() && (BITRUNCATED || (S3 == 4 && gp::param.first == 1 && gp::param.second == 1));
+  return fake::in() && (BITRUNCATED || (GOLDBERG && S3 == 4 && gp::param.first == 1 && gp::param.second == 1) || (UNRECTIFIED && gp::param.first == 1 && gp::param.second == 1));
   }
 
 void geometry_information::prepare_basics() {
@@ -615,6 +615,8 @@ void geometry_information::prepare_basics() {
   
   dynamicval<eVariation> gv(variation, variation);
   bool inv = INVERSE;
+  bool specfake = special_fake();
+  bool unrect = UNRECTIFIED;
   if(INVERSE) {
     variation = gp::variation_for(gp::param);
     println(hlog, "bitruncated = ", BITRUNCATED);
@@ -700,11 +702,11 @@ void geometry_information::prepare_basics() {
     2 * hdist0(mid(xspinpush0(M_PI/S6, hexvdist), xspinpush0(-M_PI/S6, hexvdist)))
     : hdist(xpush0(crossf), xspinpush0(TAU/S7, crossf));
 
-  if(special_fake()) {
+  if(specfake) {
     vector<pair<ld, ld>> vals;
     int s6 = BITRUNCATED ? S3*2 : S3;
-    vals.emplace_back(S7, BITRUNCATED ? fake::around / 3 : fake::around / 2);
-    vals.emplace_back(s6, BITRUNCATED ? fake::around * 2 / 3 : fake::around / 2);
+    vals.emplace_back(S7, unrect ? 0 : BITRUNCATED ? fake::around / 3 : fake::around / 2);
+    vals.emplace_back(s6, unrect ? fake::around : BITRUNCATED ? fake::around * 2 / 3 : fake::around / 2);
     ld edgelength = euclid ? 1 : arcm::compute_edgelength(vals);
 
     // circumradius and inradius, for S7 and S6 shapes
@@ -713,8 +715,8 @@ void geometry_information::prepare_basics() {
     auto i7 = hdist0(mid(xpush0(c7), cspin(0, 1, TAU/S7) * xpush0(c7)));
     auto i6 = hdist0(mid(xpush0(c6), cspin(0, 1, TAU/s6) * xpush0(c6)));
 
-    // note: tessf and hcrossf remain undefined
-    crossf = i7 + i6;
+    // note: tessf remains undefined
+    hcrossf = crossf = unrect ? i6+i6 : i7 + i6;
     hexf = c7;
     hexhexdist = i6 + i6;
     hexvdist = c6;
@@ -847,11 +849,22 @@ void geometry_information::prepare_basics() {
       single_step = S3 * S7 - 2 * S7 - 2 * S3;
       psl_steps = 2 * S7;    
       if(BITRUNCATED) psl_steps *= S3;
+      if(GOLDBERG && S3 == 4 && gp::param == gp::loc{1,1}) psl_steps *= 2;
       if(inv) psl_steps = 2 * S3;
       if(single_step < 0) single_step = -single_step;
       }
     DEBB(DF_GEOM | DF_POLY, ("steps = ", psl_steps, " / ", single_step));
     plevel = M_PI * single_step / psl_steps;
+    if(hybrid::underlying == gFake) {
+      auto s3 = fake::around;
+      ld fake_single_step = s3 * S7 - 2 * S7 - 2 * s3;
+      ld fake_psl_steps = 2 * S7;
+      if(BITRUNCATED) fake_psl_steps *= S3;
+      if(inv) fake_psl_steps = 2 * S3;
+      if(GOLDBERG && S3 == 4 && gp::param == gp::loc{1,1}) psl_steps *= 2;
+      if(fake_single_step < 0) fake_single_step = -fake_single_step;
+      plevel = M_PI * fake_single_step / fake_psl_steps;
+      }
     }
   if(mtwisted && ginf[hybrid::underlying].cclass == gcEuclid) {
     single_step = 1;
@@ -860,6 +873,7 @@ void geometry_information::prepare_basics() {
     if(hybrid::underlying == gEuclidSquare && PURE) plevel = 1;
     if(hybrid::underlying == gEuclidSquare && BITRUNCATED) plevel = 0.25;
     if(hybrid::underlying == gEuclid && BITRUNCATED) plevel = sqrt(3)/12.;
+    if(hybrid::underlying == gFake) { plevel = 1; addMessage("error: not implemented twisted products on Euclidean fakes"); }
     }
   
   set_sibling_limit();

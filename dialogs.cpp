@@ -652,6 +652,54 @@ EX namespace dialog {
     quickqueue();
     }
 
+  EX void draw_side_shade() {
+    int steps = menu_darkening - darken;
+
+    color_t col = (backcolor << 8) | (255 - (255 >> steps));
+
+    if(svg::in || !(auraNOGL || vid.usingGL)) {
+      flat_model_enabler fme;
+      initquickqueue();
+      ld pix = 1 / (2 * cgi.hcrossf / cgi.crossf);
+      curvepoint(hyperpoint(vid.xres-dwidth, -10, 1, 1));
+      curvepoint(hyperpoint(vid.xres + 10, -10, 1, 1));
+      curvepoint(hyperpoint(vid.xres + 10, vid.yres + 10, 1, 1));
+      curvepoint(hyperpoint(vid.xres-dwidth, vid.yres + 10, 1, 1));
+      curvepoint(hyperpoint(vid.xres-dwidth, -10, 1, 1));
+      shiftmatrix V = shiftless(atscreenpos(0, 0, pix));
+      queuecurve(V, 0, col, PPR::LINE);
+      quickqueue();
+      }
+
+    #if CAP_GL
+    else {
+      auto full = part(col, 0);
+      static vector<glhr::colored_vertex> auravertices;
+      auravertices.clear();
+      ld width = vid.xres / 100;
+      for(int i=4; i<steps && i < 8; i++) width /= sqrt(2);
+      for(int x=0; x<16; x++) {
+        for(int c=0; c<6; c++) {
+          int bx = (c == 1 || c == 3 || c == 5) ? x+1 : x;
+          int by = (c == 2 || c == 4 || c == 5) ? vid.yres : 0;
+          int cx = bx == 0 ? 0 : bx == 16 ?vid.xres :
+            vid.xres - dwidth + width * tan((bx-8)/8. * 90._deg);
+          part(col, 0) = lerp(0, full, bx / 16.);
+          auravertices.emplace_back(hyperpoint(cx - current_display->xcenter, by - current_display->ycenter, 0, 1), col);
+          }
+        }
+      glflush();
+      current_display->next_shader_flags = GF_VARCOLOR;
+      dynamicval<eModel> m(pmodel, mdPixel);
+      current_display->set_all(0, 0);
+      glhr::id_modelview();
+      glhr::prepare(auravertices);
+      glhr::set_depthtest(false);
+      glDrawArrays(GL_TRIANGLES, 0, isize(auravertices));
+      }
+    #endif
+    }
+
   EX void display() {
 
     callhooks(hooks_display_dialog);
@@ -698,52 +746,7 @@ EX namespace dialog {
       list_skip = 0;
       }
     
-    if(current_display->sidescreen && darken < menu_darkening) {
-      int steps = menu_darkening - darken;
-      color_t col = (backcolor << 8) | (255 - (255 >> steps));
-
-      if(svg::in || !(auraNOGL || vid.usingGL)) {
-        flat_model_enabler fme;
-        initquickqueue();
-        ld pix = 1 / (2 * cgi.hcrossf / cgi.crossf);
-        curvepoint(hyperpoint(vid.xres-dwidth, -10, 1, 1));
-        curvepoint(hyperpoint(vid.xres + 10, -10, 1, 1));
-        curvepoint(hyperpoint(vid.xres + 10, vid.yres + 10, 1, 1));
-        curvepoint(hyperpoint(vid.xres-dwidth, vid.yres + 10, 1, 1));
-        curvepoint(hyperpoint(vid.xres-dwidth, -10, 1, 1));
-        shiftmatrix V = shiftless(atscreenpos(0, 0, pix));
-        queuecurve(V, 0, col, PPR::LINE);
-        quickqueue();
-        }
-
-      #if CAP_GL
-      else {
-        auto full = part(col, 0);
-        static vector<glhr::colored_vertex> auravertices;
-        auravertices.clear();
-        ld width = vid.xres / 100;
-        for(int i=4; i<steps && i < 8; i++) width /= sqrt(2);
-        for(int x=0; x<16; x++) {
-          for(int c=0; c<6; c++) {
-            int bx = (c == 1 || c == 3 || c == 5) ? x+1 : x;
-            int by = (c == 2 || c == 4 || c == 5) ? vid.yres : 0;
-            int cx = bx == 0 ? 0 : bx == 16 ?vid.xres :
-              vid.xres - dwidth + width * tan((bx-8)/8. * 90._deg);
-            part(col, 0) = lerp(0, full, bx / 16.);
-            auravertices.emplace_back(hyperpoint(cx - current_display->xcenter, by - current_display->ycenter, 0, 1), col);
-            }
-          }
-        glflush();
-        current_display->next_shader_flags = GF_VARCOLOR;
-        dynamicval<eModel> m(pmodel, mdPixel);
-        current_display->set_all(0, 0);
-        glhr::id_modelview();
-        glhr::prepare(auravertices);
-        glhr::set_depthtest(false);
-        glDrawArrays(GL_TRIANGLES, 0, isize(auravertices));
-        }
-      #endif
-      }
+    if(current_display->sidescreen && darken < menu_darkening) draw_side_shade();
 
     bool inlist = false;
     int need_to_skip = 0;
@@ -1440,16 +1443,26 @@ EX namespace dialog {
       }
     
     display();
+
+    #if CAP_SDL2
+    texthandler = [&ne] (const SDL_TextInputEvent& ev) {
+      if(key_actions.count(ev.text[0])) return;
+      ne.s += ev.text;
+      ne.apply_edit();
+      };
+    #endif
     
     keyhandler = [this, &ne] (int sym, int uni) {
       handleNavigation(sym, uni);
       if((uni >= '0' && uni <= '9') || among(uni, '.', '+', '-', '*', '/', '^', '(', ')', ',', '|', 3) || (uni >= 'a' && uni <= 'z')) {
+        #if !CAP_SDL2
         if(uni == 3) ne.s += "pi";
         else ne.s += uni;
         apply_edit();
+        #endif
         }
       else if(uni == '\b' || uni == '\t') {
-        ne.s = ne.s. substr(0, isize(ne.s)-1);
+        ne.s = ne.s. substr(0, isize(ne.s)-utfsize_before(ne.s, isize(ne.s)));
         sscanf(ne.s.c_str(), LDF, ne.editwhat);
         apply_edit();
         }
@@ -1767,6 +1780,13 @@ EX namespace dialog {
     dialog::addItem("cancel", SDLK_ESCAPE);
     dialog::display();
 
+    #if CAP_SDL2
+    texthandler = [this] (const SDL_TextInputEvent& ev) {
+      int i = isize(*cfileptr) - (editext?0:4);
+      cfileptr->insert(i, ev.text);
+      };
+    #endif
+
     keyhandler = handleKeyFile;
     }
   
@@ -1783,15 +1803,18 @@ EX namespace dialog {
       if(ac) popScreen();
       }
     else if(sym == SDLK_BACKSPACE && i) {
-      s.erase(i-1, 1);
+      int len = utfsize_before(s, i);
+      s.erase(i-len, len);
       highlight_text = "//missing";
       list_skip = 0;
       }
+    #if !CAP_SDL2
     else if(uni >= 32 && uni < 127) {
       s.insert(i, s0 + char(uni));
       highlight_text = "//missing";
       list_skip = 0;
       }
+    #endif
     return;
     }
 
@@ -1877,6 +1900,7 @@ EX namespace dialog {
     void draw() override;
     void start_editing(string& s);
     bool handle_edit_string(int sym, int uni, function<string(int, int)> checker = editchecker);
+    void handle_textinput();
     };
   #endif
   
@@ -1896,23 +1920,38 @@ EX namespace dialog {
   bool string_dialog::handle_edit_string(int sym, int uni, function<string(int, int)> checker) {
     auto& es = *edited_string;
     string u2;
-    if(DKEY == SDLK_LEFT) editpos--;
-    else if(DKEY == SDLK_RIGHT) editpos++;
+    if(DKEY == SDLK_LEFT) editpos -= utfsize_before(es, editpos);
+    else if(DKEY == SDLK_RIGHT) editpos += utfsize(es[editpos]);
     else if(uni == 8) {
       if(editpos == 0) return true;
-      es.replace(editpos-1, 1, "");
-      editpos--;
+      int len = utfsize_before(es, editpos);
+      es.replace(editpos-len, len, "");
+      editpos -= len;
       if(reaction) reaction();
       }
     else if((u2 = checker(sym, uni)) != "") {
+      #if !CAP_SDL2
       for(char c: u2) {
         es.insert(editpos, 1, c);
         editpos ++;
         }
+      #endif
       if(reaction) reaction();
       }
     else return false;
     return true;
+    }
+
+  void string_dialog::handle_textinput() {
+    #if CAP_SDL2
+    texthandler = [this] (const SDL_TextInputEvent& ev) {
+      auto& es = *edited_string;
+      string txt = ev.text;
+      es.insert(editpos, txt);
+      editpos += isize(txt);
+      if(reaction) reaction();
+      };
+    #endif
     }
 
   void string_dialog::draw() {
@@ -1939,6 +1978,8 @@ EX namespace dialog {
       if(handle_edit_string(sym, uni)) ;
       else if(doexiton(sym, uni)) popfinal();
       };
+
+    handle_textinput();
     }
 
   EX void edit_string(string& s, string title, string help) {
