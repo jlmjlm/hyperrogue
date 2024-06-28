@@ -1,11 +1,12 @@
+hyperrogue.log*
+hyperrogue.ini*
+hyperrogue.pic
+hyperrogue-*
 .deps/
 lev-*.lev
-hyperrogue.ini*
-jlm/
 *.o
-autohdr.h
 *.swp
-hyperrogue.log*
-hyperrogue.pic
+autohdr.h
 langen
 makeh
+jlm/
