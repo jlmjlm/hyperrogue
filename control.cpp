@@ -619,6 +619,10 @@ EX void handleKeyNormal(int sym, int uni) {
     else restart_game();
     }
 
+  if(sym == SDLK_TAB) {
+    keybd_subdir = !keybd_subdir;
+    }
+
   if(sym == SDLK_ESCAPE) {
     if(bow::fire_mode)
       bow::switch_fire_mode();
