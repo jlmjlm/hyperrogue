@@ -678,7 +678,7 @@ EX string generateHelpForMonster(eMonster m) {
     }
 
   s += XLAT(minf[m].help);      
-  if(m == moPalace || m == moSkeleton)
+  if(isStunnable(m))
     s += pushtext(m);  
   if(m == moTroll) s += XLAT(trollhelp2);  
 
