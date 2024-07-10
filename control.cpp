@@ -149,6 +149,7 @@ EX void movepckeydir(int d) {
   if(protect_memory()) return;
   
   movedir md = vectodir(move_destination_vec(d));
+  md.subdir = keybd_subdir ? 1 : -1;
     
   if(!canmove) movepcto(md), remission(); else movepcto(md);
   }
