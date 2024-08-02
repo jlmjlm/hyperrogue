@@ -5820,7 +5820,7 @@ EX void normalscreen() {
 
 #if 1
   if(true)
-    displayButtonS(vid.xres-8, vid.yres-vid.fsize, "t:" + its(turncount), 0xFFFFFF, 16, 21);
+    displayButtonS(vid.xres-8, vid.yres-vid.fsize, its(killtypes()) + ":" + its(turncount), 0xFFFFFF, 16, 21);
 #else
   if(menu_format != "")
     displayButton(vid.xres-8, vid.yres-vid.fsize, eval_programmable_string(menu_format), 'v', 16);
