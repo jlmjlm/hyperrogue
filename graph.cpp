@@ -140,15 +140,20 @@ ld spina(cell *c, int dir) {
   return TAU * dir / c->type;
   }
 
-/** @brief used to alternate colors depending on distance to something. In chessboard-patterned geometries, also use a third step */
-
-EX int flip_dark(int f, int a0, int a1) {
-  if(geosupport_chessboard()) {
+/** @brief used to alternate colors depending on distance to something. In chessboard-patterned geometries, automatically a third step.
+ *  In some cases, we want to avoid a number of colors in the table -- set @param subtract to the number of such colors.
+ */
+EX color_t get_color_auto3(int f, const colortable& ctab, int subtract IS(0)) {
+  int size = ctab.size() - subtract;
+  if(size < 1) return 0;
+  if(geosupport_chessboard() && size == 2) {
     f = gmod(f, 3);
-    return a0 + (a1-a0) * f / 2;
+    if(f == 1)
+      return gradient(ctab[0], ctab[1], 0, 1, 2);
+    return ctab[f/2];
     }
   else
-    return (f&1) ? a1 : a0;
+    return ctab[gmod(f, size)];
   }
 
 color_t fc(int ph, color_t col, int z) {
@@ -761,10 +766,13 @@ EX color_t kind_outline(eItem it) {
     return OUTLINE_OTHER;
   }
 
+/** should objects fly slightly up and down in product/twisted product geometries */
+EX bool bobbing = true;
+
 EX shiftmatrix face_the_player(const shiftmatrix V) {
   if(GDIM == 2) return V;
-  if(mproduct) return orthogonal_move(V, cos(ptick(750)) * cgi.plevel / 16);
-  if(mhybrid) return V * zpush(cos(ptick(750)) * cgi.plevel / 16);
+  if(mproduct) return bobbing ? orthogonal_move(V, cos(ptick(750)) * cgi.plevel / 16) : V;
+  if(mhybrid) return bobbing ? V * zpush(cos(ptick(750)) * cgi.plevel / 16) : V;
   transmatrix dummy; /* used only in prod anyways */
   if(embedded_plane && !cgi.emb->is_same_in_same()) return V;
   if(nonisotropic) return shiftless(spin_towards(unshift(V), dummy, C0, 2, 0));
@@ -5569,6 +5577,8 @@ EX void calcparam() {
     if(tour::on && (tour::slides[tour::currentslide].flags & tour::SIDESCREEN) && ok)
       current_display->sidescreen = true;
 #endif
+    if((cmode & sm::DIALOG_OFFMAP) && !centered_menus && vid.xres > vid.yres * 11/10)
+      current_display->sidescreen = true;
 
     if(current_display->sidescreen) cd->xcenter = vid.yres/2;
     }
@@ -5598,6 +5608,7 @@ EX void calcparam() {
   ld fov = vid.fov * degree / 2;
   cd->tanfov = sin(fov) / (cos(fov) + get_stereo_param());
   
+  set_cfont();
   callhooks(hooks_calcparam);
   reset_projection();
   }
@@ -5864,7 +5875,7 @@ namespace sm {
   static constexpr int CENTER = 1024;
   static constexpr int ZOOMABLE = 4096;
   static constexpr int TORUSCONFIG = 8192;
-  static constexpr int MAYDARK = 16384;
+  static constexpr int MAYDARK = 16384; // use together with SIDE; if the screen is not wide or centered_menus is set, it will disable SIDE and instead darken the screen
   static constexpr int DIALOG_STRICT_X = 32768; // do not interpret dialog clicks outside of the X region
   static constexpr int EXPANSION = (1<<16);
   static constexpr int HEXEDIT = (1<<17);
@@ -5879,6 +5890,7 @@ namespace sm {
   static constexpr int EDIT_INSIDE_WALLS = (1<<26); // mouseover targets inside walls
   static constexpr int DIALOG_WIDE = (1<<27); // make dialogs wide
   static constexpr int MOUSEAIM = (1<<28); // mouse aiming active here
+  static constexpr int DIALOG_OFFMAP = (1<<29); // try hard to keep dialogs off the map
   }
 #endif
 

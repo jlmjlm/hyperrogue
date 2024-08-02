@@ -133,6 +133,7 @@ EX void show_edit_option_enum(char* value, const string& name, const vector<pair
 
 #if HDR
 struct list_parameter : parameter {
+  reaction_t manual_reaction;
   virtual int get_value() = 0;
   virtual void set_value(int i) = 0;
   vector<pair<string, string> > options;
@@ -1012,6 +1013,16 @@ EX purehookset hooks_configfile;
 
 EX ld mapfontscale = 100;
 
+EX void font_reaction() {
+  if(among(font_id, 5, 6)) {
+    int fid = font_id;
+    font_id = last_font_id;
+    dialog::openFileDialog(font_filenames[fid], XLAT("font to use:"), fid == 5 ? ".ttf" : ".otf", [fid] () {
+      font_id = fid; return true;
+      });
+    }
+  }
+
 EX void initConfig() {
   
   // basic config
@@ -1098,6 +1109,11 @@ EX void initConfig() {
   initcs(vid.cs); paramset(vid.cs, "single");
   param_b(vid.samegender, "princess choice", false);
   param_i(vid.language, "language", -1);  
+  param_enum(font_id, "font_id", 0)
+  ->editable(font_names, "select font", 'f')
+  ->manual_reaction = font_reaction;
+  param_str(font_filenames[5], "ttf_font");
+  param_str(font_filenames[6], "otf_font");
   param_b(vid.drawmousecircle, "mouse circle", ISMOBILE || ISPANDORA);
   param_b(vid.revcontrol, "reverse control", false);
   #if CAP_AUDIO
@@ -1196,6 +1212,7 @@ EX void initConfig() {
   -> editable("flashing effects", 'h')
   -> help("Disable if you are photosensitive. Replaces flashing effects such as Orb of Storms lightning with slow, adjustable animations.");
 
+  vid.binary_width = 1;
   param_custom_ld(vid.binary_width, "binary tiling width", menuitem_binary_width, 'v');
 
   param_b(fake::multiple_special_draw, "fake_multiple", true);
@@ -1382,7 +1399,15 @@ EX void initConfig() {
   #if CAP_COMPLEX2
   param_colortable(brownian::colors, "color:brown");
   #endif
-  
+
+  param_colortable(prairie_colors, "color:prairie");
+  param_colortable(mountain_colors, "color:mountain");
+  param_colortable(tower_colors, "color:tower");
+  param_colortable(westwall_colors, "color:freefall");
+  param_colortable(endorian_colors, "color:endorian");
+  param_colortable(canopy_colors, "color:canopy");
+  param_colortable(camelot_cheat_colors, "color:camelotcheat");
+
   for(int i=0; i<motypes; i++)
     param_color(minf[i].color, "color:monster:" + its(i), false);
   for(int i=0; i<ittypes; i++)
@@ -1703,6 +1728,8 @@ EX void initConfig() {
     param_i(custom_land_treasure[i], "customland" + its(i) + "t", 100)->be_non_editable();
     param_i(custom_land_difficulty[i], "customland" + its(i) + "d", 100)->be_non_editable();
     param_i(custom_land_wandering[i], "customland" + its(i) + "w", 100)->be_non_editable();
+    param_i(custom_land_ptm_runs[i], "customland" + its(i) + "r", 100)->be_non_editable();
+    param_i(custom_land_ptm_mult[i], "customland" + its(i) + "m", 100)->be_non_editable();
     }
   }
 
@@ -2414,6 +2441,8 @@ EX void configureInterface() {
   dialog::addSelItem(XLAT("language"), XLAT("EN"), 'l');
   dialog::add_action_push(selectLanguageScreen);
 #endif
+
+  add_edit(font_id);
 
   dialog::addSelItem(XLAT("player character"), numplayers() > 1 ? "" : csname(vid.cs), 'g');
   dialog::add_action_push(showCustomizeChar);
@@ -3653,6 +3682,7 @@ EX void show_color_dialog() {
         dialog::openColorDialog(minf[c->monst].color);
       else if(c->item) 
         dialog::openColorDialog(iinf[c->item].color);
+      else if(auto tab = special_colortable_for(c)) { pushScreen([tab] { edit_color_table(*tab); }); return; }
       else if(c->wall) 
         dialog::openColorDialog(winf[c->wall == waMineMine ? waMineUnknown : c->wall].color);
       #if CAP_COMPLEX2
@@ -3929,7 +3959,7 @@ void list_parameter::show_edit_option(key_type key) {
     if(need_list >= 2) dialog::start_list(1500, 1500, 'a');
     for(int i=0; i<q; i++) {
       dialog::addBoolItem(XLAT(options[i].first), get_value() == i, need_list >= 2 ? dialog::list_fake_key++ : 'a' + i);
-      auto action = [this, i, need_list] { set_value(i); if(reaction) reaction(); if(need_list == 0) popScreen(); };
+      auto action = [this, i, need_list] { set_value(i); if(need_list == 0) popScreen(); if(manual_reaction) manual_reaction(); if(reaction) reaction(); };
       if(needs_confirm)
         dialog::add_action_confirmed(action);
       else

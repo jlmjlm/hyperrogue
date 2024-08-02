@@ -24,7 +24,7 @@ EX namespace mapeditor {
   #endif
   
   EX color_t dtfill = 0;
-  EX color_t dtcolor = 0x000000FF;
+  EX color_t dtcolor = 0xFF0000FF;
   EX ld dtwidth = .02;
 
   /* drawing_tool shapes */
@@ -161,15 +161,26 @@ EX namespace mapeditor {
   
   EX void clear_dtshapes() { dtshapes.clear(); }
   
+  /** cache the result of full_mouseh */
+  EX shiftpoint fmh;
+
+  EX bool fmh_known;
+
   EX shiftpoint full_mouseh() {
-    #if CAP_EDIT
-    if(GDIM == 3) return find_mouseh3();
-    if(snapping) return mouse_snap();
-    #endif
-    return mouseh;
+    if(!fmh_known) {
+      fmh_known = true;
+      #if CAP_EDIT
+      if(GDIM == 3) fmh = find_mouseh3();
+      else if(snapping) fmh = mouse_snap();
+      else
+      #endif
+      fmh = mouseh;
+      }
+    return fmh;
     }
 
   EX void draw_dtshapes() {
+    fmh_known = false;
 #if CAP_EDIT
     for(auto& shp: dtshapes) {
       if(shp == nullptr) continue;
@@ -192,7 +203,7 @@ EX namespace mapeditor {
         torus_rug_jump(moh, lstart);
         queueline(lstart, moh, dtcolor, 4 + vid.linequality, PPR::LINE);
         }
-      else if(!holdmouse) {
+      else if(!holdmouse && !mouseout()) {
         shiftmatrix T = rgpushxto0(moh);
         queueline(T * xpush0(-.1), T * xpush0(.1), dtcolor);
         queueline(T * ypush0(-.1), T * ypush0(.1), dtcolor);
@@ -1437,7 +1448,7 @@ EX namespace mapeditor {
       dialog::addInfo(paintwhat_str);
     dialog::addInfo(XLAT("use at your own risk!"), 0x800000);
 
-    dialog::addSelItem(XLAT("radius"), its(radius), '0');
+    dialog::addSelItem(XLAT("radius"), its(radius), '=');
     dialog::add_action([] {
       dialog::editNumber(radius, 0, 9, 1, 1, XLAT("radius"), "");
       });
@@ -1485,6 +1496,9 @@ EX namespace mapeditor {
       dialog::addBoolItem_action(XLAT("build on walls"), building_mode, 'B');
     else dialog::addBreak(100);
     dialog::addBreak(800);
+
+    for(int r=0; r<10; r++) if(!dialog::key_actions.count(r))
+      dialog::add_key_action('0' + r, [r] { radius = r; });
     }
 
   void editor_menu(int i) {
@@ -1559,7 +1573,7 @@ EX namespace mapeditor {
         stop_game();
         enable_canvas();
         canvas_default_wall = waInvisibleFloor;
-        ccolor::set_plain(0xFFFFFF);
+        ccolor::set_plain_nowall(0xFFFFFF);
         dtcolor = (forecolor << 8) | 255;
         drawplayer = false;
         vid.use_smart_range = 2;
@@ -1601,7 +1615,7 @@ EX namespace mapeditor {
 
   EX void showMapEditor() {
     cmode = sm::MAP | sm::PANNING;
-    if(show_menu) cmode |= sm::SIDE;
+    if(show_menu) cmode |= sm::DIALOG_OFFMAP;
     if(building_mode) {
       if(anyshiftclick) cmode |= sm::EDIT_INSIDE_WALLS;
       else cmode |= sm::EDIT_BEFORE_WALLS;
@@ -2151,7 +2165,7 @@ EX namespace mapeditor {
     queueline(drawtrans*ccenter, drawtrans*coldcenter, gridcolor, 4 + vid.linequality);
 
     if(snapping && !mouseout())
-      queuestr(mouse_snap(), 10, "x", 0xC040C0);
+      queuestr(fmh, 10, "x", 0xC040C0);
     }
 
   static ld brush_sizes[10] = {
@@ -2207,14 +2221,12 @@ EX namespace mapeditor {
 
   EX shiftpoint mouse_snap() {
     ld xdist = HUGE_VAL;
-    shiftpoint resh;
+    shiftpoint resh = mouseh;
     auto snap_to = [&] (shiftpoint h) {
       ld dist = hdist(h, mouseh);
       if(dist < xdist) xdist = dist, resh = h;
       };
-    for(auto& p: gmatrix) {
-      cell *c = p.first;
-      auto& T = p.second;
+    auto snap_to_tile_matrix = [&] (cell *c, const shiftmatrix& T) {
       snap_to(T * C0);
       for(int i=0; i<c->type; i++) {
         hyperpoint h1 = get_corner_position(c, i);
@@ -2222,7 +2234,13 @@ EX namespace mapeditor {
         snap_to(T * h1);
         snap_to(T * mid(h1, h2));
         }
-      }
+      };
+    auto snap_to_tile = [&] (cell *c) {
+      auto p = at_or_null(gmatrix, c);
+      if(!p) return;
+      snap_to_tile_matrix(c, *p);
+      };
+    snap_to_tile(mouseover);
     return resh;
     }
 
@@ -2240,7 +2258,6 @@ EX namespace mapeditor {
 
     bool freedraw = drawing_tool || intexture;    
     
-#if CAP_TEXTURE
     if(freedraw && !show_menu) for(int i=0; i<10; i++) {
       int fs = editor_fsize();
       if(8 + fs * (6+i) < vid.yres - 8 - fs * 7)
@@ -2249,7 +2266,6 @@ EX namespace mapeditor {
       if(displayfr(vid.xres-8 - fs * 3, 8+fs*(6+i), 0, vid.fsize, its(i+1), dtwidth == brush_sizes[i] ? 0xFF8000 : 0xC0C0C0, 16))
         getcstat = 2000+i;
       }
-#endif
 
     editor_menu(drawing_tool ? 3 : 2);
     keyhandler = handle_key_draw;
@@ -2387,7 +2403,11 @@ EX namespace mapeditor {
       }
 
     else if(freedraw) {
-      dialog::addBoolItem_action("symmetry", texture::texturesym, '0');
+      #if CAP_TEXTURE
+      if(intexture) dialog::addBoolItem_action("symmetry", texture::texturesym, '0');
+      else dialog::addBreak(100);
+      #endif
+
       if(drawing_tool) {
         if(!dtfill)
           dialog::addBoolItem(XLAT("fill"), dtfill, 'f');
@@ -2413,9 +2433,11 @@ EX namespace mapeditor {
       dialog::add_action([] { mousekey = 'T'; });
       if(drawing_tool) dialog::addItem_mouse(XLAT("erase"), 'e');
       dialog::add_action([] { mousekey = 'e'; });
+      #if CAP_TEXTURE
       int s = isize(texture::config.data.pixels_to_draw);
       if(s) dialog::addInfo(its(s)); else dialog::addBreak(100);
-      dialog::addBreak(700);
+      #endif
+      dialog::addBreak(CAP_TEXTURE ? 700 : 1000);
       }
 
     if(GDIM == 2)
@@ -2968,6 +2990,7 @@ EX namespace mapeditor {
       if(lstartcell) lstart = ggmatrix(lstartcell) * lstart_rel;
 
       int tcolor = (dtcolor >> 8) | ((dtcolor & 0xFF) << 24);
+      hr::ignore(tcolor);
       
       if(uni == '-') {
         if(mousekey == 'g') {

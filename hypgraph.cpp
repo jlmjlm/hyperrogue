@@ -844,11 +844,13 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
     case mdHorocyclic: {
 
       if(sl2) {
-        ret = unshift(H_orig);
-        ret *= .5;
-        ret[LDIM] = 1;
-        ret = lp_apply(ret);
-        break;
+        optimize_shift(H_orig);
+        ret[2] = H_orig.shift;
+        ld d = hypot_d(2, H_orig.h);
+        ld z = acosh(H_orig.h[3]);
+        ret[0] = H_orig.h[0] * z / d;
+        ret[1] = H_orig.h[1] * z / d;
+        ret[3] = 1;
         }
       find_zlev(H);
 
@@ -3511,7 +3513,7 @@ EX hyperpoint lie_log(const shiftpoint h1) {
   #if MAXMDIM >= 4
   else if(nil) {
     h[3] = 0;
-    h[2] -= h[0] * h[1] / 2;
+    h[2] -= nilv::model_used * nilv::sym_to_heis_bonus(h);
     }
   else if(sol && !nih) {
     h[3] = 0;

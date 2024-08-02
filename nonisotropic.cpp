@@ -234,6 +234,13 @@ EX namespace sn {
     return x * d;
     }
 
+  EX void queueline_lie(shiftpoint h1, shiftpoint h2, color_t col, int prec, PPR prio) {
+    hyperpoint h = gpushxto0(h1.h) * h2.h;
+    hyperpoint z = lie_log(shiftless(h));
+    int steps = ceil(hypot_d(3, z) * pow(2, prec));
+    for(int i=0; i<=steps; i++) curvepoint(lie_exp(z * i / steps).h);
+    queuecurve(rgpushxto0(h1), col, 0, prio);
+    }
 
   struct hrmap_solnih : hrmap {
     hrmap *binary_map;
@@ -2429,6 +2436,22 @@ EX namespace twist {
 
     std::map<int, transmatrix> saved_matrices;
 
+    /** let relative_matrixc work in short distances at least */
+    std::map<cell*, shiftmatrix> recorded_matrices;
+
+    void find_cell_connection(cell *c, int d) override {
+      hybrid::find_cell_connection(c, d);
+      cell *c1 = c->move(d);
+      if(!recorded_matrices.count(c1)) {
+        recorded_matrices[c1] = recorded_matrices[c] * adj(c, d);
+        optimize_shift(recorded_matrices[c1]);
+        }
+      }
+
+    hrmap_twisted() : hybrid::hrmap_hybrid() {
+      recorded_matrices[gamestart()] = shiftless(Id);
+      }
+
     transmatrix adj(cell *c1, int i) override {
       if(i == c1->type-2) return uzpush(-cgi.plevel) * spin(-2*cgi.plevel);
       if(i == c1->type-1) return uzpush(+cgi.plevel) * spin(+2*cgi.plevel);
@@ -2449,12 +2472,16 @@ EX namespace twist {
       return M = lift_matrix(PIU(currentmap->adj(cw, i)));      
       }
     
+    shiftmatrix relative_shiftmatrix(cell *c2, cell *c1) {
+      return nmul(ninverse(recorded_matrices[c1]), recorded_matrices[c2]);
+      }
+
     transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) override { 
       if(c1 == c2) return Id;
       if(gmatrix0.count(c2) && gmatrix0.count(c1))
         return inverse_shift(gmatrix0[c1], gmatrix0[c2]);
       for(int i=0; i<c1->type; i++) if(c1->move(i) == c2) return adj(c1, i);
-      return Id; // not implemented yet
+      return inverse_shift(recorded_matrices[c1], recorded_matrices[c2]);
       }
 
     transmatrix ray_iadj(cell *c1, int i) override {
@@ -2494,6 +2521,10 @@ EX namespace twist {
       }
     }
 
+  EX shiftmatrix relative_shiftmatrix(cell *c2, cell *c1) {
+    auto hmap = dynamic_cast<hrmap_twisted*> (currentmap);
+    return hmap->relative_shiftmatrix(c2, c1);
+    }
 
   /** reinterpret the given point of rotspace as a rotation matrix in the underlying geometry (note: this is the inverse)
    *  note: you should already be in underlying geometry */
@@ -2544,13 +2575,99 @@ EX namespace twist {
     return M;
     }
 
+  /** return the nearest multiple of TAU */
+  EX ld get_shift_cycles(ld shift) {
+    return floor(shift / TAU + .5) * TAU;
+    }
+
+  EX ld get_half_shift_cycles(ld shift) {
+    return floor(shift / M_PI + .5) * M_PI;
+    }
+
+  EX transmatrix chg_shift(ld x) {
+    return cspin(2, 3, x) * cspin(0, 1, x);
+    }
+
+  /** multiply a SLR-shiftmatrix by a SLR-shiftpoint */
+  EX shiftpoint nmul(const shiftmatrix& T, shiftpoint h) {
+    optimize_shift(h);
+    ld sh = get_half_shift_cycles(h.shift);
+    h.shift -= sh;
+    auto res0 = T;
+    optimize_shift(res0);
+    auto res1 = res0 * chg_shift(h.shift);
+    optimize_shift(res1);
+    res1.shift += get_shift_cycles(res0.shift - res1.shift - 1e-9);
+    auto res2 = res1 * h.h;
+    optimize_shift(res2);
+    res2.shift += get_shift_cycles(res1.shift - res2.shift);
+    res2.shift += sh;
+    return res2;
+    }
+
+  /** multiply a SLR-shiftmatrix by a SLR-shiftmatrix */
+  EX shiftmatrix nmul(const shiftmatrix& T, shiftmatrix h) {
+    optimize_shift(h);
+    ld sh = get_half_shift_cycles(h.shift);
+    h.shift -= sh;
+
+    auto res0 = T;
+    optimize_shift(res0);
+    auto res1 = res0 * chg_shift(h.shift);
+    optimize_shift(res1);
+    res1.shift += get_shift_cycles(res0.shift - res1.shift - 1e-9);
+    auto res2 = res1 * h.T;
+    optimize_shift(res2);
+    res2.shift += sh;
+    return res2;
+    }
+
+  /** invert a SLR-shiftmatrix */
+  EX shiftmatrix ninverse(const shiftmatrix& T) {
+    shiftmatrix res;
+    res.T = inverse(unshift(T));
+    res.shift = 0;
+    shiftmatrix m = nmul(res, T);
+    optimize_shift(m);
+    res.shift -= m.shift;
+    return res;
+    }
+
+  EX void queueline_correct(shiftpoint h1, shiftpoint h2, color_t col, int prec, PPR prio) {
+
+    optimize_shift(h1);
+    optimize_shift(h2);
+
+    shiftmatrix T(rgpushxto0(h1.h), h1.shift);
+
+    shiftpoint h = nmul(ninverse(T), h2);
+
+    hyperpoint z = inverse_exp(h);
+
+    ld bonus = 0;
+
+    int steps = ceil(hypot_d(3, z) * pow(2, prec));
+
+    for(int i=0; i<=steps; i++) {
+      shiftpoint next = formula_exp(z * i / steps);
+      curvepoint(unshift(next, bonus));
+      if(abs(next.shift - bonus) > 1) {
+        queuecurve(T, col, 0, prio);
+        bonus = next.shift; T.shift = h1.shift + bonus;
+        curvepoint(unshift(next, bonus));
+        }
+      }
+
+    queuecurve(T, col, 0, prio);
+    }
+
   /** @brief exponential function for both slr and Berger sphere */
 
-  EX hyperpoint formula_exp(hyperpoint vel) {
+  EX shiftpoint formula_exp(hyperpoint vel) {
     bool sp = sphere;
     ld K = sp ? 1 : -1;
 
-    if(vel[0] == 0 && vel[1] == 0 && vel[2] == 0) return C0;
+    if(vel[0] == 0 && vel[1] == 0 && vel[2] == 0) return shiftpoint(C0,0);
   
     ld len = hypot_d(3, vel);
   
@@ -2581,8 +2698,8 @@ EX namespace twist {
   
       ld xy = sr * sinh(k);
       ld zw = cr * sinh(k);
-      
-      return hyperpoint(K*xy * cos(u+beta), K*xy * sin(u+beta), zw * cos(u) - cosh(k) * sin(u), zw * sin(u) + cosh(k)*cos(u));
+
+      return shiftpoint(hyperpoint(K*xy * cos(beta), K*xy * sin(beta), zw, cosh(k)), -u);
       }
   
     else {
@@ -2599,8 +2716,11 @@ EX namespace twist {
       
       ld xy = sr * sin(k);  
       ld zw = cr * sin(k);    
-      
-      return hyperpoint(K*xy * cos(u+beta), K*xy * sin(u+beta), zw * cos(u) - cos(k) * sin(u), zw * sin(u) + cos(k)*cos(u));
+
+      if(sl2)
+        return shiftpoint(hyperpoint(K*xy * cos(beta), K*xy * sin(beta), zw, cos(k)), -u + get_shift_cycles(k));
+
+      return shiftpoint(hyperpoint(K*xy * cos(u+beta), K*xy * sin(u+beta), zw * cos(u) - cos(k) * sin(u), zw * sin(u) + cos(k)*cos(u)), 0);
       }
     }
 

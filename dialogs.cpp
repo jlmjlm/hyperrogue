@@ -703,6 +703,7 @@ EX namespace dialog {
   EX void display() {
 
     callhooks(hooks_display_dialog);
+    if(just_refreshing) return;
     int N = items.size();
     dfsize = vid.fsize;
     #if ISMOBILE || ISPANDORA
@@ -717,6 +718,10 @@ EX namespace dialog {
     if(current_display->sidescreen) {
       dwidth = vid.xres - vid.yres;
       dcenter = vid.xres - dwidth / 2;
+      }
+    else if(cmode & sm::DIALOG_OFFMAP) {
+      dwidth = vid.xres / 3;
+      dcenter = vid.xres * 5 / 6;
       }
     
     measure();
