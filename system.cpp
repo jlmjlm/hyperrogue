@@ -399,8 +399,8 @@ EX void initgame() {
   if(specialland == laPalace && geometry == gNormal && PURE)
     cwt.at->wall = waOpenPlate;
 
-  //if(specialland == laMinefield && mine::in_minesweeper()) {
-  if(specialland == laMinefield && closed_or_bounded) {
+  if(specialland == laMinefield &&
+         closed_or_bounded/*mine::in_minesweeper()*/) {
     bfs();
     generate_mines();
     }
@@ -1716,11 +1716,8 @@ EX void start_game() {
   game_active = true;
   gamegen_failure = false;
   ignored_memory_warning = false;
-<<<<<<< HEAD
   arc_stat = arcAlive;
-=======
   loaded_from_save = false;
->>>>>>> bd-plain
   check_cgi();
   cgi.require_basics();
   #if CAP_ARCM
