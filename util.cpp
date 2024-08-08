@@ -376,6 +376,9 @@ cld exp_parser::parse(int prio) {
   else if(eat("killtypes")) {
     return killtypes();
     }
+  else if(eat("arc_target")) {
+    return arc_target;
+    }
   else if(next() == '(') at++, res = parsepar(); 
   else {
     string number = next_token();
