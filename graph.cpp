@@ -5818,7 +5818,7 @@ EX void normalscreen() {
   if(viewdists && show_distance_lists) cmode |= sm::SIDE | sm::MAYDARK;
   gamescreen(); drawStats();
 
-#if 1
+#if 0
   if(true)
     displayButtonS(vid.xres-8, vid.yres-vid.fsize, its(killtypes()) + ":" + its(turncount), 0xFFFFFF, 16, 21);
 #else
