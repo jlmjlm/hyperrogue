@@ -596,7 +596,7 @@ EX void placeCrossroadOrbs(cell *c) {
     int treas = items[treasureType(oi.l)] * landMultiplier(oi.l);
     int mintreas = 10;
 
-    if(inv::on) {
+    if(inv::on && oi.orb != itOrbPsi) {
       if(oi.flags & orbgenflags::OSM_CROSS25)
         mintreas = 25;
       else if(oi.flags & orbgenflags::OSM_CROSS50)
@@ -621,7 +621,7 @@ EX void placeCrossroadOrbs(cell *c) {
     if(hrand(50+items[itHyperstone]) >= 50) continue;
     if(oi.orb == itOrbPsi) {
       if(isCrossroads(specialland)) {
-        if(!hrand(10)) c->item = oi.orb;
+        if(!hrand(10) && !inv::on) c->item = oi.orb;
         }
       else {
         if(items[itHolyGrail] * 10 < arc_target) {
