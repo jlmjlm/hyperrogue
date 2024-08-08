@@ -706,7 +706,7 @@ EX void drawStats() {
         "Orbs of Yendor are worth 50 $$$ each.\n\n"
         );
       }
-    string s = XLAT("kills: %1", its(tkills()));
+    string s = XLAT("kills: %1/%2", its(tkills()), its(killtypes()));
     long_kills = false;
     int siz = vid.fsize;
     if(cwt.at->land == laClearing && clearing::imputed.approx_ld() >= 100000) {
