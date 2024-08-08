@@ -89,6 +89,8 @@ struct archimedean_tiling {
 
   bool get_step_values(int& steps, int& single_step);
 
+  ld dual_tile_area();
+
   transmatrix adjcell_matrix(heptagon *h, int d);
   
   ld scale();
@@ -109,7 +111,7 @@ EX archimedean_tiling current;
 EX archimedean_tiling fake_current;
 
 EX archimedean_tiling& current_or_fake() {
-  if(fake::in()) return fake_current;
+  if(fake::in_ext()) return fake_current;
   return current;
   }
 
@@ -435,7 +437,7 @@ void archimedean_tiling::compute_geometry() {
 
   DEBB(DF_GEOM, (hr::format("euclidean_angle_sum = %f\n", float(euclidean_angle_sum))));
 
-  bool infake = fake::in();
+  bool infake = fake::in_ext();
   
   dynamicval<eGeometry> dv(geometry, gArchimedean);
   
@@ -1518,6 +1520,7 @@ EX void show() {
   dialog::addBack();
   dialog::display();
 
+  se.handle_textinput();
   keyhandler = [] (int sym, int uni) {
     if(symbol_editing && sym == SDLK_RETURN) sym = uni = '/';
     dialog::handleNavigation(sym, uni);
@@ -1586,6 +1589,22 @@ EX int get_graphical_id(cell *c) {
   int tid2 = arcm::current.tilegroup[id^1];
   if(tid2 >= 0) tid = min(tid, tid2);
   return tid;
+  }
+
+ld archimedean_tiling::dual_tile_area() {
+  /* this will work both in Euclidean and non-Euclidean cases */
+  /* (note: we cannot just check get_geometry() here because we might be fake) */
+
+  ld total_alpha = 0;
+  for(auto a: alphas) total_alpha += a;
+
+  if(abs(total_alpha - M_PI) > 1e-6) {
+    return 2 * abs(M_PI - total_alpha);
+    }
+
+  ld total = 0;
+  for(auto r: inradius) total += r;
+  return total * edgelength / 2;
   }
 
 bool archimedean_tiling::get_step_values(int& steps, int& single_step) {

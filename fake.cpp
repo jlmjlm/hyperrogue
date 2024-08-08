@@ -23,6 +23,8 @@ EX namespace fake {
   
   EX bool in() { return geometry == gFake; }
 
+  EX bool in_ext() { return in() || (mhybrid && PIU(in())); }
+
   EX void on_dim_change() { pmap->on_dim_change(); }
   
   /** like in() but takes slided arb into account */
@@ -31,6 +33,10 @@ EX namespace fake {
   EX bool available() {
     if(in()) return true;
     if(WDIM == 2 && standard_tiling() && (PURE || BITRUNCATED)) return true;
+    if(WDIM == 2 && standard_tiling() && GOLDBERG && S3 == 4 && ((gp::param.first+gp::param.second) % 2)) return true;
+    if(WDIM == 2 && standard_tiling() && GOLDBERG && S3 == 3 && ((gp::param.first-gp::param.second) % 3)) return true;
+    if(WDIM == 2 && standard_tiling() && GOLDBERG && S3 == 4 && gp::param.first == 1 && gp::param.second == 1) return true;
+    if(WDIM == 2 && standard_tiling() && UNRECTIFIED && S3 == 4 && gp::param.first == 1 && gp::param.second == 1) return true;
     if(arcm::in() && PURE) return true;
     if(hat::in()) return true;
     if(WDIM == 2) return false;
@@ -92,6 +98,16 @@ EX namespace fake {
 
     hyperpoint get_corner(cell *c, int cid, ld cf=3) override { 
 
+      if(GOLDBERG && S3 == 4 && gp::param.first == 1 && gp::param.second == 1) {
+        return ddspin(c, cid) * spin(-M_PI / c->type) * lxpush0((c == c->master->c7 ? cgi.hexf : cgi.hexvdist) * 3 / cf);
+        }
+
+      if(UNRECTIFIED && S3 == 4 && gp::param.first == 1 && gp::param.second == 1) {
+        return spin(90._deg * cid + -M_PI / c->type) * lxpush0(cgi.hexvdist * 3 / cf);
+        }
+
+      if(GOLDBERG) return underlying_map->get_corner(c, cid, cf);
+
       if(embedded_plane) {
         geom3::light_flip(true);
         hyperpoint h = get_corner(c, cid, cf);
@@ -103,18 +119,31 @@ EX namespace fake {
         return underlying_map->get_corner(c, cid, cf);
         }
 
+      if(standard_tiling() && BITRUNCATED) {
+        return underlying_map->get_corner(c, cid, cf);
+        }
+
       hyperpoint h;
       h = FPIU(currentmap->get_corner(c, cid, cf));
       return befake(h);
       }
 
     transmatrix adj(cell *c, int d) override {
+      if(GOLDBERG && S3 == 4 && gp::param.first == 1 && gp::param.second == 1) {
+        c->cmove(d);
+        return ddspin(c, d) *  lxpush(cgi.crossf) * iddspin(c->move(d), c->c.spin(d), M_PI);
+        }
+      if(UNRECTIFIED && S3 == 4 && gp::param.first == 1 && gp::param.second == 1) {
+        c->cmove(d);
+        return spin(90._deg * d) *  lxpush(cgi.crossf) * spin(-90._deg * c->c.spin(d) + M_PI);
+        }
       if(embedded_plane) {
         geom3::light_flip(true);
         transmatrix T = adj(c, d);
         geom3::light_flip(false);
         return cgi.emb->base_to_actual(T);
         }
+      if(GOLDBERG) return underlying_map->adj(c, d);
       if(hat::in()) return underlying_map->adj(c, d);
       if(variation == eVariation::coxeter) {
         array<int, 3> which;
@@ -553,6 +582,12 @@ EX ld compute_euclidean() {
   if(arcm::in()) return arcm::current.N * 2 / arcm::current.euclidean_angle_sum;
   #endif
   if(underlying == gAperiodicHat) return 6;
+  if(WDIM == 2 && BITRUNCATED) return 9 / (4.5 - 3. / S7 - 6. / S6);
+  if(WDIM == 2 && standard_tiling() && GOLDBERG && S3 == 4 && gp::param.first == 1 && gp::param.second == 1)
+    return S7 / (0.375 * S7 - 0.5);
+  if(WDIM == 2 && standard_tiling() && UNRECTIFIED && S3 == 4 && gp::param.first == 1 && gp::param.second == 1)
+    return 4;
+
   if(WDIM == 2) return 4 / (S7-2.) + 2;
 
 
@@ -571,6 +606,11 @@ EX ld around_orig() {
     return arcm::current.N;
   #endif
   if(hat::in()) return 6;
+  if(WDIM == 2 && BITRUNCATED)
+    return 3;
+  if(WDIM == 2 && standard_tiling() && GOLDBERG && S3 == 4 && gp::param.first == 1 && gp::param.second == 1) return 4;
+  if(WDIM == 2 && standard_tiling() && UNRECTIFIED && S3 == 4 && gp::param.first == 1 && gp::param.second == 1)
+    return S7;
   if(WDIM == 2)
     return S3;
   if(underlying == gRhombic3)

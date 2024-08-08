@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "13.0o"
-#define VERNUM_HEX 0xAA0F
+#define VER "13.0t"
+#define VERNUM_HEX 0xAA14
 
 #include "sysconfig.h"
 
@@ -148,7 +148,7 @@ void addMessage(string s, char spamtype = 0);
 #define nih (among(cgclass, gcNIH, gcSolN))
 #define nil (cgclass == gcNil)
 #define sl2 (cgclass == gcSL2)
-#define rotspace (geometry == gRotSpace)
+#define gtwisted (geometry == gTwistedProduct)
 #define hyperbolic (cgclass == gcHyperbolic)
 #define nonisotropic (among(cgclass, gcSol, gcSolN, gcNIH, gcSL2, gcNil))
 #define translatable (euclid || nonisotropic)
@@ -167,6 +167,8 @@ void addMessage(string s, char spamtype = 0);
 #define embedded_plane (WDIM == 2 && GDIM == 3)
 /** the actual map is product, not just the graphics */
 #define mproduct (gproduct && !embedded_plane)
+/** the actual map is twisted, not just the graphics */
+#define mtwisted (gtwisted && !embedded_plane)
 /** the actual map is product, not just the graphics */
 #define meuclid (geom3::mgclass() == gcEuclid)
 #define msphere (geom3::mgclass() == gcSphere)
@@ -258,6 +260,7 @@ struct projection_configuration {
   ld offside, offside2;
   ld aitoff_parameter, miller_parameter, loximuthal_parameter, winkel_parameter;
   bool show_hyperboloid_flat;
+  bool small_hyperboloid;
   bool collignon_reflected;
   string formula;
   eModel basic_model;

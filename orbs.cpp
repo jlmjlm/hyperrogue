@@ -140,6 +140,7 @@ EX void reduceOrbPowers() {
   reduceOrbPower(itOrbTime, cwt.at->land == laCaribbean ? 777 : 150);
   if(invismove && !invisfish) markOrb(itOrbInvis);
   reduceOrbPower(itOrbLightning, 777);
+  if(multi::activePlayers() % 2 == 0 && items[itOrbSpeed] && !shmup::on) items[itOrbSpeed] ^= 1;
   reduceOrbPower(itOrbSpeed, 67);
   reduceOrbPower(itOrbShield, 77);
   reduceOrbPower(itOrbShell, 150);
@@ -698,6 +699,7 @@ EX bool jumpTo(orbAction a, cell *dest, eItem byWhat, int bonuskill IS(0), eMons
   cwt.at = dest; 
   forCellIdEx(c2, i, dest) if(c2->cpdist < dest->cpdist) {
     cwt.spin = i;
+    changes.value_keep(flipplayer);
     flipplayer = true;
     }
 

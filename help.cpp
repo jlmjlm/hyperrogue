@@ -259,7 +259,7 @@ string pushtext(stringpar p) {
     "\n\nNote: when pushing %the1 off a heptagonal cell, you can control the pushing direction "
     "by clicking left or right half of the heptagon.", p);
 #if !ISMOBILE
-  s += XLAT(" With the keyboard, you can rotate the view for a similar effect (Page Up/Down).");
+  s += XLAT(" With the keyboard, you can press Tab to invert the way the pushing direction leans.");
 #endif
   return s;
   }
@@ -551,6 +551,8 @@ EX string generateHelpForItem(eItem it) {
   if(ac) {
     if(items[itOrbEnergy])
       help += XLAT("\n\nActivation cost: %1 charges (reduced to %2 by %the3)\n", its(ac), its((1+ac)/2), itOrbEnergy);
+    else if(ac == 1)
+      help += XLAT("\n\nActivation cost: 1 charge\n", its(ac));
     else
       help += XLAT("\n\nActivation cost: %1 charges\n", its(ac));
     }
@@ -675,10 +677,10 @@ EX string generateHelpForMonster(eMonster m) {
     return s;
     }
 
-  s += XLAT(minf[m].help);
-  if(m == moPalace || m == moSkeleton)
-    s += pushtext(m);
-  if(m == moTroll) s += XLAT(trollhelp2);
+  s += XLAT(minf[m].help);      
+  if(isStunnable(m))
+    s += pushtext(m);  
+  if(m == moTroll) s += XLAT(trollhelp2);  
 
   if(isMonsterPart(m))
     s += XLAT("\n\nThis is a part of a monster. It does not count for your total kills.", m);

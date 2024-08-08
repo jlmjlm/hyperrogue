@@ -353,17 +353,19 @@ EX int get_side(const hyperpoint& H) {
   if(pmodel == mdRotatedHyperboles)
     return H[1] > 0 ? -1 : 1;
   if(pmodel == mdHyperboloid) {
-    return det2(pconf.ball() * cspin90(2, 1) * rgpushxto0(H)) > 0 ? 1 : -1;
+    auto H1 = H; if(sphere && pconf.small_hyperboloid) H1 = mid(H, C0);
+    return det2(pconf.ball() * cspin90(2, 1) * rgpushxto0(H1)) > 0 ? 1 : -1;
     }
   if(pmodel == mdHyperboloidFlat && sphere)
     return H[2] >= 0 ? 1 : -1;
   if(pmodel == mdHemisphere && !sphere) {
     hyperpoint res;
     applymodel(shiftless(H), res);
-    return res[2] < 0 ? -1 : 1;
+    return res[2] < 0 ? 1 : -1;
     }
   if(pmodel == mdHemisphere && sphere) {
     auto H1 = H;
+    if(pconf.small_hyperboloid) H1 = mid(H, C0);
     int s = H1[2] > 0 ? 1 : -1;
     if(hemi_side && s != hemi_side) return -spherespecial;
     H1[0] /= H1[2]; H1[1] /= H1[2];
@@ -570,6 +572,16 @@ void addpoly(const shiftmatrix& V, const vector<glvertex> &tab, int ofs, int cnt
     
     for(auto& p: tofix)
       fixpoint(glcoords[p.first], p.second);
+
+    if(sphere && among(pmodel, mdHemisphere, mdHyperboloid) && pconf.small_hyperboloid) {
+      bool left = false, right = false;
+      for(auto h: glcoords) { hyperpoint h1; applymodel(shiftless(glhr::gltopoint(h)), h1);
+        if(h1[0] < -0) left = true;
+        if(h1[0] > +0) right = true;
+        }
+      if(left && right) poly_flags |= POLY_NIF_ERROR;
+      }
+
     /*
     hyperpoint Hscr;
     applymodel(goodpoint, Hscr); 
@@ -2016,6 +2028,9 @@ void dqi_poly::draw() {
   if(pmodel == mdDisk && hyperbolic && pconf.alpha <= -1) can_have_inverse = true;
   if(pmodel == mdSpiral && pconf.skiprope) can_have_inverse = true;
   if(pmodel == mdCentralInversion) can_have_inverse = true;
+
+  if(among(pmodel, mdHemisphere, mdHyperboloid) && sphere && pconf.small_hyperboloid) can_have_inverse = true;
+  if(GDIM == 3) can_have_inverse = false;
     
   if(can_have_inverse && !(poly_flags & POLY_ISSIDE)) {
   
@@ -2035,6 +2050,8 @@ void dqi_poly::draw() {
     
     }
   else poly_flags &=~ POLY_INVERSE;
+
+  if(among(pmodel, mdHemisphere, mdHyperboloid) && sphere && pconf.small_hyperboloid && (poly_flags & POLY_INVERSE)) return;
   
   if(spherespecial) {
     if(!(poly_flags & POLY_INFRONT)) return;
@@ -2433,7 +2450,7 @@ EX void draw_main() {
     return;
     }
 
-  if(pmodel == mdHemisphere && sphere && hemi_side == 0 && !vrhr::rendering()) {
+  if(pmodel == mdHemisphere && sphere && hemi_side == 0 && !vrhr::rendering() && !pconf.small_hyperboloid) {
     hemi_side = (pconf.ball() * hyperpoint(0,1,0,1)) [2] < 0 ? 1 : -1;
     draw_main();
 
@@ -2856,7 +2873,7 @@ EX hyperpoint default_pointfunction(ld x, ld y) {
 #if !CAP_EXTFONT
 EX void write_in_space(const shiftmatrix& V, int fsize, double size, const string& s, color_t col, int frame IS(0), int align IS(8), PPR prio IS(PPR::TEXT), pointfunction pf IS(default_pointfunction)) {
   init_glfont(fsize);
-  glfont_t& f(*(glfont[fsize]));
+  glfont_t& f(*(cfont->glfont[fsize]));
   finf.texture_id = f.texture;
   
   int fstart = isize(finf.tvertices);

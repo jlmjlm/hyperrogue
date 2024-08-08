@@ -137,9 +137,10 @@ projection_configuration::projection_configuration() {
   axial_angle = 90;
   ptr_model_orientation = new trans23;
   ptr_ball = new transmatrix;
-  *ptr_ball = cspin(1, 2, 20._deg);
+  *ptr_ball = cspin(2, 1, 20._deg);
   ptr_camera = new transmatrix; *ptr_camera = Id;
   offside = 0; offside2 = M_PI;
+  small_hyperboloid = false;
   }
 
 EX namespace models {
@@ -277,6 +278,7 @@ EX namespace models {
     if(m == mdPerspective && gproduct) return XLAT("native perspective");
     if(gproduct) return PIU(get_model_name(m));
     if(nonisotropic) {
+      if(m == mdHorocyclic && sl2) return XLAT("layered equidistant");
       if(m == mdHorocyclic && !sol) return XLAT("simple model: projection");
       if(m == mdPerspective) return XLAT("simple model: perspective");
       if(m == mdGeodesic) return XLAT("native perspective");
@@ -424,6 +426,7 @@ EX namespace models {
     USING_NATIVE_GEOMETRY_IN_RUG;
     #endif
     dialog::init(XLAT("models & projections"));
+    mouseovers = XLAT("see http://www.roguetemple.com/z/hyper/models.php");
     
     auto vpmodel = vpconf.model;
     
@@ -627,6 +630,9 @@ EX namespace models {
 
     if(is_hyperboloid(vpmodel))
       add_edit(pconf.show_hyperboloid_flat);
+
+    if(among(vpmodel, mdHyperboloid, mdHemisphere))
+      add_edit(pconf.small_hyperboloid);
     
     if(vpmodel == mdCollignon) 
       add_edit(vpconf.collignon_parameter);
@@ -705,7 +711,6 @@ EX namespace models {
     dialog::addBack();
 
     dialog::display();
-    mouseovers = XLAT("see http://www.roguetemple.com/z/hyper/models.php");
     }
     
   EX void quick_model() {
@@ -960,7 +965,7 @@ EX namespace models {
       param_matrix(p.mori().v3, pp+"mori3", 3)
       -> editable("model orientation 3D", "", 'o');
 
-      param_f(p.top_z, sp+"topz", 5)
+      param_f(p.top_z, sp+"topz", 3)
       -> editable(1, 20, .25, "maximum z coordinate to show", "maximum z coordinate to show", 'l');       
 
       param_f(p.model_transition, parameter_names(pp+"mtrans", sp+"model transition"), 1)
@@ -1041,6 +1046,10 @@ EX namespace models {
       param_b(p.show_hyperboloid_flat, sp+"hyperboloid-flat", true)
       -> editable("show flat", 'b');
   
+      param_b(p.small_hyperboloid, sp+"hyperboloid-small", false)
+      -> editable("halve distances", 'h')
+      -> help("This option halves the distances of every point from the center. Useful in the Minkowski hyperboloid model, to get a visualization of an alternative hyperboloid model based on Clifford algebras.");
+
       param_f(p.skiprope, sp+"mobius", 0)
       -> editable(0, 360, 15, "Möbius transformations", "", 'S')->unit = "°";
 

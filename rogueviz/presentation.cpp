@@ -160,23 +160,23 @@ void draw_texture(texture::texture_data& tex, ld dx, ld dy, ld scale1) {
   glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
   }
 
-void sub_picture(string s, flagtype flags, ld dx, ld dy, ld scale) {
+texture::texture_data& get_texture(string s, flagtype flags = 0) {
   if(!textures.count(s)) {
     auto& tex = textures[s];
     println(hlog, "rt = ", tex.readtexture(s));
     println(hlog, "gl = ", tex.loadTextureGL());
     }
-  auto& tex = textures[s];
+  return textures[s];
+  }
+
+void sub_picture(string s, flagtype flags, ld dx, ld dy, ld scale) {
+  auto& tex = get_texture(s);
   flat_model_enabler fme;
   draw_texture(tex, dx, dy, scale);
   }
   
 void show_picture(presmode mode, string s, flagtype flags) {
-  if(mode == pmStartAll) {
-    auto& tex = textures[s];
-    println(hlog, "rt = ", tex.readtexture(s));
-    println(hlog, "gl = ", tex.loadTextureGL());
-    }
+  if(mode == pmStartAll) get_texture(s);
   add_stat(mode, [s, flags] { sub_picture(s, flags); return false; });
   }
 #endif
@@ -564,6 +564,8 @@ void uses_game(presmode mode, string name, reaction_t launcher, reaction_t resto
     }
   }
 
+color_t latex_ring = 0x00FF0080;
+
 void latex_slide(presmode mode, string s, flagtype flags, int size) {
   empty_screen(mode);
   add_stat(mode, [=] {
@@ -572,6 +574,7 @@ void latex_slide(presmode mode, string s, flagtype flags, int size) {
       cmode |= sm::SIDE;
       dynamicval<bool> db(nomap, (flags & sm::NOSCR));
       dynamicval<color_t> dc(modelcolor, nomap ? 0 : 0xFF);
+      dynamicval<color_t> dr(ringcolor, nomap ? 0 : latex_ring);
       dynamicval<color_t> dc2(bordcolor, 0);
       gamescreen();
       callhooks(hooks_latex_slide);

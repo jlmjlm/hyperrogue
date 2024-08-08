@@ -335,7 +335,7 @@ void ds_fire() {
   }
 
 bool ds_turn(int idelta) {
-  multi::handleInput(idelta);
+  multi::handleInput(idelta, scfg_ads);
   ld delta = idelta / 1000.;
   
   if(!(cmode & sm::NORMAL)) return false;
@@ -367,7 +367,7 @@ bool ds_turn(int idelta) {
     
     if(!paused) {
       pdata.fuel -= dv;
-      ds_gen_particles(rpoisson(dv*fuel_particle_qty), inverse(current.T) * spin(ang*degree+M_PI) * rots::uxpush(0.06 * ds_scale), current.shift, rsrc_color[rtFuel], fuel_particle_rapidity, fuel_particle_life, 0.02);
+      ds_gen_particles(rpoisson(dv*fuel_particle_qty), inverse(current.T) * spin(ang*degree+M_PI) * twist::uxpush(0.06 * ds_scale), current.shift, rsrc_color[rtFuel], fuel_particle_rapidity, fuel_particle_life, 0.02);
       }
 
     ld tc = 0;
@@ -719,6 +719,14 @@ void ds_restart() {
   init_rsrc();
   }
 
+void run_ds_game_hooks() {
+  rogueviz::rv_hook(hooks_frame, 100, view_ds_game);
+  rogueviz::rv_hook(shmup::hooks_turn, 0, ds_turn);
+  rogueviz::rv_hook(hooks_prestats, 100, display_rsrc);
+  rogueviz::rv_hook(hooks_handleKey, 150, handleKey);
+  rogueviz::rv_hook(anims::hooks_anim, 100, replay_animation);
+  }
+
 void run_ds_game() {
 
   stop_game();
@@ -730,12 +738,10 @@ void run_ds_game() {
 
   ds_restart();
 
-  rogueviz::rv_hook(hooks_frame, 100, view_ds_game);
-  rogueviz::rv_hook(shmup::hooks_turn, 0, ds_turn);
-  rogueviz::rv_hook(hooks_prestats, 100, display_rsrc);
-  rogueviz::rv_hook(hooks_handleKey, 0, handleKey);
-  rogueviz::rv_hook(anims::hooks_anim, 100, replay_animation);
+  run_ds_game_hooks();
+  }
 
+void add_ds_cleanup() {
   rogueviz::on_cleanup_or_next([] {
     main_rock = nullptr;
     });

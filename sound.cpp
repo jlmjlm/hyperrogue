@@ -197,16 +197,10 @@ EX bool loadMusicInfo(string dir) {
 
 EX bool loadMusicInfo() {
   return
-    loadMusicInfo(musicfile)
-    || loadMusicInfo(HYPERPATH "hyperrogue-music.txt") 
-    || loadMusicInfo("./hyperrogue-music.txt") 
-    || loadMusicInfo("music/hyperrogue-music.txt")
-// Destination set by ./configure (in the GitHub repository)
-#ifdef MUSICDESTDIR
-    || loadMusicInfo(MUSICDESTDIR)
-#endif
+    loadMusicInfo(find_file(musicfile))
+    || loadMusicInfo(find_file("hyperrogue-music.txt") )
+    || loadMusicInfo(find_file("music/hyperrogue-music.txt") )
 #ifdef FHS
-    || loadMusicInfo("/usr/share/hyperrogue/hyperrogue-music.txt") 
     || (getenv("HOME") && loadMusicInfo(s0 + getenv("HOME") + "/.hyperrogue-music.txt"))
 #endif
     ;
@@ -229,20 +223,16 @@ EX void initAudio() {
 
 map<string, Mix_Chunk*> chunks;
 
-#ifdef SOUNDDESTDIR
-string wheresounds = SOUNDDESTDIR;
-#else
-string wheresounds = HYPERPATH "sounds/";
-#endif
-
 hookset<bool(const string& s, int vol)> hooks_sound;
 
-EX void playSound(cell *unused, const string& fname, int vol) {
-  LATE( hr::playSound(NULL, fname, vol); )
+EX string wheresounds = "sounds/";
+
+EX void playSound(cell *c, const string& fname, int vol) {
+  LATE( hr::playSound(c, fname, vol); )
   if(effvolume == 0) return;
   if(callhandlers(false, hooks_sound, fname, vol)) return;
   if(!chunks.count(fname)) {
-    string s = wheresounds+fname+".ogg";
+    string s = find_file(wheresounds + fname + ".ogg");
     if(memory_issues()) return;
     memory_for_lib();
     chunks[fname] = Mix_LoadWAV(s.c_str());

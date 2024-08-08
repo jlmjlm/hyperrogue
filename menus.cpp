@@ -520,6 +520,7 @@ EX void show_custom() {
   auto m = at_or_null(modename, current_modecode);
   dialog::addSelItem("name custom mode", m ? *m : "", 'N');
   dialog::add_action([] {
+    modecode();
     name_to_edit = modename[current_modecode];
     dialog::edit_string(name_to_edit, "name custom mode", "");
     dialog::get_di().reaction_final = [] { update_modename(name_to_edit); };
@@ -735,7 +736,7 @@ EX eLandStructure default_land_structure() {
   return lsNoWalls;
   }
 
-EX void menuitem_land_structure(char key) {
+EX void menuitem_land_structure(key_type key) {
   /*if(default_land_structure() == land_structure && !ineligible_starting_land)
     dialog::addBoolItem(XLAT("land structure"), false, key);
   else*/
@@ -1042,7 +1043,7 @@ EX void showStartMenu() {
       stop_game();
       enable_canvas();
       cheater = true;
-      ccolor::set_plain(0xFFFFFF);
+      ccolor::set_plain_nowall(0xFFFFFF);
       mapeditor::drawplayer = false;
       start_game();
       clearMessages();

@@ -1562,13 +1562,15 @@ EX namespace ccolor {
 
   EX color_t apeirogonal_color = 0xFFFFFFFF;
 
-  EX int jhole = 0;
-  EX int jblock = 0;
   EX ld rwalls = 50;
   EX bool live_canvas;
 
   EX void edit_rwalls() {
     dialog::editNumber(rwalls, 0, 100, 10, 50, XLAT("probability of a wall (%)"), "");
+    dialog::get_di().extra_options = [] {
+      dialog::addSelItem(XLAT("no walls"), "0", 'N');
+      dialog::add_action([] { rwalls = 0; stop_game(); start_game(); popScreen(); });
+      };
     dialog::get_di().reaction = [] { stop_game(); start_game(); };
     }
 
@@ -1687,11 +1689,11 @@ EX namespace ccolor {
 
   EX data football = data("football", [] { return geosupport_football(); }, CCO {
     return cco.ctab[pseudohept(c)];
-    }, {0x1C0C0C0, 0x202020});
+    }, {0xC0C0C0, 0x202020});
 
   EX data chessboard = data("chessboard", [] { return geosupport_chessboard(); }, CCO {
     return cco.ctab[chessvalue(c)];
-    }, {0x202020, 0x1C0C0C0});
+    }, {0x202020, 0xC0C0C0});
 
   EX data landscape = data("rainbow landscape", [] { return geometry_supports_cdata(); }, CCO {
     return random_landscape(c, 3, 1, 17, 0x808080);
@@ -1722,18 +1724,6 @@ EX namespace ccolor {
 
   EX data nil_penrose = data("Nil staircase", [] { return nil; },
     CCO { return nilv::colorize(c, '/'); }, {});
-
-  EX data jmap = data("rainbow by distance", always_available,
-    CCO {
-      if(c == currentmap->gamestart()) return plain(c);
-      int d = c->master->distance;
-      if(geometry == gNil) d = c->master->zebraval;
-      if(euc::in()) d = euc::get_ispacemap()[c->master][0];
-      if(d % 2 == 0 || d < -5 || d > 5) return hrand(100) < jblock ? 0xFFFFFFFF : plain(c);
-      return hrand(100) < jhole ? plain(c) : cco.ctab[(d+5)/2];
-      },
-    {0x100FFFF, 0x100FF00, 0x1FFFF00, 0x1FF8000, 0x1FF0000, 0x1FF00FF}
-    );
 
   EX data distance = data("distance from origin", always_available,
     CCO {
@@ -1847,7 +1837,7 @@ EX namespace ccolor {
     &plain, &random, &sides, &formula,
     &shape, &shape_mirror,
     &threecolor, &football, &chessboard,
-    &landscape, &landscape_dark, &seven, &randbw, &jmap, &distance,
+    &landscape, &landscape_dark, &seven, &randbw, &distance,
     &crystal_colors, &crystal_cage, &crystal_hyperplanes, &crystal_honeycomb, &crystal_diagonal, &nil_penrose,
     &zebra_pattern, &zebra_triangles, &zebra_stripes, &emerald_pattern, &palace_elements, &palace_domains,
     #if CAP_FIELD
@@ -1860,6 +1850,7 @@ EX namespace ccolor {
   EX data *which = &plain;
 
   EX void set_plain(color_t col) { which = &plain; plain.ctab = {col}; }
+  EX void set_plain_nowall(color_t col) { which = &plain; plain.ctab = {col}; if(GDIM == 2) rwalls = 0; }
   EX void set_random(int r) { which = &random; rwalls = r; }
   EX void set_formula(const string& s) { which = &formula; color_formula = s; }
   EX void set_colors(data& d, const colortable& tab) { which = &d; d.ctab = tab; }
@@ -1954,11 +1945,6 @@ EX namespace ccolor {
       }
 
     dialog::end_list();
-    }
-
-  EX data *legacy(char c) {
-    if(c == 'd') return &landscape_dark;
-    return &plain;
     }
 
 #undef CCO
@@ -3278,7 +3264,7 @@ int read_pattern_args() {
         ccolor::which = p;
         break;
         }
-      if(!found) ccolor::set_plain(argcolor(24));
+      if(!found) { ccolor::set_plain_nowall(argcolor(24)); }
       }
     stop_game_and_switch_mode(rg::nothing);
     }

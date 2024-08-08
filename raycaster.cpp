@@ -80,7 +80,7 @@ EX bool is_eyes() {
   }
 
 EX bool is_stepbased() {
-  return nonisotropic || stretch::in() || is_eyes();
+  return nonisotropic || stretch::in() || is_eyes() || mtwisted;
   }
 
 EX bool horos() {
@@ -127,9 +127,9 @@ EX bool available() {
   #endif
   if(hyperbolic && pmodel == mdPerspective && !kite::in())
     return true;
-  if(sphere && pmodel == mdPerspective && !rotspace)
+  if(sphere && pmodel == mdPerspective)
     return true;
-  if(nil && S7 == 8)
+  if(nilv::get_nsi() == 1)
     return false;
   if((sn::in() || nil || sl2) && pmodel == mdGeodesic)
     return true;
@@ -153,7 +153,7 @@ EX bool requested() {
   #endif
   if(!available()) return false;
   if(want_use == 2) return true;
-  if(rotspace) return false; // not very good
+  if(mtwisted) return false; // not very good, sometimes
   if(WDIM == 2) return false; // not very good
   return racing::on || quotient || fake::in();
   }
@@ -161,7 +161,7 @@ EX bool requested() {
 #if HDR
 struct raycaster : glhr::GLprogram {
   GLint uStart, uStartid, uM, uLength;
-  GLint uWallstart, uWallX, uWallY;
+  GLint uWallstart, uWallangle, uWallX, uWallY;
   GLint tConnections, tWallcolor, tTextureMap, tVolumetric, tStart;
   GLint uBinaryWidth, uPLevel, uLP, uStraighten, uReflectX, uReflectY;
   GLint uLinearSightRange, uExpStart, uExpDecay;
@@ -204,6 +204,7 @@ raycaster::raycaster(string vsh, string fsh) : GLprogram(vsh, fsh) {
     uProjection = glGetUniformLocation(_program, "uProjection");
 
     uWallstart = glGetUniformLocation(_program, "uWallstart");
+    uWallangle = glGetUniformLocation(_program, "uWallangle");
     uWallX = glGetUniformLocation(_program, "uWallX");
     uWallY = glGetUniformLocation(_program, "uWallY");
     
@@ -332,6 +333,13 @@ struct raygen {
       return "uWallstart[" + s + "]";
     };
   
+  string getWallangle(string s) {
+    if(wall_via_texture)
+      return "getWallangle(" + s + ")";
+    else
+      return "uWallangle[" + s + "]";
+    };
+
   void compute_which_and_dist(int flat1, int flat2);
   void apply_reflect(int flat1, int flat2);
   void move_forward();
@@ -341,7 +349,7 @@ struct raygen {
   void create();
 
   string f_xpush() { return hyperbolic ? "xpush_h3" : "xpush_s3"; }
-  string f_len() { return hyperbolic ? "len_h3" : (sphere && rotspace) ? "len_sr" : sl2 ? "len_sl2" : sphere ? "len_s3" : "len_x"; }
+  string f_len() { return hyperbolic ? "len_h3" : mtwisted ? "twist_flatdist" : sphere ? "len_s3" : "len_x"; }
   string f_len_prod() { return in_h2xe() ? "len_h2" : in_s2xe() ? "len_s2" : "len_e2"; }
   void add_functions();
   };
@@ -535,12 +543,33 @@ void raygen::move_forward() {
       fsh +=
       "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
       "  mediump float x = pos.x;\n"
-      "  const float mu = " + to_glsl((1-nilv::model_used)/2) + ";\n"
-      "  pos[2] += pos[0] * pos[1] * mu;\n"
-      "  vel[2] += (pos[0] * vel[1] + pos[1] * vel[0]) * mu;\n"
-      "  tra[2] += (pos[0] * tra[1] + pos[1] * tra[0]) * mu;\n"
-      "  vec4 res = vec4(x*vel.y*tra.y - 0.5*dot(vel.yz,tra.zy), -.5*x*dot(vel.yx,tra.xy) + .5 * dot(vel.zx,tra.xz), -.5*(x*x-1.)*dot(vel.yx,tra.xy)+.5*x*dot(vel.zx,tra.xz), 0.);\n"
-      "  res[2] -= (pos[0] * res[1] + vel[0] * vel[1] + pos[2] * res[0]) * mu;\n"
+
+      "  mediump float y = pos.y;\n"
+      "  const float mu = " + to_glsl(nilv::model_used) + ";\n"
+      "  vec4 res; res.w = 0.;\n"
+
+    "res.x = 0."
+    " + vel.x * tra.y * ( y*(mu - 1.)/4. )"
+    " + vel.y * tra.x * ( y*(mu - 1.)/4. )"
+    " + vel.y * tra.y * ( x*(mu + 1.)/2. )"
+    " + vel.y * tra.z * ( -1./2. )"
+    " + vel.z * tra.y * ( -1./2. );"
+    "res.y = 0."
+    " + vel.x * tra.x * ( y*(1. - mu)/2. )"
+    " + vel.x * tra.y * ( -x*(mu + 1.)/4. )"
+    " + vel.x * tra.z * ( 1./2. )"
+    " + vel.y * tra.x * ( -x*(mu + 1.)/4. )"
+    " + vel.z * tra.x * ( 1./2. );"
+    "res.z = 0."
+    " + vel.x * tra.x * ( x*y*(1. - mu*mu)/4. )"
+    " + vel.x * tra.y * ( -mu*mu*x*x/8. + mu*mu*y*y/8. - mu*x*x/4. - mu*y*y/4. + mu/2. - x*x/8. + y*y/8. )"
+    " + vel.x * tra.z * ( x*(mu + 1.)/4. )"
+    " + vel.y * tra.x * ( -mu*mu*x*x/8. + mu*mu*y*y/8. - mu*x*x/4. - mu*y*y/4. + mu/2. - x*x/8. + y*y/8. )"
+    " + vel.y * tra.y * ( x*y*(mu*mu - 1.)/4. )"
+    " + vel.y * tra.z * ( y*(1. - mu)/4. )"
+    " + vel.z * tra.x * ( x*(mu + 1.)/4. )"
+    " + vel.z * tra.y * ( y*(1. - mu)/4. );"
+
       "  return res;\n"
       "  }\n";
       use_christoffel = false;
@@ -591,19 +620,24 @@ void raygen::move_forward() {
     fmain +=
       "  dist = next < minstep ? 2.*next : next;\n";
 
-    if(nil && !use_christoffel) fsh +=
+    auto mu = to_glsl((1+nilv::model_used)/2);
+    auto comu = to_glsl((1-nilv::model_used)/2);
+
+    if(nil && !use_christoffel) {
+      fsh +=
       "mediump vec4 translate(mediump vec4 a, mediump vec4 b) {\n"
-        "return vec4(a[0] + b[0], a[1] + b[1], a[2] + b[2] + a[0] * b[1], b[3]);\n"
+        "return vec4(a[0] + b[0], a[1] + b[1], a[2] + b[2] + a[0] * b[1] * "+mu+" - a[1] * b[0] * "+comu+", b[3]);\n"
         "}\n"
       "mediump vec4 translatev(mediump vec4 a, mediump vec4 t) {\n"
-        "return vec4(t[0], t[1], t[2] + a[0] * t[1], 0.);\n"
+        "return vec4(t[0], t[1], t[2] + a[0] * t[1] * "+mu+" - a[1] * t[0] * "+comu+", 0.);\n"
         "}\n"
       "mediump vec4 itranslate(mediump vec4 a, mediump vec4 b) {\n"
-        "return vec4(-a[0] + b[0], -a[1] + b[1], -a[2] + b[2] - a[0] * (b[1]-a[1]), b[3]);\n"
+        "return vec4(-a[0] + b[0], -a[1] + b[1], -a[2] + b[2] - a[0] * (b[1]-a[1]) * "+mu+" + a[1] * (b[0]-a[0]) * "+comu+", b[3]);\n"
         "}\n"
       "mediump vec4 itranslatev(mediump vec4 a, mediump vec4 t) {\n"
-        "return vec4(t[0], t[1], t[2] - a[0] * t[1], 0.);\n"
+        "return vec4(t[0], t[1], t[2] - a[0] * t[1] * "+mu+" + a[1] * t[0] * "+comu+", 0.);\n"
         "}\n";
+      }
 
     // if(nil) fmain += "tangent = translate(position, itranslate(position, tangent));\n";
 
@@ -719,19 +753,20 @@ void raygen::move_forward() {
       }
 
     if(nil && !use_christoffel && !eyes) {
+      auto fixmod = "xp.z -= xp.x * xp.y * "+comu+"; xt.z -= (xp.x * xt.y + xp.y * xt.x) * "+comu+";\n";
       fmain +=
         "mediump vec4 xp, xt;\n"
         "mediump vec4 back = itranslatev(position, tangent);\n"
         "if(back.x == 0. && back.y == 0.) {\n"
         "  xp = vec4(0., 0., back.z*dist, 1.);\n"
-        "  xt = back;\n"
+        "  xt = back;\n" + fixmod +
         "  }\n"
         "else if(abs(back.z) == 0.) {\n"
         "  xp = vec4(back.x*dist, back.y*dist, back.x*back.y*dist*dist/2., 1.);\n"
-        "  xt = vec4(back.x, back.y, dist*back.x*back.y, 0.);\n"
+        "  xt = vec4(back.x, back.y, dist*back.x*back.y, 0.);\n" + fixmod +
         "  }\n"
         "else if(abs(back.z) < 1e-1) {\n"
-// we use the midpoint method here, because the formulas below cause glitches due to mediump float precision
+// We use the midpoint method here, because the formulas below cause glitches due to mediump float precision. Note: no fixmod!
         "  mediump vec4 acc = christoffel(vec4(0,0,0,1), back, back);\n"
         "  mediump vec4 pos2 = back * dist / 2.;\n"
         "  mediump vec4 tan2 = back + acc * dist / 2.;\n"
@@ -748,8 +783,10 @@ void raygen::move_forward() {
              "c*cos(alpha+w),"
              "c*sin(alpha+w),"
              "1. + c*c*2.*sin(w/2.)*sin(alpha+w)*cos(alpha+w/2.),"
-             "0.);\n"
-        "  }\n"
+             "0.);\n" + fixmod +
+        "  }\n";
+      
+      fmain +=
         "mediump vec4 nposition = translate(position, xp);\n";
       }
 
@@ -826,23 +863,21 @@ void raygen::move_forward() {
       "  mediump vec4 nposition = v;\n";
       }
 
-    bool reg = hyperbolic || sphere || euclid || sl2 || gproduct;
+    bool reg = hyperbolic || sphere || euclid || sl2 || gproduct || mtwisted;
 
     if(reg) {
-      string s = (rotspace || gproduct) ? "-2" : "";
+      string s = (mtwisted || gproduct) ? "-2" : "";
       fmain +=
     "    mediump float best = "+f_len()+"(nposition);\n"
     "    for(int i=0; i<sides"+s+"; i++) {\n"
     "      mediump float cand = "+f_len()+"(" + getM("walloffset+i") + " * nposition);\n"
     "      if(cand < best) { best = cand; which = i; }\n"
     "      }\n";
-      if(rotspace) fmain +=
+      if(mtwisted) fmain +=
     "   if(which == -1) {\n"
-    "     best = len_rotspace(nposition);\n"
-    "     mediump float cand1 = len_rotspace(" + getM("walloffset+sides-2") + "*nposition);\n"
-    "     if(cand1 < best) { best = cand1; which = sides-2; }\n"
-    "     mediump float cand2 = len_rotspace(" + getM("walloffset+sides-1") + "*nposition);\n"
-    "     if(cand2 < best) { best = cand2; which = sides-1; }\n"
+    "     mediump float z = twist_zlevel(nposition, sides-2, walloffset);\n"
+    "     if(z > uPLevel) which = sides-1;\n"
+    "     if(z <-uPLevel) which = sides-2;\n"
     "     }\n";
       if(gproduct) {
         fmain +=
@@ -851,14 +886,32 @@ void raygen::move_forward() {
         }
       }
 
-    if(nil) fmain +=
-      "mediump float rz = (abs(nposition.x) > abs(nposition.y) ?  -nposition.x*nposition.y : 0.) + nposition.z;\n";
+    string hnilw = to_glsl(nilv::nilwidth / 2);
+    string hnilw2 = to_glsl(nilv::nilwidth * nilv::nilwidth / 2);
+    string hnilw3 = to_glsl(nilv::nilwidth * nilv::nilwidth * sqrt(3) / 8);
+    string hsqrt3 = to_glsl(sqrt(3)/2);
+
+    if(nilv::get_nsi() == 0) {
+      fmain +=
+      "mediump float rz = (abs(nposition.x) > abs(nposition.y) ? -nposition.x*nposition.y : 0.) + nposition.z;\n";
+      fmain += "rz += nposition.x * nposition.y * " + comu + ";";
+      }
+    if(nilv::get_nsi() == 2) {
+      fmain += "mediump float x0 = nposition.x; mediump float y0 = nposition.y;\n";
+      fmain +=
+        "mediump float x1 = nposition.x * .5 + nposition.y * " + hsqrt3 + ";\n"
+        "mediump float y1 = nposition.y * .5 - nposition.x * " + hsqrt3 + ";\n";
+      fmain +=
+        "mediump float x2 = nposition.x * .5 - nposition.y * " + hsqrt3 + ";\n"
+        "mediump float y2 = nposition.y * .5 + nposition.x * " + hsqrt3 + ";\n";
+      fmain += "mediump float rz =\n"
+        "((abs(x0) > abs(x1) && abs(x0) > abs(x2)) ? -x0*y0/2. :\n"
+        "(abs(x1) > abs(x2)) ? -x1*y1/2. : -x2*y2/2.) + nposition.z;\n";
+      fmain += "rz -= nposition.x * nposition.y * " + to_glsl(nilv::model_used) + ";";
+      }
 
     fmain +=
       "if(next >= minstep) {\n";
-
-    string hnilw = to_glsl(nilv::nilwidth / 2);
-    string hnilw2 = to_glsl(nilv::nilwidth * nilv::nilwidth / 2);
 
     if(reg) fmain += "if(which != -1) {\n";
     else if(embedded_plane) {
@@ -889,8 +942,10 @@ void raygen::move_forward() {
         "if(abs(nposition.x) > uBinaryWidth || abs(nposition.y) > uBinaryWidth || abs(nposition.z) > .5) {\n";
     else if(sol) fmain +=
         "if(abs(nposition.x) > uBinaryWidth || abs(nposition.y) > uBinaryWidth || abs(nposition.z) > log(2.)/2.) {\n";
-    else fmain +=
+    else if(nilv::get_nsi() == 0) fmain +=
         "if(abs(nposition.x) > "+hnilw+" || abs(nposition.y) > "+hnilw+" || abs(rz) > "+hnilw2+") {\n";
+    else if(nilv::get_nsi() == 2) fmain +=
+        "if(abs(nposition.x) > "+hnilw+" || abs(nposition.x/2. + nposition.y*"+hsqrt3+") > "+hnilw+" || abs(nposition.x/2. - nposition.y*"+hsqrt3+") > "+hnilw+" || abs(rz) > "+hnilw3+") {\n";
 
     fmain +=
           "next = dist / 2.; continue;\n"
@@ -940,13 +995,22 @@ void raygen::move_forward() {
         "if(nposition.z > log(2.)/2.) which = nposition.x > 0. ? 3 : 2;\n"
         "if(nposition.z <-log(2.)/2.) which = nposition.y > 0. ? 7 : 6;\n";
       }
-    else if(nil) fmain +=
+    else if(nilv::get_nsi() == 0) fmain +=
         "if(nposition.x > "+hnilw+") which = 3;\n"
         "if(nposition.x <-"+hnilw+") which = 0;\n"
         "if(nposition.y > "+hnilw+") which = 4;\n"
         "if(nposition.y <-"+hnilw+") which = 1;\n"
         "if(rz > "+hnilw2+") which = 5;\n"
         "if(rz <-"+hnilw2+") which = 2;\n";
+    else if(nilv::get_nsi() == 2) fmain +=
+        "if(nposition.x > "+hnilw+") which = 0;\n"
+        "if(nposition.x <-"+hnilw+") which = 3;\n"
+        "if(nposition.x/2.+nposition.y*"+hsqrt3+" > "+hnilw+") which = 5;\n"
+        "if(nposition.x/2.+nposition.y*"+hsqrt3+" <-"+hnilw+") which = 2;\n"
+        "if(nposition.x/2.-nposition.y*"+hsqrt3+" > "+hnilw+") which = 1;\n"
+        "if(nposition.x/2.-nposition.y*"+hsqrt3+" <-"+hnilw+") which = 4;\n"
+        "if(rz > "+hnilw3+") which = 7;\n"
+        "if(rz <-"+hnilw3+") which = 6;\n";
 
     fmain +=
         "next = maxstep;\n"
@@ -1227,7 +1291,7 @@ void raygen::emit_iterate(int gid1) {
     fmain += "  const mediump float uPLevel = " + to_glsl(cgi.plevel/2) + ";\n";
 
   int flat1 = 0, flat2 = deg;
-  if(gproduct || rotspace) flat2 -= 2;
+  if(gproduct || mtwisted) flat2 -= 2;
 
 #if CAP_BT
   if(horos()) {
@@ -1349,7 +1413,52 @@ void raygen::emit_iterate(int gid1) {
 
   if(!(levellines && disable_texture)) {
     fmain += "  mediump vec4 pos = position;\n";
-    if(nil) fmain += "if(which == 2 || which == 5) pos.z = 0.;\n";
+    if(nilv::get_nsi() == 0) fmain += "if(which == 2 || which == 5) pos.z = 0.;\n";
+    if(nilv::get_nsi() == 2) fmain += "if(which == 6 || which == 7) pos.z = 0.;\n";
+    else if(mtwisted) {
+      fmain += "pos = twist_coordinates(pos, sides-2, which, which+walloffset);\n";
+      string spinner = "h = cspin(0, 1, getWallangle(wai)) * h;\n";
+      string calc_dxy = nil ? "dx = h.x; dy = -h.y;\n" : sl2 ?
+            "dx = -2. * (h.y*h.z - h.x*h.w);\n"
+            "dy = -2. * (h.x*h.z + h.y*h.w);\n" :
+            "dx = +2. * (h.x*h.z + h.y*h.w);\n"
+            "dy = -2. * (h.y*h.z - h.x*h.w);\n";
+      string dcalc_dxy = "mediump float dx, dy;\n" + calc_dxy;
+      string calc_vxy = nil ? "mediump float vx = h.x; mediump float vy = h.y;\n" : sl2 ?
+            "mediump float vy = -asinh(dy)/2.;\n"
+            "mediump float vx = asinh(dx / cosh(2.*vy)) / 2.;\n" :
+            "mediump float vy = -asin(dy)/2.;\n"
+            "mediump float vx = asin(dx / cos(2.*vy)) / 2.;\n";
+      string calc_vz = nil ? "mediump float vz = h.z - h.x * h.y / 2.; vz *= " + to_glsl(pow(nilv::nilwidth, -2)) + ";\n" : "float vz = atan2(h1[2], h1[3]);\n";
+      string calc_h1 = nil ? "" : sl2 ?
+            "vec4 h1 = lorentz(1, 3, -vy) * lorentz(0, 2, -vy) * lorentz(0, 3, -vx) * lorentz(2, 1, vx) * h;\n" :
+            "vec4 h1 = cspin(0, 3, vy) * cspin(1, 2, -vy) * cspin(1, 3, -vx) * cspin(0, 2, -vx) * h;\n";
+      fsh +=
+        "vec4 twist_coordinates(vec4 h, int ks, int id, int wai) {\n"
+          +spinner+
+          "if(id < ks) h = cspin(0, 1, -TAU * float(id) / float(ks)) * h;\n"
+          +dcalc_dxy +
+          "if(id >= ks) return vec4(dx, dy, 0, 1);\n"
+          + calc_vxy + calc_h1 + calc_vz +
+          "return vec4(vx, vy, vz, 1);\n"
+          "}\n\n";
+      fsh +=
+        "mediump float twist_flatdist(mediump vec4 h) {\n" + dcalc_dxy +
+           "return dx*dx+dy*dy;\n"
+           "}\n";
+      fsh +=
+        "mediump float twist_zlevel(vec4 h, int ks, int wai) {\n" + spinner + dcalc_dxy +
+          "float alpha = (floor(atan2(dy, dx) * float(ks) / TAU + 0.5)) * TAU / float(ks);\n"
+          "h = cspin(1, 0, alpha) * h;\n" + calc_dxy + calc_vxy + calc_h1 + calc_vz +
+          "return vz;\n"
+          "}\n\n";
+      fsh +=
+        "mediump bool twist_dark(vec4 h, int ks, int wai) {\n" + spinner + dcalc_dxy +
+          "float alpha = atan2(dy, dx) * float(ks);\n"
+          "return cos(alpha) < -0.99;\n"
+          "}\n\n";
+       }
+
     else if(hyperbolic && bt::in()) fmain +=
         "pos = deparabolici13(pos);\n"
         "pos.xyz = pos.zxy;\n";
@@ -1357,10 +1466,10 @@ void raygen::emit_iterate(int gid1) {
         "pos /= pos.w;\n";
     else if(gproduct && bt::in()) fmain +=
         "pos.xy = deparabolic12(pos).xy;\n"
-        "pos.z = -pos.w; pos.w = 0.;\n"
-;
+        "pos.z = -pos.w; pos.w = 0.;\n";
     else if(gproduct) fmain +=
       "pos = vec4(pos.x/pos.z, pos.y/pos.z, -pos.w, 0);\n";
+
     fmain +=
     "    mediump vec2 inface = map_texture(pos, which+walloffset);\n"
     "    mediump vec3 tmap = texture2D(tTextureMap, u).rgb;\n"
@@ -1381,8 +1490,25 @@ void raygen::emit_iterate(int gid1) {
   if(!volumetric::on) fmain +=
     "    col.xyz = col.xyz * d + uFogColor.xyz * (1.-d);\n";
 
-  if(nil) fmain +=
+  if(mtwisted) fmain +=
+    "    if(twist_dark(position, sides-2, walloffset)) col.xyz /= 2.;\n";
+  else if(nilv::get_nsi() == 0) fmain +=
     "    if(abs(abs(position.x)-abs(position.y)) < .005) col.xyz /= 2.;\n";
+  else if(nilv::get_nsi() == 2) {
+    string hsqrt3 = to_glsl(sqrt(3)/2);
+    fmain += "mediump float x0 = position.x; mediump float y0 = position.y;\n";
+    fmain +=
+      "mediump float x1 = position.x * .5 + position.y * " + hsqrt3 + ";\n";
+    fmain +=
+      "mediump float x2 = position.x * .5 - position.y * " + hsqrt3 + ";\n";
+
+    fmain +=
+    "    if(abs(abs(x0)-abs(x1)) < .005 && abs(x0) > abs(x2)) col.xyz /= 2.;\n";
+    fmain +=
+    "    if(abs(abs(x0)-abs(x2)) < .005 && abs(x0) > abs(x1)) col.xyz /= 2.;\n";
+    fmain +=
+    "    if(abs(abs(x1)-abs(x2)) < .005 && abs(x1) > abs(x0)) col.xyz /= 2.;\n";
+    }
 
   if(use_reflect) fmain +=
     "  if(col.w == 1.) {\n"
@@ -1736,16 +1862,27 @@ void raygen::add_functions() {
         "  return res;\n"
         "  }\n\n");
 
-  add_if("len_rotspace", "mediump float len_rotspace(vec4 h) { return 1. - h[3]; }\n");
-
   add_if("len_h3",  "  mediump float len_h3(mediump vec4 x) { return x[3]; }\n");
   add_if("len_sr", "  mediump float len_sr(mediump vec4 x) { return 1.+x.x*x.x+x.y*x.y-x.z*x.z-x.w*x.w; }\n");
-  add_if("len_sl2","  mediump float len_sl2(mediump vec4 x) { return 1.+x.x*x.x+x.y*x.y; }\n");
   add_if("len_s3",  "  mediump float len_s3(mediump vec4 x) { return 1.-x[3]; }\n");
   add_if("len_x",  "  mediump float len_x(mediump vec4 x) { return length(x.xyz); }\n");
   add_if("len_h2",  "  mediump float len_h2(mediump vec4 x) { return x[2]; }\n");
   add_if("len_s2",  "  mediump float len_s2(mediump vec4 x) { return 1.-x[2]; }\n");
   add_if("len_e2",  "  mediump float len_e2(mediump vec4 x) { return length(x.xy); }\n");
+
+  add_if("cspin",
+    "mediump mat4 cspin(int a, int b, mediump float x) {\n"
+    "  mat4 m = mat4(1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.);\n"
+    "  m[a][a] = m[b][b] = cos(x); m[b][a] = sin(x); m[a][b] = -m[b][a];\n"
+    "  return m;\n"
+    "  }\n");
+
+  add_if("lorentz",
+    "mediump mat4 lorentz(int a, int b, mediump float x) {\n"
+    "  mat4 m = mat4(1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.);\n"
+    "  m[a][a] = m[b][b] = cosh(x); m[a][b] = m[b][a] = sinh(x);\n"
+    "  return m;\n"
+    "  }\n");
   }
 
 void raygen::emit_raystarter() {
@@ -1879,11 +2016,20 @@ void raygen::create() {
         "  mediump vec4 v = texture2D(tWall, vec2((float(x)+.5) * uInvLengthWall, 0.625));\n"
         "  return int(v[0] / uInvLengthWall);\n"
         "  }\n";
+      if(mtwisted) fsh +=
+        "mediump float getWallangle(mediump int x) {\n"
+        "  mediump vec4 v = texture2D(tWall, vec2((float(x)+.5) * uInvLengthWall, 0.625));\n"
+        "  return v[1] * TAU;\n"
+        "  }\n";
       }
-    else fsh +=
+    else {
+      fsh +=
       "uniform mediump vec4 uWallX["+rays+"];\n"
       "uniform mediump vec4 uWallY["+rays+"];\n"
       "uniform mediump int uWallstart["+its(isize(cgi.wallstart))+"];\n";
+     if(mtwisted) fsh +=
+      "uniform mediump int uWallangle["+its(isize(cgi.wallstart))+"];\n";
+     }
 
     if(m_via_texture) {
       fsh +=
@@ -1914,7 +2060,7 @@ void raygen::create() {
     if((gproduct || intra::in) && vid.stereo_mode != sODS) fsh +=
       "uniform mediump mat4 uLP;\n";
 
-    if(gproduct || intra::in) fsh +=
+    if(gproduct || intra::in || mtwisted) fsh +=
       "uniform mediump float uPLevel;\n";
 
     if(many_cell_types) fsh +=
@@ -2511,20 +2657,21 @@ EX int rmap_get_id_of(cell *c) {
 EX void reset_raycaster() { 
   our_raycaster = nullptr; 
   reset_rmap = true;
-  rots::saved_matrices_ray = {};
+  twist::saved_matrices_ray = {};
   }
 
 EX void reset_raycaster_map() { 
   rmap = nullptr;
   }
 
-EX void load_walls(vector<glvertex>& wallx, vector<glvertex>& wally, vector<GLint>& wallstart) {
+EX void load_walls(vector<glvertex>& wallx, vector<glvertex>& wally, vector<GLint>& wallstart, vector<GLfloat>& wallangle) {
   int q = 0;
   if(isize(wallx)) {
     q = isize(wallx);
     wallstart.pop_back();
     }
   for(auto i: cgi.wallstart) wallstart.push_back(q + i);
+  for(auto i: cgi.angle_of_zero) wallangle.push_back(frac(i / TAU));
   dynamicval<eGeometry> g(geometry, gCubeTiling);
   for(auto& m: cgi.raywall) {
     wallx.push_back(glhr::pointtogl(m[0]));
@@ -2665,16 +2812,17 @@ EX void cast() {
 
   vector<glvertex> wallx, wally;
   vector<GLint> wallstart;
+  vector<GLfloat> wallangle;
 
   if(intra::in) {
     intra::resetter ir;
     for(int i=0; i<isize(intra::data); i++) {
       intra::switch_to(i);
-      load_walls(wallx, wally, wallstart);
+      load_walls(wallx, wally, wallstart, wallangle);
       }
     }
   else
-    load_walls(wallx, wally, wallstart);
+    load_walls(wallx, wally, wallstart, wallangle);
 
   if(wall_via_texture) {
     int wlength = next_p2(isize(wallx));
@@ -2692,8 +2840,10 @@ EX void cast() {
         }
       }
     // println(hlog, "wallrange = ", tie(minval, maxval), " wallx = ", isize(wallx), " wallstart = ", isize(cgi.wallstart));
-    for(int i=0; i<isize(wallstart); i++)
+    for(int i=0; i<isize(wallstart); i++) {
       w_map[i+2*wlength][0] = (wallstart[i]+.5) / wlength;
+      w_map[i+2*wlength][1] = wallangle[i];
+      }
     bind_array(w_map, o->tWall, txWall, 8, wlength);
     glUniform1f(o->uInvLengthWall, 1. / wlength);
     }
@@ -2701,6 +2851,7 @@ EX void cast() {
     glUniform1iv(o->uWallstart, isize(wallstart), &wallstart[0]);  
     glUniform4fv(o->uWallX, isize(wallx), &wallx[0][0]);
     glUniform4fv(o->uWallY, isize(wally), &wally[0][0]);
+    if(mtwisted) glUniform1fv(o->uWallangle, isize(wallangle), &wallangle[0]);
     }
 
   if(o->uLevelLines != -1)

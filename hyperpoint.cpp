@@ -155,6 +155,8 @@ struct transmatrix {
 struct shiftpoint {
   hyperpoint h;
   ld shift;
+  shiftpoint() {}
+  shiftpoint(hyperpoint _h, ld _shift) : h(_h), shift(_shift) {}
   ld& operator [] (int i) { return h[i]; }
   const ld& operator [] (int i) const { return h[i]; }
   inline friend shiftpoint operator + (const shiftpoint& h, const hyperpoint& h2) {
@@ -172,6 +174,8 @@ inline shiftpoint shiftless(const hyperpoint& h, ld shift = 0) {
 struct shiftmatrix {
   transmatrix T;
   ld shift;
+  shiftmatrix() {}
+  shiftmatrix(const transmatrix& _h, ld _shift) : T(_h), shift(_shift) {}
   hyperpoint& operator [] (int i) { return T[i]; }
   const hyperpoint& operator [] (int i) const { return T[i]; }
   inline friend shiftpoint operator * (const shiftmatrix& T, const hyperpoint& h) {
@@ -180,6 +184,12 @@ struct shiftmatrix {
   inline friend shiftmatrix operator * (const shiftmatrix& T, const transmatrix& U) {
     return shiftmatrix{T.T*U, T.shift};
     }
+  };
+
+struct shiftmatrix_or_null : shiftmatrix {
+  bool is_null;
+  shiftmatrix_or_null& operator = (const shiftmatrix& T) { ((shiftmatrix&) self) = T; is_null = false; return self; }
+  shiftmatrix_or_null() { is_null = true; }
   };
 
 inline shiftmatrix shiftless(const transmatrix& T, ld shift = 0) {
@@ -420,7 +430,7 @@ EX hyperpoint hpxy(ld x, ld y) {
     return cgi.emb->base_to_actual(h);
     }
   if(sl2) return hyperpoint(x, y, 0, sqrt(1+x*x+y*y));
-  if(rotspace) return hyperpoint(x, y, 0, sqrt(1-x*x-y*y));
+  if(mtwisted) return hyperpoint(x, y, 0, sqrt(1-x*x-y*y));
   return PIU(hpxyz(x,y, translatable ? 1 : sphere ? sqrt(1-x*x-y*y) : sqrt(1+x*x+y*y)));
   }
 
@@ -993,6 +1003,8 @@ EX shiftmatrix rgpushxto0(const shiftpoint& H) {
   return shiftless(rgpushxto0(H.h), H.shift);
   }
 
+EX bool dont_fixmatrix;
+
 /** \brief Fix the numerical inaccuracies in the isometry T
  *
  *  The nature of hyperbolic geometry makes the computations numerically unstable.
@@ -1001,7 +1013,8 @@ EX shiftmatrix rgpushxto0(const shiftpoint& H) {
  */
 
 EX void fixmatrix(transmatrix& T) {
-  if(nonisotropic) ; // T may be inverse... do not do that
+  if(dont_fixmatrix) return;
+  else if(nonisotropic) ; // T may be inverse... do not do that
   else if(cgflags & qAFFINE) ; // affine
   else if(gproduct) {
     auto z = zlevel(tC0(T));
@@ -1648,7 +1661,7 @@ EX hyperpoint direct_exp(hyperpoint v) {
   #endif
   #if MAXMDIM >= 4
   if(nil) return nilv::formula_exp(v);
-  if(sl2 || stretch::in()) return stretch::mstretch ? nisot::numerical_exp(v) : rots::formula_exp(v);
+  if(sl2 || stretch::in()) return stretch::mstretch ? nisot::numerical_exp(v) : unshift(twist::formula_exp(v));
   #endif
   if(gproduct) return product::direct_exp(v);
   ld d = hypot_d(GDIM, v);

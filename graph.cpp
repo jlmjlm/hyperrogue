@@ -140,15 +140,20 @@ ld spina(cell *c, int dir) {
   return TAU * dir / c->type;
   }
 
-/** @brief used to alternate colors depending on distance to something. In chessboard-patterned geometries, also use a third step */
-
-EX int flip_dark(int f, int a0, int a1) {
-  if(geosupport_chessboard()) {
+/** @brief used to alternate colors depending on distance to something. In chessboard-patterned geometries, automatically a third step.
+ *  In some cases, we want to avoid a number of colors in the table -- set @param subtract to the number of such colors.
+ */
+EX color_t get_color_auto3(int f, const colortable& ctab, int subtract IS(0)) {
+  int size = ctab.size() - subtract;
+  if(size < 1) return 0;
+  if(geosupport_chessboard() && size == 2) {
     f = gmod(f, 3);
-    return a0 + (a1-a0) * f / 2;
+    if(f == 1)
+      return gradient(ctab[0], ctab[1], 0, 1, 2);
+    return ctab[f/2];
     }
   else
-    return (f&1) ? a1 : a0;
+    return ctab[gmod(f, size)];
   }
 
 color_t fc(int ph, color_t col, int z) {
@@ -761,10 +766,13 @@ EX color_t kind_outline(eItem it) {
     return OUTLINE_OTHER;
   }
 
+/** should objects fly slightly up and down in product/twisted product geometries */
+EX bool bobbing = true;
+
 EX shiftmatrix face_the_player(const shiftmatrix V) {
   if(GDIM == 2) return V;
-  if(mproduct) return orthogonal_move(V, cos(ptick(750)) * cgi.plevel / 16);
-  if(mhybrid) return V * zpush(cos(ptick(750)) * cgi.plevel / 16);
+  if(mproduct) return bobbing ? orthogonal_move(V, cos(ptick(750)) * cgi.plevel / 16) : V;
+  if(mhybrid) return bobbing ? V * zpush(cos(ptick(750)) * cgi.plevel / 16) : V;
   transmatrix dummy; /* used only in prod anyways */
   if(embedded_plane && !cgi.emb->is_same_in_same()) return V;
   if(nonisotropic) return shiftless(spin_towards(unshift(V), dummy, C0, 2, 0));
@@ -3560,8 +3568,9 @@ EX transmatrix applyDowndir(cell *c, const cellfunction& cf) {
   return ddspin180(c, patterns::downdir(c, cf));
   }
 
-void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
+EX bool keybd_subdir;
 
+void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
   if(viewdists) return;
   
   string keylist = "";
@@ -3591,8 +3600,8 @@ void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
 
       if((c->type & 1) && (isStunnable(c->monst) || isPushable(c->wall))) {
         transmatrix Centered = rgpushxto0(unshift(tC0(cwtV)));
-        int sd = md.subdir;
-        
+        int sd = keybd_subdir ? 1 : -1;
+
         transmatrix T = iso_inverse(Centered) * rgpushxto0(Centered * tC0(V)) * lrspintox(Centered*tC0(V)) * spin(-sd * M_PI/S7) * xpush(0.2);
         
         if(vid.axes >= 5)
@@ -4356,6 +4365,7 @@ EX subcellshape& generate_subcellshape_if_needed(cell *c, int id) {
   for(int i=0; i<c1->type; i++)
     ss.faces.push_back({hybrid::get_corner(c1, i, 0, -1), hybrid::get_corner(c1, i, 0, +1), hybrid::get_corner(c1, i, 1, +1), hybrid::get_corner(c1, i, 1, -1)});
 
+  ss.angle_of_zero = -PIU(atan2(currentmap->adj(c1, 0)*C0));
   for(int a: {0,1}) {
     vector<hyperpoint> l;
     int z = a ? 1 : -1;
@@ -4372,6 +4382,7 @@ EX subcellshape& generate_subcellshape_if_needed(cell *c, int id) {
         l.push_back(hybrid::get_corner(c1, i, 0, z));
         }
     if(a == 0) std::reverse(l.begin()+1, l.end());
+    if(a == 1) std::rotate(l.begin(), l.begin()+3, l.end());
     ss.faces.push_back(l);
     }
   
@@ -4395,9 +4406,9 @@ int hrmap::wall_offset(cell *c) {
     if(!cgi.wallstart.empty()) cgi.wallstart.pop_back();
     cgi.reserve_wall3d(wo + isize(ss.faces));
 
-    
+    rk_shape = &ss;
     for(int i=0; i<isize(ss.faces); i++) {
-      cgi.make_wall(wo + i, ss.faces[i]);
+      cgi.make_wall(wo, i, ss.faces[i]);
       cgi.walltester[wo + i] = ss.walltester[i];
       }
     
@@ -5566,6 +5577,8 @@ EX void calcparam() {
     if(tour::on && (tour::slides[tour::currentslide].flags & tour::SIDESCREEN) && ok)
       current_display->sidescreen = true;
 #endif
+    if((cmode & sm::DIALOG_OFFMAP) && !centered_menus && vid.xres > vid.yres * 11/10)
+      current_display->sidescreen = true;
 
     if(current_display->sidescreen) cd->xcenter = vid.yres/2;
     }
@@ -5576,7 +5589,7 @@ EX void calcparam() {
   
   ld aradius = sphere ? cd->radius / (pconf.alpha - 1) : cd->radius;
   #if MAXMDIM >= 4
-  if(euclid && rots::drawing_underlying) aradius *= 2.5;
+  if(euclid && hybrid::drawing_underlying) aradius *= 2.5;
   #endif
   
   if(dronemode) { cd->ycenter -= cd->radius; cd->ycenter += vid.fsize/2; cd->ycenter += vid.fsize/2; cd->radius *= 2; }
@@ -5595,6 +5608,7 @@ EX void calcparam() {
   ld fov = vid.fov * degree / 2;
   cd->tanfov = sin(fov) / (cos(fov) + get_stereo_param());
   
+  set_cfont();
   callhooks(hooks_calcparam);
   reset_projection();
   }
@@ -5806,7 +5820,7 @@ EX void normalscreen() {
 
 #if 1
   if(true)
-    displayButtonS(vid.xres-8, vid.yres-vid.fsize, "t:" + its(turncount), 0xFFFFFF, 16, 21);
+    displayButtonS(vid.xres-8, vid.yres-vid.fsize, its(killtypes()) + ":" + its(turncount), 0xFFFFFF, 16, 21);
 #else
   if(menu_format != "")
     displayButton(vid.xres-8, vid.yres-vid.fsize, eval_programmable_string(menu_format), 'v', 16);
@@ -5861,7 +5875,7 @@ namespace sm {
   static constexpr int CENTER = 1024;
   static constexpr int ZOOMABLE = 4096;
   static constexpr int TORUSCONFIG = 8192;
-  static constexpr int MAYDARK = 16384;
+  static constexpr int MAYDARK = 16384; // use together with SIDE; if the screen is not wide or centered_menus is set, it will disable SIDE and instead darken the screen
   static constexpr int DIALOG_STRICT_X = 32768; // do not interpret dialog clicks outside of the X region
   static constexpr int EXPANSION = (1<<16);
   static constexpr int HEXEDIT = (1<<17);
@@ -5876,6 +5890,7 @@ namespace sm {
   static constexpr int EDIT_INSIDE_WALLS = (1<<26); // mouseover targets inside walls
   static constexpr int DIALOG_WIDE = (1<<27); // make dialogs wide
   static constexpr int MOUSEAIM = (1<<28); // mouse aiming active here
+  static constexpr int DIALOG_OFFMAP = (1<<29); // try hard to keep dialogs off the map
   }
 #endif
 
@@ -5932,10 +5947,7 @@ EX void drawscreen() {
   mouseovers = " ";
 
   cmode = 0;
-  keyhandler = [] (int sym, int uni) {};
-  #if CAP_SDL
-  joyhandler = [] (SDL_Event& ev) { return false; };
-  #endif
+  reset_handlers();
   if(!isize(screens)) pushScreen(normalscreen);
   screens.back()();
 

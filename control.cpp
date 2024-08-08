@@ -32,6 +32,19 @@ EX int slider_x;
 EX function <void(int sym, int uni)> keyhandler = [] (int sym, int uni) {};
 EX function <bool(SDL_Event &ev)> joyhandler = [] (SDL_Event &ev) {return false;};
 
+#if CAP_SDL2
+EX void ignore_text(const SDL_TextInputEvent&) {}
+EX function <void(const SDL_TextInputEvent&)> texthandler = ignore_text;
+#endif
+
+EX void reset_handlers() {
+  keyhandler = [] (int sym, int uni) {};
+  joyhandler = [] (SDL_Event &ev) {return false;};
+  #if CAP_SDL2
+  texthandler = ignore_text;
+  #endif
+  }
+
 #if HDR
 // what part of the compass does 'skip turn'
 static constexpr auto SKIPFAC = .4;
@@ -136,6 +149,7 @@ EX void movepckeydir(int d) {
   if(protect_memory()) return;
   
   movedir md = vectodir(move_destination_vec(d));
+  md.subdir = keybd_subdir ? 1 : -1;
     
   if(!canmove) movepcto(md), remission(); else movepcto(md);
   }
@@ -605,6 +619,10 @@ EX void handleKeyNormal(int sym, int uni) {
     else restart_game();
     }
 
+  if(sym == SDLK_TAB) {
+    keybd_subdir = !keybd_subdir;
+    }
+
   if(sym == SDLK_ESCAPE) {
     if(bow::fire_mode)
       bow::switch_fire_mode();
@@ -1026,8 +1044,12 @@ EX void mainloopiter() {
     break;
     }
       
+  if((cmode & (sm::DRAW | sm::MAP)) && holdmouse && anims::ma && mouseover)
+    handlekey(getcstat, getcstat);
+
   while(SDL_PollEvent(&ev)) handle_event(ev);
   fix_mouseh();
+
   #if CAP_SDLJOY
   if(joydir.d != -1) checkjoy();
   if(joystick_done && joythread) { joythread->join(); delete joythread; joystick_done = false; }
@@ -1162,6 +1184,12 @@ EX void handle_event(SDL_Event& ev) {
         }
       }
     
+    #if CAP_SDL2
+    if(ev.type == SDL_TEXTINPUT) {
+      texthandler(ev.text);
+      }
+    #endif
+
     dialog::handleZooming(ev);
     
     if(sym == SDLK_F1 && normal && playermoved)
@@ -1318,6 +1346,7 @@ EX void handle_event(SDL_Event& ev) {
     if(sym || uni) {
       if(need_refresh) {
         just_refreshing = true;
+        reset_handlers();
         screens.back()();
         just_refreshing = false;
         }

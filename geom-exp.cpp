@@ -267,7 +267,7 @@ bool forced_quotient() { return quotient && !(cgflags & qOPTQ); }
 EX geometry_filter gf_hyperbolic = {"hyperbolic", 'h', [] { return (arcm::in() || arb::in() || hyperbolic) && !forced_quotient(); }};
 EX geometry_filter gf_spherical = {"spherical", 's', [] { return (arcm::in() || arb::in() || sphere) && !forced_quotient(); }};
 EX geometry_filter gf_euclidean = {"Euclidean", 'e', [] { return (arcm::in() || arb::in() || euclid) && !forced_quotient(); }};
-EX geometry_filter gf_other = {"non-isotropic", 'n', [] { return mproduct || nonisotropic; }};
+EX geometry_filter gf_other = {"non-isotropic", 'n', [] { return mproduct || mtwisted || nonisotropic; }};
 EX geometry_filter gf_regular_2d = {"regular 2D tesselations", 'r', [] { 
   return standard_tiling() && WDIM == 2 && !forced_quotient();
   }};
@@ -319,19 +319,23 @@ void set_or_configure_geometry(eGeometry g) {
   else if(g == gArbitrary)
     arb::choose();
   else {
-    if(among(g, gProduct, gRotSpace)) {
-      if(WDIM == 3 || (g == gRotSpace && euclid)) {
-        addMessage(
-          g == gRotSpace ?
-            XLAT("Only works with 2D non-Euclidean geometries")
-          : XLAT("Only works with 2D geometries")
-            );
+    bool quo = false;
+    if(among(g, gProduct, gTwistedProduct)) {
+      if(WDIM == 3) {
+        addMessage(XLAT("Only works with 2D geometries"));
         return;
         }
-      if(g == gRotSpace) {
+      if(g == gTwistedProduct) {
+        if(nonorientable) {
+          addMessage(XLAT("Only works in orientable spaces"));
+          return;
+          }
         bool ok = true;
+        quo = sphere || quotient;
         if(arcm::in()) ok = PURE;
         else if(bt::in() || aperiodic) ok = false;
+        else if(GOLDBERG && S3 == 4 && gp::param == gp::loc{1,1}) ok = true;
+        else if(UNRECTIFIED && gp::param == gp::loc{1,1}) ok = true;
         else ok = PURE || BITRUNCATED;
         if(!ok) {
           addMessage(XLAT("Only works with (semi-)regular tilings"));
@@ -348,7 +352,10 @@ void set_or_configure_geometry(eGeometry g) {
         #endif
         }
       }
-    dual::may_split_or_do([g] { set_geometry(g); });
+    dual::may_split_or_do([g, quo] {
+      set_geometry(g);
+      if(quo) hybrid::fixup_csteps();
+      });
     start_game();
     }
   }
@@ -392,7 +399,7 @@ void ge_select_tiling() {
   
   for(int i=0; i<isize(ginf); i++) {
     eGeometry g = eGeometry(i);
-    if(among(g, gProduct, gRotSpace)) hybrid::configure(g);
+    if(among(g, gProduct, gTwistedProduct)) hybrid::configure(g);
     bool orig_el = elliptic;
     bool on = geometry == g;
     bool in_2d = WDIM == 2;
@@ -413,10 +420,10 @@ void ge_select_tiling() {
       }
     
     bool is_product = (geometry == gProduct && in_2d);
-    bool is_rotspace = (geometry == gRotSpace && in_2d);
+    bool is_twisted = (geometry == gTwistedProduct && in_2d);
     dialog::addBoolItem(
       is_product ? XLAT("current geometry x E") : 
-      is_rotspace ? XLAT("space of rotations in current geometry") : 
+      is_twisted ? XLAT("twisted current x E") : 
       XLAT(ginf[g].menu_displayed_name), on, dialog::list_fake_key++);
     dialog::lastItem().value += validclasses[land_validity(specialland).quality_level];
     dialog::add_action([g] { set_or_configure_geometry(g); });
@@ -617,7 +624,7 @@ EX void select_quotient() {
     euc::prepare_torus3();
     pushScreen(euc::show_torus3);
     }
-  else if(nil) {
+  else if(nil && !mhybrid) {
     nilv::prepare_niltorus3(),  
     pushScreen(nilv::show_niltorus3);
     }
@@ -629,7 +636,7 @@ EX void select_quotient() {
   #endif
   else if(mproduct)
     pushScreen(product::show_config);
-  else if(rotspace)
+  else if(mtwisted)
     hybrid::configure_period();
   else {
     vector<eGeometry> choices;
@@ -680,22 +687,23 @@ void action_change_variation() {
   #endif
   }
 
-EX void menuitem_change_variation(char key) {
+
+EX void menuitem_change_variation(key_type key) {
   dialog::addSelItem(XLAT("variations"), gp::operation_name(), key);    
   dialog::add_action(action_change_variation);
   }
 
-EX void menuitem_change_geometry(char key) {
+EX void menuitem_change_geometry(key_type key) {
   dialog::addSelItem(XLAT("geometry/topology/tiling"), full_geometry_name(), key);
   dialog::add_action_push(current_filter ? ge_select_tiling : ge_select_filter);
   }
 
-EX void menuitem_projection(char key) {
+EX void menuitem_projection(key_type key) {
   dialog::addSelItem(XLAT("projection"), current_proj_name(), key);
   dialog::add_action_push(models::model_menu);
   }
 
-EX void menuitem_binary_width(char key) {
+EX void menuitem_binary_width(key_type key) {
   dialog::addSelItem(XLAT("binary tiling width"), fts(vid.binary_width), key);
   dialog::add_action([] {
     dialog::editNumber(vid.binary_width, 0, 2, 0.1, 1, XLAT("binary tiling width"), "");
@@ -710,11 +718,14 @@ EX void menuitem_binary_width(char key) {
     });
   }
 
-EX void menuitem_nilwidth(char key) {
+EX void menuitem_nilwidth(key_type key) {
   dialog::addSelItem(XLAT("Nil width"), fts(nilv::nilwidth), key);
   dialog::add_action([] {
     dialog::editNumber(nilv::nilwidth, 0.01, 2, 0.1, 1, XLAT("Nil width"), "");
-    dialog::get_ne().reaction = ray::reset_raycaster;
+    dialog::get_ne().reaction = [] {
+      ray::reset_raycaster();
+      twist::clear_twisted_matrices();
+      };
     dialog::bound_low(0.01);
     });
   }
@@ -1032,9 +1043,10 @@ EX void showEuclideanMenu() {
       dialog::get_ne().reaction = ray::reset_raycaster;
       });
     }
-  else if(mhybrid) {
+  else if(mtwisted) {
     dialog::addSelItem(XLAT("number of levels"), its(hybrid::csteps / cgi.single_step), 'L');
     dialog::add_action(hybrid::configure_period);
+    if(nil) menuitem_nilwidth('v');
     }
   else if(bt::in()) {
     menuitem_binary_width('v');
@@ -1069,12 +1081,12 @@ EX void showEuclideanMenu() {
   
   #if MAXMDIM >= 4
   if(mhybrid) {
-    auto r = rots::underlying_scale;
+    auto r = hybrid::underlying_scale;
     dialog::addSelItem(XLAT("view the underlying geometry"), r > 0 ? fts(r)+"x" : ONOFF(false), '6');
     dialog::add_action([] {
-      dialog::editNumber(rots::underlying_scale, 0, 1, 0.05, 0.25, XLAT("view the underlying geometry"),        
-        geometry == gRotSpace ? 
-          XLAT("The space you are currently in is the space of rotations of the underlying hyperbolic or spherical geometry. ")
+      dialog::editNumber(hybrid::underlying_scale, 0, 1, 0.05, 0.25, XLAT("view the underlying geometry"),        
+        geometry == gTwistedProduct ? 
+          XLAT("The space you are currently in a twisted product space. ")
         : XLAT("You are currently in a product space.") +
         XLAT(
           "This option lets you see the underlying space. Lands and some walls (e.g. in the Graveyard) are based on "
@@ -1083,7 +1095,7 @@ EX void showEuclideanMenu() {
         );
       dialog::bound_low(0);
       dialog::bound_up(1);
-      dialog::get_di().extra_options = [] () { rots::draw_underlying(true); };
+      dialog::get_di().extra_options = [] () { hybrid::draw_underlying(true); };
       });
     }
   #endif

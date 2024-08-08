@@ -867,7 +867,7 @@ void geometry_information::procedural_shapes() {
 vector<ld> equal_weights(1000, 1);
 
 #if MAXMDIM < 4
-void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector<ld> weights) { }
+void geometry_information::make_wall(int wo, int id, vector<hyperpoint> vertices, vector<ld> weights) { }
 void geometry_information::reserve_wall3d(int i) { }
 void geometry_information::create_wall3d() { }
 void geometry_information::compute_cornerbonus() { }
@@ -877,8 +877,55 @@ void geometry_information::compute_cornerbonus() { }
 
 // Make a wall
 
+EX subcellshape *rk_shape;
+
+hyperpoint ray_kleinize_twisted(hyperpoint h, int ks, ld angle_of_zero, int id) {
+
+  h = spin(angle_of_zero) * h;
+
+  ld& x = h[0];
+  ld& y = h[1];
+  ld& z = h[2];
+  ld& w = h[3];
+
+  if(id < ks) h = spin(-TAU * id / ks) * h;
+
+  if(nil) return id >= ks ? hyperpoint(x, y, 0, 1) : hyperpoint(x, y, (z - x * y / 2) / nilv::nilwidth / nilv::nilwidth, 1);
+
+  ld dx, dy;
+
+  if(sl2) {
+    dx = -2 * (y*z - x*w);
+    dy = -2 * (x*z + y*w);
+    }
+  else {
+    dx = +2 * (x*z + y*w);
+    dy = -2 * (y*z - x*w);
+    }
+
+  if(id >= ks) return hyperpoint(dx, dy, 0, 1);
+
+  if(sl2) {
+    ld vy = -asinh(dy)/2;
+    ld vx = asinh(dx / cosh(2*vy)) / 2;
+    hyperpoint h1 = lorentz(1, 3, -vy) * lorentz(0, 2, -vy) * lorentz(0, 3, -vx) * lorentz(2, 1, vx) * h;
+    ld vz = atan2(h1[2], h1[3]);
+    return hyperpoint(vx, vy, vz, 1);
+    }
+  else {
+    ld vy = -asin(dy)/2;
+    ld vx = asin(dx / cos(2*vy)) / 2;
+    hyperpoint h1 = cspin(0, 3, vy) * cspin(1, 2, -vy) * cspin(1, 3, -vx) * cspin(0, 2, -vx) * h;
+    ld vz = atan2(h1[2], h1[3]);
+    return hyperpoint(vx, vy, vz, 1);
+    }
+  }
+
 hyperpoint ray_kleinize(hyperpoint h, int id, ld pz) {
-  if(nil && among(id, 2, 5)) h[2] = 0;
+  if(nilv::get_nsi() == 0 && among(id, 2, 5)) h[2] = 0;
+  if(nilv::get_nsi() == 2 && among(id, 6, 7)) h[2] = 0;
+
+  if(mtwisted) return ray_kleinize_twisted(h, isize(rk_shape->faces)-2, rk_shape->angle_of_zero, id);
   #if CAP_BT
   if(hyperbolic && bt::in()) {
     // ld co = vid.binary_width / log(2) / 4;
@@ -893,9 +940,12 @@ hyperpoint ray_kleinize(hyperpoint h, int id, ld pz) {
   return kleinize(h);
   }
 
-void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector<ld> weights) {
+void geometry_information::make_wall(int wo, int id, vector<hyperpoint> vertices, vector<ld> weights) {
+
+  int id1 = wo + id;
 
   wallstart.push_back(isize(raywall));
+  angle_of_zero.push_back(mtwisted ? rk_shape->angle_of_zero : 0);
 
   // orient correctly
   transmatrix T;
@@ -907,7 +957,7 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
     reverse(vertices.begin(), vertices.end()),
     reverse(weights.begin(), weights.end());
 
-  bshape(shWall3D[id], PPR::WALL);
+  bshape(shWall3D[id1], PPR::WALL);
   last->flags |= POLY_TRIANGLES | POLY_PRINTABLE;
   
   hyperpoint center = Hypc;
@@ -970,7 +1020,7 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
       });
     }
 
-  bshape(shWireframe3D[id], PPR::WALL);
+  bshape(shWireframe3D[id1], PPR::WALL);
   if(true) {
     int STEP = vid.texture_step;
     for(int a=0; a<n; a++) for(int y=0; y<STEP; y++) {
@@ -989,21 +1039,21 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
     hpcpush(hpc[last->s]);
     }
 
-  bshape(shMiniWall3D[id], PPR::WALL);
-  bshape(shMiniWall3D[id], PPR::WALL);
-  for(int a=shWall3D[id].s; a < shWall3D[id].e; a++)
+  bshape(shMiniWall3D[id1], PPR::WALL);
+  bshape(shMiniWall3D[id1], PPR::WALL);
+  for(int a=shWall3D[id1].s; a < shWall3D[id1].e; a++)
     hpcpush(mid(C0, hpc[a]));
-  if(shWall3D[id].flags & POLY_TRIANGLES)
+  if(shWall3D[id1].flags & POLY_TRIANGLES)
     last->flags |= POLY_TRIANGLES;
-  if(shWall3D[id].flags & POLY_PRINTABLE)
+  if(shWall3D[id1].flags & POLY_PRINTABLE)
     last->flags |= POLY_PRINTABLE;
 
   finishshape();
   
-  shWall3D[id].intester = C0;
-  shMiniWall3D[id].intester = C0;
+  shWall3D[id1].intester = C0;
+  shMiniWall3D[id1].intester = C0;
 
-  shPlainWall3D[id] = shWall3D[id]; // force_triangles ? shWall3D[id] : shWireframe3D[id];
+  shPlainWall3D[id1] = shWall3D[id1]; // force_triangles ? shWall3D[id] : shWireframe3D[id];
   }
 
 void geometry_information::reserve_wall3d(int i) {
@@ -1030,7 +1080,7 @@ void geometry_information::create_wall3d() {
     for(auto& ss: cgi.subshapes) {
       walloffsets.emplace_back(id, nullptr);
       for(auto& face: ss.faces_local)
-        make_wall(id++, face);
+        make_wall(0, id++, face);
       }
     hassert(id == tot);
     compute_cornerbonus();
@@ -1044,11 +1094,11 @@ void geometry_information::create_wall3d() {
     auto& we = cgi.heptshape->weights;
     if(we.empty()) {
       for(int w=0; w<isize(faces); w++)
-        make_wall(w, faces[w]);
+        make_wall(0, w, faces[w]);
       }
     else {
       for(int w=0; w<isize(faces); w++)
-        make_wall(w, faces[w], we[w]);
+        make_wall(0, w, faces[w], we[w]);
       }
     }
 
