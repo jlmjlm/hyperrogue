@@ -373,6 +373,9 @@ cld exp_parser::parse(int prio) {
     int i1, i2; count_at_level(i1, i2, score);
     return i1;
     }
+  else if(eat("killtypes")) {
+    return killtypes();
+    }
   else if(next() == '(') at++, res = parsepar(); 
   else {
     string number = next_token();
