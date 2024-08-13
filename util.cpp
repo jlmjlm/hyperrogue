@@ -399,6 +399,7 @@ cld exp_parser::parse(int prio) {
     else if(number == "mousey") res = mousey;
     else if(number == "turncount") res = turncount;
     else if(number == "framecount") res = frameid;
+    else if(number == "cheats") res = cheater;
     else if(number == "gametime") res = getgametime_precise();
     else if(number == "last_a") res = anims::last_anim_vars[0];
     else if(number == "last_b") res = anims::last_anim_vars[1];

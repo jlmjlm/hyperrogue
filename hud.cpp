@@ -451,8 +451,9 @@ EX bool less_in_portrait, less_in_landscape;
 EX string mode_description() {
   string md;
   if(autocheat) md += " god";
-  if(casual) md += " casual";
   else if(cheater) md += " cheat";
+  if(quantum) md += " quantum";
+  if(casual) md += " casual";
   if(inv::on) md += " inv";
   if(tour::on) md += " tour";
   if(shmup::on) md += " shmup";

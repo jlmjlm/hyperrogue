@@ -5818,14 +5818,10 @@ EX void normalscreen() {
   if(viewdists && show_distance_lists) cmode |= sm::SIDE | sm::MAYDARK;
   gamescreen(); drawStats();
 
-#if 0
-  if(true)
-    displayButtonS(vid.xres-8, vid.yres-vid.fsize, its(killtypes()) + ":" + its(turncount), 0xFFFFFF, 16, 21);
-#else
-  if(menu_format != "")
-    displayButton(vid.xres-8, vid.yres-vid.fsize, eval_programmable_string(menu_format), 'v', 16);
-#endif
-
+  if(menu_format != "") {
+    displayColorButton(vid.xres-8, vid.yres-vid.fsize,
+            eval_programmable_string(menu_format), 'v', 16, 0, 0xFFFFFF);
+    }
   else if(nomenukey || ISMOBILE)
     ;
 #if CAP_TOUR
