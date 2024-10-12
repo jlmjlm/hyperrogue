@@ -162,15 +162,19 @@ EX namespace whirlwind {
       }
     }
   
-  EX cell *jumpFromWhereTo(cell *c, bool player) {
+  EX cell *jumpFromWhereTo(cell *c, bool player, struct jumpdata& jdata) {
+    jdata.uniq = true;
     for(int i=0; i<2; i++) {
       calcdirs(c);
       if(qdirs != 1) return NULL;
+      auto mi = movei(c, dfrom[0]);
+      jdata.moves.push_back(mi.rev());
       cell *c2 = c->move(dfrom[0]);
       if(!passable(c, c2, P_JUMP1)) return NULL;
       if(player && i == 0 && !passable(c, c2, P_ISPLAYER)) return NULL;
       c = c2;
       }
+    reverse(jdata.moves.begin(), jdata.moves.end());
     calcdirs(c);
     if(qdirs != 1) return NULL;
     return c;
@@ -1468,6 +1472,7 @@ EX namespace mirror {
             }
           c->monst = moNone;
           }
+        if(!fwd) animateCorrectAttack(movei(cw2+wstep), LAYER_SMALL, moMimic);
         if(c2->wall == waBigTree)
           c2->wall = waSmallTree;
         else if(c2->wall == waSmallTree)
@@ -3645,7 +3650,7 @@ EX namespace windmap {
       // cw.spin = 0;
       neighbors.emplace_back();
       auto &v = neighbors.back();
-      if(NONSTDVAR && !sphere && !arcm::in() && !mhybrid && !INVERSE)
+      if(NONSTDVAR && !sphere && !arcm::in() && !mhybrid && !INVERSE && WDIM == 2)
         for(int l=0; l<S7; l++) {
           v.push_back(getId(cw + cth + l + wstep + cth));
           }
@@ -3709,6 +3714,7 @@ EX namespace windmap {
       tries++;
       if(tries < maxtries) goto tryagain;
       }
+    println(hlog, "windmap: tries = ", tries, " N = ", N);
     if(tries >= maxtries && maxtries >= 20) {
       addMessage("Failed to generate an interesting wind/lava pattern.");
       }

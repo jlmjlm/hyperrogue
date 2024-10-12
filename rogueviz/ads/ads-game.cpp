@@ -32,6 +32,7 @@ namespace rogueviz { std::vector<hr::reaction_t> cleanup; }
 #include "globals.cpp"
 #include "shapes.cpp"
 #include "resources.cpp"
+#include "ads-lands.cpp"
 #include "map.cpp"
 #include "control.cpp"
 #include "display.cpp"
@@ -39,6 +40,7 @@ namespace rogueviz { std::vector<hr::reaction_t> cleanup; }
 #include "ds-game.cpp"
 #include "ds-texture.cpp"
 #include "views.cpp"
+#include "tour.cpp"
 
 namespace hr {
 
@@ -82,6 +84,7 @@ void restart() {
     });
 
   ci_at.clear();
+  displayed.clear();
 
   gen_terrain(vctr, ci_at[vctr], -2);
   forCellEx(c1, vctr) ci_at[c1].type = wtNone;
@@ -99,6 +102,7 @@ void run_ads_game_hooks() {
   rogueviz::rv_hook(hooks_drawcell, 0, ads_draw_cell);
   rogueviz::rv_hook(shmup::hooks_turn, 0, ads_turn);
   rogueviz::rv_hook(anims::hooks_anim, 100, replay_animation);
+  rogueviz::rv_hook(hooks_nextland, 0, ads_nextland);
   }
 
 void run_ads_game() {
@@ -109,12 +113,11 @@ void run_ads_game() {
     hybrid::csteps = 0;
     hybrid::reconfigure();
     }
+  run_ads_game_hooks();
   start_game();
 
   starting_point = hybrid::get_where(cwt.at).first;
-  
-  run_ads_game_hooks();
-  
+    
   cgi.use_count++;
   hybrid::in_underlying_geometry([] {
     cgi.use_count++;
@@ -137,6 +140,7 @@ void run_ads_game() {
 void add_ads_cleanup() {
   rogueviz::on_cleanup_or_next([] {
     switch_spacetime_to(true);
+    displayed.clear();
     });
   }
 
@@ -163,6 +167,7 @@ void default_settings() {
   lps_add(lps_relhell, ccolor::which, &ccolor::random);
   lps_add(lps_relhell, ccolor::rwalls, 0);
   lps_add(lps_relhell, vid.fov, 150.);
+  lps_add(lps_relhell, specialland, laCrossroads);
 
   lps_add(lps_relhell_ds_spacetime_klein, pmodel, mdDisk);
 
@@ -205,7 +210,7 @@ void gamedata(hr::gamedata* gd) {
 
 void set_config() {
   lps_enable(&lps_relhell);
-  enable_canvas();
+  // enable_canvas();
   }
 
 void run_ads_game_std() {

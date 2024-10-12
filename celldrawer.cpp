@@ -1863,7 +1863,7 @@ void celldrawer::draw_features_and_walls_3d() {
             case 6: case 7: if (pmodel == mdPerspective && V[2][LDIM] <= -l) continue; break;
             }
           }
-        else if(mproduct) {
+        else if(mproduct && !models::conformal_product_model()) {
           if(a < c->type-2 && !in_s2xe()) {
             ld d = in_e2xe() ? sqhypot_d(2, unshift(tC0(V))) : V[2][2];
             hyperpoint h = (unshift(V) * cgi.walltester[ofs + a]);
@@ -2387,7 +2387,7 @@ void celldrawer::draw_wall_full() {
           if(rosedist(c2) < rd)
             placeSidewall(c, i, SIDE_WALL, V, rcol);
         for(int i=t; i<isize(ptds); i++) {
-          auto p = dynamic_cast<dqi_poly*>(&*(ptds[i]));
+          auto p = ptds[i]->as_poly();
           if(p) p->prio = PPR::TRANSPARENT_WALL;
           }
         }
@@ -2991,7 +2991,9 @@ void celldrawer::draw() {
       ld footphase;
       applyAnimation(c, Vthrow, footphase, LAYER_THROW);
       eItem it = animations[LAYER_THROW][c].thrown_item;
-      drawItemType(it, c, Vthrow, iinf[it].color, 0, false);
+      if(it) drawItemType(it, c, Vthrow, iinf[it].color, 0, false);
+      eMonster mo = animations[LAYER_THROW][c].thrown_monster;
+      if(mo) drawMonsterType(mo, c, Vthrow, minf[mo].color, 0, minf[mo].color);
       }
     
 #if CAP_TEXTURE    

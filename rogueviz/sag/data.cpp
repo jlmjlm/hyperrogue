@@ -26,6 +26,9 @@ vector<int> hubval;
 
 vector<edgeinfo> sagedges;  
 vector<vector<int>> edges_yes, edges_no;
+vector<vector<pair<int, double>>> edge_weights;
+
+vector<bool> fixed_position;
 
 ld edgepower=1, edgemul=1;
 
@@ -45,6 +48,8 @@ void prepare_graph() {
   
   edges_yes.clear(); edges_yes.resize(DN);
   edges_no.clear(); edges_no.resize(DN);
+
+  fixed_position.clear(); fixed_position.resize(DN);
   
   for(int i=0; i<DN; i++) for(int j=0; j<DN; j++) if(i != j) {
     if(alledges.count({i, j}))
@@ -52,6 +57,14 @@ void prepare_graph() {
     else
       edges_no[i].push_back(j);
     }          
+
+  edge_weights.clear(); edge_weights.resize(DN);
+  for(auto& e: sagedges) {
+    if(e.i == e.j) continue;
+    e.weight2 = pow((double) e.weight, (double) edgepower) * edgemul;
+    edge_weights[e.i].emplace_back(e.j, e.weight2);
+    edge_weights[e.j].emplace_back(e.i, e.weight2);
+    }
 
   sagnode.clear();
   sagnode.resize(isize(sagcells), -1);
@@ -99,13 +112,7 @@ void create_viz() {
   state |= SS_GRAPH;
 
   if(!vact) for(int i=0; i<DN; i++) vdata[i].data = 0;
-  if(!vact) for(int i=0; i<isize(sagedges); i++) {
-    edgeinfo& ei = sagedges[i];
-
-    ei.weight2 = pow((double) ei.weight, (double) edgepower) * edgemul;
-    
-    addedge0(ei.i, ei.j, &ei);
-    }
+  if(!vact) for(auto& e: sagedges) addedge0(e.i, e.j, &e);
 
   if(sagcells[0].first == nullptr) return;
 
@@ -382,6 +389,26 @@ int data_read_args() {
   else if(argis("-sag-save-sol")) {
     PHASE(3); shift(); sag::save_sag_solution(args());
     }
+
+  else if(argis("-sag-fix")) {
+    shift(); int id = getid(args());
+    if(id >= isize(sagid)) throw hr_exception("bad id in -sag-fix");
+    fixed_position[id] = true;
+    }
+
+  else if(argis("-sag-move-to")) {
+    shift(); int sid1 = getid(args());
+    if(sid1 < 0 || sid1 >= isize(sagid)) throw hr_exception("bad id in -sag-move-to");
+    shift(); int t2 = argi();
+    if(t2 < 0 || t2 >= isize(sagnode)) throw hr_exception("bad id in -sag-move-to");
+    int sid2 = sagid[t2];
+    int t1 = allow_doubles ? -1 : sagnode[sid1];
+    sagnode[sid1] = t2; sagid[t2] = sid1;
+    if(sid2 >= 0) sagnode[sid2] = t1; sagid[t1] = sid2;
+    compute_cost();
+    create_viz();
+    }
+
 
   else return 1;  
 #endif

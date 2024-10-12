@@ -1,5 +1,5 @@
 #if NILRIDER
-#define CUSTOM_CAPTION "Nil Rider 1.0"
+#define CUSTOM_CAPTION "Nil Rider 2.0"
 #define MAXMDIM 4
 #define CAP_INV 0
 #define CAP_COMPLEX2 0
@@ -37,6 +37,13 @@
 #include "solver.cpp"
 #include "save.cpp"
 
+#ifdef RVCOL
+namespace hr {
+  void rv_achievement(const string& name);
+  void rv_leaderboard(const string& name, int score);
+  }
+#endif
+
 namespace nilrider {
 
 multi::config scfg_nilrider;
@@ -60,9 +67,26 @@ void frame() {
 
   shiftmatrix V = ggmatrix(cwt.at);  
   
-  curlev->draw_level(V);
+  curlev->draw_level_rec(V);
 
-  curlev->current.draw_unilcycle(V);  
+  curlev->current.draw_unilcycle(V, my_scheme);
+
+  for(auto g: curlev->ghosts) {
+    ld t = curlev->current.timer;
+    ld maxt = g.history.back().timer;
+    auto gr = ghost_repeat;
+    if(gr <= 0) gr = 1e6;
+    t -= floor(t / gr) * gr;
+    for(; t < maxt; t += gr) {
+      int a = 0, b = isize(g.history);
+      while(a != b) {
+        int s = (a + b) / 2;
+        if(g.history[s].timer < t) a = s + 1;
+        else b = s;
+        }
+      if(b < isize(g.history) && g.history[b].where != curlev->current.where) g.history[b].draw_unilcycle(V, g.cs);
+      }
+    }
   }
 
 bool crash_sound = true;
@@ -135,9 +159,10 @@ bool turn(int delta) {
     auto t = curlev->current.collected_triangles;
     bool fail = false;
 
-    for(int i=0; i<delta; i++) {
+    for(int i=0; i<delta * simulation_speed; i++) {
       curlev->history.push_back(curlev->current);
       curlev->current.be_consistent();
+      auto goals = curlev->current.goals;
       bool b = curlev->current.tick(curlev);
       running = b;
       if(!b) {
@@ -145,6 +170,22 @@ bool turn(int delta) {
         fail = true;
         break;
         }
+      #if RVCOL
+      if(b) {
+        goals = curlev->current.goals &~goals;
+        int gid = 0;
+        for(auto& g: curlev->goals) {
+          if(goals & Flag(gid)) {
+            if(g.achievement_name != "") rv_achievement(g.achievement_name);
+            if(g.leaderboard_name != "") {
+              auto res = curlev->current_score[gid];
+              rv_leaderboard(g.leaderboard_name, abs(res) * 1000);
+              }
+            }
+          gid++;
+          }
+        }
+      #endif
       }
 
     if(t != curlev->current.collected_triangles)
@@ -168,6 +209,7 @@ bool turn(int delta) {
   }
 
 void main_menu();
+void layer_selection_screen();
 
 #define PSEUDOKEY_PAUSE 2511
 #define PSEUDOKEY_SIM 2512
@@ -221,6 +263,9 @@ void run() {
   if(planning_mode && !view_replay) {
     for(auto& b: buttons) show_button(b.first, b.second, planmode == b.first ? 0xFFD500 : dialog::dialogcolor);
     show_button(PSEUDOKEY_SIM, "simulation");
+    if(curlev->sublevels.size() && layer_edited) {
+      show_button('L', "layer: " + layer_edited->name);
+      }
     }
   
   bool pause_av = view_replay || !planning_mode;
@@ -248,6 +293,10 @@ void run() {
   dialog::add_key_action(PSEUDOKEY_SIM, toggle_replay);
   dialog::display();
 
+  if(planning_mode && !view_replay && curlev->sublevels.size()) {
+    dialog::add_key_action('L', [] { pushScreen(layer_selection_screen); });
+    }
+
   int* t = scfg_nilrider.keyaction;
   for(int i=1; i<512; i++) {
     auto& ka = dialog::key_actions;
@@ -273,8 +322,9 @@ void clear_path(level *l) {
   crash_sound = true;
   }
 
+string fname = "horizontal.nrl";
+
 void pick_level() {
-  clearMessages();
   dialog::init(XLAT("select the track"), 0xC0C0FFFF, 150, 100);
   for(auto l: all_levels) {
     dialog::addItem(l->name, l->hotkey);
@@ -287,6 +337,33 @@ void pick_level() {
       });
     }
   dialog::addBreak(100);
+  dialog::addItem("load a level from a file", '0');
+  dialog::add_action([] {
+    dialog::openFileDialog(fname, XLAT("level to load:"), ".nrl", [] () {
+      try {
+        load_level(fname, true);
+        return true;
+        }
+      catch(hr_exception& e) {
+        addMessage(e.what());
+        return false;
+        }
+      });
+    });
+  dialog::addBack();
+  dialog::display();
+  }
+
+void layer_selection_screen() {
+  poly_outline = 0xFF;
+  dialog::init(XLAT("layer selection"), 0xC0C0FFFF, 150, 100);
+  dialog::addBreak(50);
+  auto layers = curlev->gen_layer_list();
+  char key = 'a';
+  for(auto l: layers) {
+    dialog::addBoolItem(l->name, l == layer_edited, key++);
+    dialog::add_action([l] { layer_edited = l; popScreen(); });
+    }
   dialog::addBack();
   dialog::display();
   }
@@ -364,6 +441,14 @@ void settings() {
   add_edit(whdist);
   add_edit(min_gfx_slope);
   add_edit(stepped_display);
+  add_edit(simulation_speed);
+  add_edit(ghost_repeat);
+  dialog::addBreak(100);
+  add_edit(my_scheme.wheel1);
+  add_edit(my_scheme.wheel2);
+  add_edit(my_scheme.seat);
+  add_edit(my_scheme.seatpost);
+  dialog::addBreak(100);
   dialog::addItem("projection", 'P');
   dialog::add_action_push(nil_projection);
   dialog::addItem("configure keys", 'k');
@@ -397,55 +482,89 @@ void settings() {
   dialog::display();
   }
 
-bool deleting = false;
-
-template<class T, class U> void replays_of_type(vector<T>& v, const U& loader) {
+template<class T, class U, class V> void replays_of_type(vector<T>& v, const U& loader, const V& ghost_loader) {
   int i = 0;
   for(auto& r: v) {
     dialog::addItem(r.name, 'a');
-    dialog::add_action([&v, i, loader] {
-      if(deleting) {
-        dialog::push_confirm_dialog(
-          [&, i] { v.erase(v.begin() + i); save(); },
-          "Are you sure you want to delete '" + v[i].name + "'?"
-          );
-        }
-      else loader(v[i]);
+    dialog::add_action([&v, i, loader, ghost_loader] {
+      pushScreen([&v, i, loader, ghost_loader] {
+        dialog::init(XLAT(planning_mode ? "saved plan" : "replay"), 0xC0C0FFFF, 150, 100);
+        dialog::addInfo(v[i].name);
+
+        dialog::addItem(planning_mode ? "load plan" : "load replay", 'l');
+        dialog::add_action([&v, i, loader] { popScreen(); loader(v[i]); });
+
+        dialog::addItem(planning_mode ? "load plan as ghost" : "load replay as ghost", 'g');
+        dialog::add_action([&v, i, ghost_loader] { popScreen(); ghost_loader(v[i]); });
+
+        dialog::addItem("rename", 'r');
+        dialog::add_action([&v, i] {
+          popScreen();
+          dialog::edit_string(v[i].name, planning_mode ? "name plan" : "name replay", "");
+          dialog::get_di().reaction_final = [] { save(); };
+          });
+
+        dialog::addItem("delete", 'd');
+        dialog::add_action([&v, i] {
+          popScreen();
+          dialog::push_confirm_dialog(
+            [&v, i] { v.erase(v.begin() + i); save(); },
+            "Are you sure you want to delete '" + v[i].name + "'?"
+            );
+          });
+
+        dialog::display();
+        });
       });
     i++;
     }
   }
 
 #if CAP_SAVE
+
 void replays() {
   dialog::init(XLAT(planning_mode ? "saved plans" : "replays"), 0xC0C0FFFF, 150, 100);
   if(!planning_mode) replays_of_type(curlev->manual_replays, [] (manual_replay& r) {
     view_replay = false;
-    curlev->history.clear();
-    auto& current = curlev->current;
-    current = curlev->start;
     loaded_or_planned = true;
-    for(auto h: r.headings) {
-      current.heading_angle = int_to_heading(h);
-      curlev->history.push_back(current);
-      if(!current.tick(curlev)) break;
-      }
+    curlev->history = curlev->headings_to_history(r);
     toggle_replay();
     popScreen();
-    });
+    }, [] (manual_replay& r) { curlev->load_manual_as_ghost(r); });
   if(planning_mode) replays_of_type(curlev->plan_replays, [] (plan_replay& r) {
     view_replay = false;
     curlev->history.clear();
     curlev->plan = r.plan;
     popScreen();
-    });
-  dialog::addBoolItem_action("delete", deleting, 'X');
+    }, [] (plan_replay& r) { curlev->load_plan_as_ghost(r); });
+  dialog::addBreak(100);
+  if(isize(curlev->ghosts)) {
+    dialog::addSelItem("forget all ghosts", its(isize(curlev->ghosts)), 'G');
+    dialog::add_action([] { curlev->ghosts.clear(); });
+    }
+  else if(isize(curlev->manual_replays) || isize(curlev->plan_replays)) {
+    dialog::addSelItem("load all plans and replays as ghosts", its(isize(curlev->manual_replays) + isize(curlev->plan_replays)), 'G');
+    dialog::add_action([] { curlev->load_all_ghosts(); });
+    }
+  else dialog::addBreak(100);
+
+  if(planning_mode) {
+    dialog::addItem("save the current plan", 's');
+    dialog::add_action([] {
+      curlev->plan_replays.emplace_back(plan_replay{new_replay_name(), my_scheme, curlev->plan});
+      save();
+      });
+    }
+  else {
+    dialog::addItem("save the current replay", 's');
+    dialog::add_action(save_manual_replay);
+    }
+
   dialog::addBack();
   dialog::display();
   }
 
 void pop_and_push_replays() {
-  deleting = false;
   popScreen();
   pushScreen(replays);
   }
@@ -476,27 +595,13 @@ void main_menu() {
     dialog::add_action(toggle_replay);
   
     #if CAP_SAVE
-    dialog::addItem("save the replay", 's');
-    dialog::add_action([] {
-      vector<int> ang;
-      for(auto& h: curlev->history) ang.push_back(heading_to_int(h.heading_angle));
-      curlev->manual_replays.emplace_back(manual_replay{new_replay_name(), std::move(ang)});
-      save();
-      });
-
-    dialog::addItem("load a replay", 'l');
+    dialog::addItem("saved replays", 's');
     dialog::add_action(pop_and_push_replays);
     #endif
     }
   else {
     #if CAP_SAVE
-    dialog::addItem("save this plan", 's');
-    dialog::add_action([] {
-      curlev->plan_replays.emplace_back(plan_replay{new_replay_name(), curlev->plan});
-      save();
-      });
-
-    dialog::addItem("load a plan", 'l');
+    dialog::addItem("saved plans", 's');
     dialog::add_action(pop_and_push_replays);
     #endif
     }
@@ -621,6 +726,21 @@ void initialize() {
   param_i(nilrider_tempo, "nilrider_tempo");
   param_i(nilrider_shift, "nilrider_shift");
 
+  param_f(simulation_speed, "nilrider_simulation_speed")
+  -> editable(0.1, 5, 0, "Nil Rider simulation speed",
+      "If you want to go faster, make this higher.", 'z')
+  -> set_sets([] { dialog::bound_low(0); dialog::scaleLog(); });
+
+  param_f(ghost_repeat, "ghost_repeat")
+  -> editable(0.01, 999, 0, "ghost repeat period",
+      "will repeat ghosts every time interval (in seconds).", 'z')
+  -> set_sets([] { dialog::bound_low(0.01); dialog::scaleLog(); });
+
+  param_color(my_scheme.wheel1, "color:wheel1", true, my_scheme.wheel1)->editable("wheel color 1", "", 'w');
+  param_color(my_scheme.wheel2, "color:wheel2", true, my_scheme.wheel2)->editable("wheel color 2", "", 'x');
+  param_color(my_scheme.seat, "color:seat", true, my_scheme.seat)->editable("seat color", "", 'p');
+  param_color(my_scheme.seatpost, "color:seatpost", true, my_scheme.seatpost)->editable("seatpost color", "", 'o');
+
   rv_hook(hooks_frame, 100, frame);
   rv_hook(shmup::hooks_turn, 100, turn);
   rv_hook(hooks_resetGL, 100, cleanup_textures);
@@ -688,10 +808,16 @@ auto celldemo = arg::add3("-unilcycle", initialize) + arg::add3("-unilplan", [] 
       for(auto l: all_levels) if(appears(l->name, arg::args())) curlev = l;
       if(on) curlev->init();
       })
+    + arg::add3("-load-level", [] {
+      arg::shift(); load_level(arg::args(), true);
+      })
     + arg::add3("-simplemodel", [] {
       nisot::geodesic_movement = false;
       pmodel = mdPerspective;
       pconf.rotational_nil = 0;
+      })
+    + arg::add3("-ghost-all", [] {
+      curlev->load_all_ghosts();
       });
 
 auto hook0= addHook(hooks_configfile, 300, default_settings);

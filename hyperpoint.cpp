@@ -451,6 +451,14 @@ EX bool zero_d(int d, hyperpoint h) {
   return true;
   }
 
+/** inner product in the current geometry */
+
+EX ld geo_inner(const hyperpoint &h1, const hyperpoint &h2) {
+  ld res = 0;
+  for(int i=0; i<MDIM; i++) res += h1[i] * h2[i] * sig(i);
+  return res;
+  }
+
 /** this function returns approximate square of distance between two points
  *  (in the spherical analogy, this would be the distance in the 3D space,
  *  through the interior, not on the surface)
@@ -1108,16 +1116,32 @@ void inverse_error(const transmatrix& T) {
 
 /** inverse of a 3x3 matrix */
 EX transmatrix inverse3(const transmatrix& T) {
-  ld d = det(T);
+  ld d = det3(T);
   transmatrix T2;
   if(d == 0) {
-    inverse_error(T); 
+    inverse_error(T);
     return Id;
     }
-  
-  for(int i=0; i<3; i++) 
-  for(int j=0; j<3; j++) 
+
+  for(int i=0; i<3; i++)
+  for(int j=0; j<3; j++)
     T2[j][i] = (T[(i+1)%3][(j+1)%3] * T[(i+2)%3][(j+2)%3] - T[(i+1)%3][(j+2)%3] * T[(i+2)%3][(j+1)%3]) / d;
+  return T2;
+  }
+
+/** inverse of a 2x2 matrix */
+EX transmatrix inverse2(const transmatrix& T) {
+  ld d = det2(T);
+  if(d == 0) {
+    inverse_error(T);
+    return Id;
+    }
+
+  transmatrix T2 = Id;
+  T2[0][0] = T[1][1] / d;
+  T2[1][1] = T[0][0] / d;
+  T2[0][1] = -T[0][1] / d;
+  T2[1][0] = -T[1][0] / d;
   return T2;
   }
 

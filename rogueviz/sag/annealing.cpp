@@ -47,6 +47,8 @@ void saiter() {
     for(int ii=0; ii<s; ii++) sid2 = hrand_elt(neighbors[sid2]);
     }
   int t2 = allow_doubles ? -1 : sagnode[sid2];
+
+  if(fixed_position[t1] || (t2 >= 0 && fixed_position[t2])) return;
   
   sagnode[sid1] = -1; sagid[t1] = -1;
   sagnode[sid2] = -1; if(t2 >= 0) sagid[t2] = -1;
@@ -142,7 +144,7 @@ void dofullsa(ld satime) {
     
     if(t2 - tl > view_each * .98) {
       tl = t2;
-      println(hlog, format("it %12lld temp %6.4f [1/e at %13.6f] cost = %f ",
+      println(hlog, format("it %12lld temp %7.4f [1/e at %13.6f] cost = %f ",
         numiter, double(sag::temperature), (double) exp(sag::temperature),
         double(sag::cost)));
       }

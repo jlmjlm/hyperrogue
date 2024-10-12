@@ -22,6 +22,42 @@ EX bool return_false() { return false; }
 
 EX bool use_bool_dialog;
 
+/** set to true if a parameter was changed as a consequence of changing linked parameters */
+EX bool linked_consequence;
+
+EX void adjust_linked() {
+  indenter ind(2);
+  geom3::invalid = "";
+  dynamicval<bool> d(linked_consequence, true);
+  if(vid.tc_alpha < vid.tc_depth && vid.tc_alpha < vid.tc_camera) {
+    find_edit(&pconf.alpha)->set_cld(tan_auto(vid.depth) / tan_auto(vid.camera));
+    }
+  else if(vid.tc_depth < vid.tc_alpha && vid.tc_depth < vid.tc_camera) {
+    ld v = pconf.alpha * tan_auto(vid.camera);
+    if(hyperbolic && (v<1e-6-12 || v>1-1e-12)) {
+      geom3::invalid = XLAT("cannot adjust depth");
+      v = vid.camera;
+      }
+    else v = atan_auto(v);
+    find_edit(&vid.depth)->set_cld(v);
+    }
+  else {
+    ld v = tan_auto(vid.depth) / pconf.alpha;
+    if(hyperbolic && (v<1e-12-1 || v>1-1e-12)) {
+      geom3::invalid = XLAT("cannot adjust camera");
+      v = vid.depth;
+      }
+    else v = atan_auto(v);
+    find_edit(&vid.camera)->set_cld(v);
+    }
+  }
+
+EX void update_linked(int& t) {
+  if(linked_consequence) return;
+  t = ticks;
+  adjust_linked();
+  }
+
 EX string param_esc(string s);
 
 EX void non_editable_pre() { if(game_active) stop_game(); };
@@ -437,6 +473,7 @@ struct custom_parameter : public parameter {
   cld last_value, anim_value;
   function<void(key_type)> custom_viewer;
   function<cld()> custom_value;
+  function<void(cld)> custom_set_value;
   function<bool(void*)> custom_affect;
   function<void(const string&)> custom_load;
   function<string()> custom_save;
@@ -481,6 +518,7 @@ struct custom_parameter : public parameter {
     }
 
   virtual cld get_cld() override { return custom_value(); }
+  virtual void set_cld_raw(cld x) override { if(custom_set_value) return custom_set_value(x); }
   virtual string save() override { if(custom_save) return custom_save(); else return "not saveable"; }
   virtual bool dosave() override { if(custom_do_save) return custom_do_save(); else return false; }
   virtual void reset() override { if(custom_reset) custom_reset(); }
@@ -819,6 +857,7 @@ EX shared_ptr<custom_parameter> param_custom_ld(ld& val, const parameter_names& 
   u->last_value = dft;
   u->custom_viewer = menuitem;
   u->custom_value = [&val] () { return val; };
+  u->custom_set_value = [&val] (cld x) { val = real(x); };
   u->custom_affect = [&val] (void *v) { return &val == v; };
   u->custom_load = [&val] (const string& s) { val = parseld(s); };
   u->custom_save = [&val] { return fts(val, 10); };
@@ -946,6 +985,7 @@ EX string csnameid(int id) {
   if(id == 4 || id == 5) return XLAT("cat");
   if(id == 6 || id == 7) return XLAT("dog");
   if(id == 8 || id == 9) return XLATN("Familiar");
+  if(id == 10 || id == 11) return XLATN("spaceship");
   return XLAT("none");
   }
 
@@ -1078,6 +1118,10 @@ EX void initConfig() {
   -> editable("YASC codes", 'Y')
   -> help("YASC codes: Sides-Entity-Restrict-Threat-Wall");
 
+  param_b(display_semicasual, "semicasual", false)
+  -> editable("semicasual", 'S')
+  -> help("display save/load counts in exit screen");
+
   param_b(vid.relative_font, "relative_font", true)
   -> editable("set relative font size", 'r')
   -> help("Font size is set as a relation to screen size.")
@@ -1135,6 +1179,8 @@ EX void initConfig() {
 
   param_i(vid.faraway_highlight_color, "faraway_highlight_color", 50)
   -> editable(0, 100, 10, "faraway highlight color", "0 = monster color, 100 = red-light oscillation", 'c');
+
+  param_b(keybd_subdir_enabled, "keybd_subdir_enabled", 0)->editable("control the pushing direction with TAB", 'P')->help("If set, you control the off-hepetagon pushing direction with TAB. Otherwise, you control it by rotating the screen.");
 
   param_enum(glyphsortorder, parameter_names("glyph_sort", "glyph sort order"), glyphsortorder)
     ->editable({
@@ -1303,6 +1349,7 @@ EX void initConfig() {
 
   param_i(vid.monmode, "monster display mode", DEFAULT_MONMODE);
   param_i(vid.wallmode, "wall display mode", DEFAULT_WALLMODE);
+  param_b(zh_ascii, "chinese_ascii", false)->editable("Chinese ASCII", 'Z');
   param_i(vid.highlightmode, "highlightmode");
 
   param_b(vid.always3, "3D always", false)->switcher = geom3::switch_fpp;
@@ -1483,6 +1530,10 @@ EX void initConfig() {
   
 #if CAP_TEXTURE  
   param_b(texture::texture_aura, "texture-aura", false);
+
+  param_i(texture::raw_texture_opacity, "raw_texture_opacity", 32)
+  ->editable(0, 255, 16, "raw texture opacity", "", 'R')
+  ->set_sets([] { dialog::bound_low(0); dialog::bound_up(255); });
 #endif
 
   param_f(vid.smart_range_detail, "smart-range-detail", 8)
@@ -1850,7 +1901,7 @@ EX void saveConfig() {
   if(vid.tc_depth > vid.tc_camera) pt_depth++;
   if(vid.tc_depth < vid.tc_camera) pt_camera++;
   if(vid.tc_depth > vid.tc_alpha ) pt_depth++;
-  if(vid.tc_depth < vid.tc_alpha ) pt_alpha ++;
+  if(vid.tc_depth < vid.tc_alpha ) pt_alpha++;
   if(vid.tc_alpha > vid.tc_camera) pt_alpha++;
   if(vid.tc_alpha < vid.tc_camera) pt_camera++;
   vid.tc_alpha = pt_alpha;
@@ -2472,7 +2523,9 @@ EX void configureInterface() {
   add_edit(less_in_portrait);
 
   add_edit(display_yasc_codes);
+  if(casual) add_edit(display_semicasual);
   add_edit(vid.orbmode);
+  add_edit(zh_ascii);
 
   dialog::addSelItem(XLAT("draw crosshair"), crosshair_size > 0 ? fts(crosshair_size) : ONOFF(false), 'x');
   dialog::add_action([] () { 
@@ -2559,7 +2612,6 @@ EX void showJoyConfig() {
 #endif
 
 EX void projectionDialog() {
-  vid.tc_alpha = ticks;
   dialog::editNumber(vpconf.alpha, -5, 5, .1, 1,
     XLAT("projection distance"),
     XLAT("HyperRogue uses the Minkowski hyperboloid model internally. "
@@ -2588,6 +2640,7 @@ EX void projectionDialog() {
     dialog::addItem(sphere ? "towards orthographic" : "towards Gans model", 'T');
     dialog::add_action([] () { double d = 1.1; vpconf.alpha *= d; vpconf.scale *= d; dialog::get_ne().reset_str(); });
     };
+  dialog::get_di().reaction = [] { update_linked(vid.tc_alpha); };
   }
 
 EX void menuitem_projection_distance(key_type key) {
@@ -2770,10 +2823,10 @@ EX void edit_levellines(char c) {
     });
   }
 
-EX geom3::eSpatialEmbedding shown_spatial_embedding() {
+geom3::eSpatialEmbedding shown_spatial_embedding() {
   if(GDIM == 2) return geom3::seNone;
   return geom3::spatial_embedding;
-  }
+}
 
 EX bool in_tpp() { return pmodel == mdDisk && !models::camera_straight; }
 
@@ -3151,7 +3204,6 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     ->editable(-5, 5, .1, "eye level", "", 'E')
     ->set_extra([] {
       dialog::get_di().dialogflags |= sm::CENTER;
-      vid.tc_camera = ticks;
     
       dialog::addHelp(XLAT("In the FPP mode, the camera will be set at this altitude (before applying shifts)."));
 
@@ -3161,7 +3213,8 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
         vid.auto_eye = !vid.auto_eye;
         geom3::do_auto_eye();
         });
-      });
+      })
+    ->set_reaction([] { update_linked(vid.tc_camera); });
   
   param_b(vid.auto_eye, "auto-eyelevel", false);
 
@@ -3247,7 +3300,6 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   param_f(vid.depth, parameter_names("depth", "3D depth"), 1)
     ->editable(0, 5, .1, "Ground level below the plane", "", 'd')
     ->set_extra([] {
-        vid.tc_depth = ticks;
         help = XLAT(
           "Ground level is actually an equidistant surface, "
           "%1 absolute units below the plane P. "
@@ -3279,17 +3331,13 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
         dialog::addHelp(help);
         })
     ->set_reaction([] {
-        bool b = vid.tc_alpha < vid.tc_camera;
-        if(vid.tc_alpha >= vid.tc_depth) vid.tc_alpha = vid.depth - 1;
-        if(vid.tc_camera >= vid.tc_depth) vid.tc_camera = vid.depth - 1;
-        if(vid.tc_alpha == vid.tc_camera) (b ? vid.tc_alpha : vid.tc_camera)--;
+        update_linked(vid.tc_depth);
         geom3::apply_settings_light();
         });
   param_f(vid.camera, parameter_names("camera", "3D camera level"), 1)
     ->editable(0, 5, .1, "", "", 'c')
     ->modif([] (float_parameter* x) { x->menu_item_name = (GDIM == 2 ? "Camera level above the plane" : "Z shift"); })
     ->set_extra([] {    
-       vid.tc_camera = ticks;
        if(GDIM == 2)
        dialog::addHelp(XLAT(
          "Camera is placed %1 absolute units above a plane P in a three-dimensional "
@@ -3306,7 +3354,10 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
          dialog::addHelp(XLAT("Look from behind."));
        if(GDIM == 3 && pmodel == mdPerspective) 
          dialog::addBoolItem_action(XLAT("reduce if walls on the way"), vid.use_wall_radar, 'R');
-       });
+       })
+    ->set_reaction([] {
+      update_linked(vid.tc_camera);
+      });
   param_f(vid.wall_height, parameter_names("wall_height", "3D wall height"), .3)
     ->editable(0, 1, .1, "Height of walls", "", 'w')
     ->set_extra([] () {
@@ -3520,7 +3571,7 @@ EX void showCustomizeChar() {
     else if(uni == 'g') {
       cs.charid++;
       if(cs.charid == 2 && !princess::everSaved && !autocheat) cs.charid = 4;
-      cs.charid %= 10;
+      cs.charid %= 12;
       }
     else if(uni == 'p') vid.samegender = !vid.samegender;
     else if(uni == 's') switchcolor(cs.skincolor, cat ? haircolors : skincolors);

@@ -3,7 +3,7 @@
 
 #ifdef BRINGRIS
 
-#define CUSTOM_CAPTION "Bringris 1.6"
+#define CUSTOM_CAPTION "Bringris 2.0"
 
 #define MAXMDIM 4
 
@@ -47,6 +47,13 @@
 #endif
 
 #include "../hyper.h"
+
+#ifdef RVCOL
+namespace hr {
+  void rv_achievement(const string& name);
+  void rv_leaderboard(const string& name, int score);
+  }
+#endif
 
 #define solnil (nil || sol)
 
@@ -673,8 +680,30 @@ bool shape_conflict(cellwalker cw) {
   return false;
   }
 
+bool check_bshift(cellwalker c0, cellwalker c1) {
+  if(c0.at->type != 6) return false;
+  auto shape0 = build_from(piecelist[shape_id].code, c0);
+  auto shape1 = build_from(piecelist[shape_id].code, c1);
+  for(int i=0; i<isize(shape0); i++) {
+    if(isNeighbor(shape0[i].at, c0.at))
+    if(isNeighbor(shape1[i].at, c1.at))
+    if(shape0[i].at != shape1[i].at)
+    if(!isNeighbor(shape0[i].at, shape1[i].at)) {
+      cell *cfound = nullptr;
+      forCellEx(c, shape0[i].at) if(isNeighbor(c, shape1[i].at)) {
+        cfound = c;
+        }
+      if(!cfound) continue;
+      if(!cfound->wall) continue;
+      if(shape1[i].at->cmove(up_dir())->wall) return true;
+      }
+    }
+  return false;
+  }
+
 ld current_move_time_limit() {
-  return 50000 * pow(.9, completed) + 10000. / (1 + completed);
+  // return 50000 * pow(.9, completed) + 10000. / (1 + completed);
+  return 3500 * pow(.995, completed * isize(level));
   }
 
 int turn_animation = 500;
@@ -729,6 +758,8 @@ void new_piece() {
   if(shape_conflict(at)) {
     playSound(cwt.at, "die-bomberbird");
     state = tsGameover;
+    if(pro_game && max_piece == 4)
+      rv_leaderboard(bgeoms[bgeom].name, score);
     }
   else {
     draw_shape();
@@ -739,8 +770,6 @@ void new_piece() {
   }
 
 vector<int> by_level;
-
-bool expert = true;
 
 void find_lines() {
   by_level.clear();
@@ -758,7 +787,7 @@ void find_lines() {
   
   int points = 0;
   
-  if(expert) {
+  if(true) {
     for(int z=1; z<=well_size; z++) if(by_level[z-1] >= isize(level)) {
       points++;
       for(auto lev: level) {
@@ -796,9 +825,10 @@ void find_lines() {
   if(!to_disappear.empty()) {
     move_at = ticks + collect_animation;
     state = tsCollect;
-    score += 10000000. * points * (points+1.) / current_move_time_limit();
+    score += 100000. * points * (points+1.) / current_move_time_limit();
     completed += points;
     playSound(cwt.at, points == 1 ? "pickup-gold" : "orb-mind");
+    if(points == 4 && pro_game && max_piece == 4) rv_achievement("BRINGRISFOUR");
     }
   }
 
@@ -836,7 +866,7 @@ void fallen() {
   cubes += isize(piecelist[shape_id].code)+1;
   state = tsBetween;
   playSound(cwt.at, "closegate");
-  score += 20000000. / (current_move_time_limit() * 3 + ticks - move_started);
+  score += 200000. / (current_move_time_limit() * 3 + ticks - move_started);
   }
 
 void drop() {
@@ -849,11 +879,15 @@ void drop() {
     at = fall;
     draw_shape();
     }
-  move_at = ticks + current_move_time_limit();
   if(solnil) {
     pView = pView * currentmap->adj(cwt.at, down_dir());
     when_t = ticks + turn_animation;
     }
+  }
+
+void auto_drop() {
+  drop();
+  move_at = ticks + current_move_time_limit();
   }
 
 void fulldrop() {
@@ -871,6 +905,7 @@ void fulldrop() {
   // println(hlog, "dropped by ", no);
   fall = last;
   at = fall;
+  move_at = ticks + current_move_time_limit();
   draw_shape();
   if(!no) fallen();
   }
@@ -993,6 +1028,7 @@ void shift_block(int dir, bool camera_only) {
   
   if(camera_only || !shape_conflict(at1)) {
     // playSound(cwt.at, "hit-crush1");
+    if(check_bshift(at, at1)) rv_achievement("BSHIFT");
     at = at1;
     if(solnil) {
       pView = pView * currentmap->adj(cwt.at, nilmap(dir));
@@ -1234,7 +1270,7 @@ void draw_screen(int xstart, bool show_next) {
       disappear_lines();
     
     if(ticks >= move_at && state == tsFalling && pro_game) {
-      drop();
+      auto_drop();
       }
 
     View = pView;

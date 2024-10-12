@@ -1131,7 +1131,7 @@ LAND( 0xC00000, "Hell", laHell, ZERO, itHell, RESERVED,
     "A land filled with demons and molten sulphur. Abandon all hope ye who enter here!"
     )
   NATIVE((m == moLesser || m == moGreater) ? 2 : 0)
-  REQ(NUMBER(orbsUnlocked(), lands_for_hell(), XLAT("Finished lands required: %1 (collect %2 treasure)\n", "9", its(R10))))
+  REQ(NUMBER(orbsUnlocked(), lands_for_hell(), XLAT("Finished lands required: %1 (collect %2 treasure)\n", its(lands_for_hell()), its(R10))))
 
 LAND( 0x00FF00, "Cocytus", laCocytus, ZERO | LF_ICY, itSapphire, RESERVED,
     cocytushelp
@@ -1276,7 +1276,7 @@ LAND( 0x4040FF, "Crossroads III", laCrossroads3, ZERO, itHyperstone, RESERVED,
     "An alternate layout of the Crossroads. Great Walls cross here at right angles."
     )
   NATIVE(0)
-  REQ(NUMBER(orbsUnlocked(), lands_for_cr3(), XLAT("Finished lands required: %1 (collect %2 treasure)\n", "9", its(R10))))
+  REQ(NUMBER(orbsUnlocked(), lands_for_cr3(), XLAT("Finished lands required: %1 (collect %2 treasure)\n", its(lands_for_cr3()), its(R10))))
 
 LAND( 0x4040C0, "Sea Border", laOceanWall, ZERO | LF_TECHNICAL | LF_SEA, itNone, RESERVED, "Border between seas.")
   // REQAS(laOcean,)
@@ -1616,17 +1616,17 @@ WALL( '#', 0x00C000, "shrub",  waShrub, WF_WALL | WF_HIGHWALL | WF_STDTREE | WF_
   "A strange small tree that cannot be attacked with mundane weapons nor phased though. "
   "It can be vaulted over, though."
   )
-MONSTER('F', 0x60A060, "Giant Frog", moFrog, CF_HIGH_THREAT, RESERVED, moFrog, 
+MONSTER('F', 0x60A060, "Giant Frog", moFrog, CF_HIGH_THREAT | CF_FROG, RESERVED, moFrog,
   "At first, you are shocked by the agility of this frog. Such a large creature "
   "should not be able to jump that quickly!\n\n"
   "Then, you notice the green glow around its legs. This frog must be magical... "
   "it has sacrificed its swimming abilities for superfrog jumping powers."
   )
-MONSTER('F', 0xFFFF80, "Yellow Frog", moPhaser, CF_HIGH_THREAT, RESERVED, moPhaser, 
+MONSTER('F', 0xFFFF80, "Yellow Frog", moPhaser, CF_HIGH_THREAT | CF_FROG, RESERVED, moPhaser,
   "A slightly transparent yellow frog. It has mastered the magical power of phasing through solid "
   "obstacles such as rock."
   )
-MONSTER('F', 0x8080FF, "Blue Frog", moVaulter, CF_HIGH_THREAT, RESERVED, moVaulter, 
+MONSTER('F', 0x8080FF, "Blue Frog", moVaulter, CF_HIGH_THREAT | CF_FROG, RESERVED, moVaulter,
   "This frog is able to vault over the shrubs in the Frog Park, destroying the shrub in the process. "
   "While it can also vault over monsters, it will never hurt the other frogs!"
   )

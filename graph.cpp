@@ -26,6 +26,8 @@ EX int detaillevel = 0;
 
 EX bool first_cell_to_draw = true;
 
+EX bool zh_ascii = false;
+
 EX bool in_perspective() {
   return models::is_perspective(pconf.model);
   }
@@ -854,14 +856,33 @@ EX color_t orb_inner_color(eItem it) {
   return iinf[it].color;
   }
 
-EX void draw_ascii(const shiftmatrix& V, char glyph, color_t col, ld size) {
-  string s = s0 + glyph;
+EX void draw_ascii(const shiftmatrix& V, const string& s, color_t col, ld size, ld size2) {
   int id = isize(ptds);
   if(WDIM == 2 && GDIM == 3)
     queuestrn(V * lzpush(cgi.FLOOR - cgi.scalefactor * size / 4), size * mapfontscale / 100, s, darkenedby(col, darken), 0);
   else 
-    queuestrn(V, mapfontscale / 100, s, darkenedby(col, darken), GDIM == 3 ? 0 : 2);
+    queuestrn(V, size2 * mapfontscale / 100, s, darkenedby(col, darken), GDIM == 3 ? 0 : 2);
   while(id < isize(ptds)) ptds[id++]->prio = PPR::MONSTER_BODY;
+  }
+
+EX void draw_ascii(const shiftmatrix& V, char glyph, color_t col, ld size) {
+  draw_ascii(V, s0 + glyph, col, size, 1);
+  }
+
+EX void draw_ascii_or_zh(const shiftmatrix& V, char glyph, const string& name, color_t col, ld size, ld zh_size) {
+#if CAP_TRANS
+  if(zh_ascii) {
+    auto p = XLAT1_acc(name, 8);
+    if(p) {
+      string chinese = p;
+      chinese.resize(utfsize(chinese[0]));
+      dynamicval<fontdata*> df(cfont, cfont_chinese);
+      draw_ascii(V, chinese, col, size, zh_size);
+      return;
+      }
+    }
+#endif
+  draw_ascii(V, glyph, col, size);
   }
 
 EX void queue_goal_text(shiftpoint P1, ld sizemul, const string& s, color_t color) {
@@ -906,7 +927,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
   if(WDIM == 3 && c == centerover && in_perspective() && hdist0(tC0(V)) < cgi.orbsize * 0.25) return false;
 
   if(!mmitem || !CAP_SHAPES) {
-    draw_ascii(V, iinf[it].glyph, icol, 1);
+    draw_ascii_or_zh(V, iinf[it].glyph, iinf[it].name, icol, 1, 0.5);
     return true;
     }  
     
@@ -1274,7 +1295,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
     }
 
   else {
-    draw_ascii(V, xch, icol, 1);
+    draw_ascii_or_zh(V, xch, iinf[it].name, icol, 1, 0.5);
     }
 
   return true;
@@ -1293,7 +1314,7 @@ void humanoid_eyes(const shiftmatrix& V, color_t ecol, color_t hcol = skincolor)
 
 EX void drawTerraWarrior(const shiftmatrix& V, int t, int hp, double footphase) {
   if(!mmmon) {
-    draw_ascii(V, 'T', gradient(0x202020, 0xFFFFFF, 0, t, 6), 1.5);
+    draw_ascii_or_zh(V, 'T', minf[moTerraWarrior].name, gradient(0x202020, 0xFFFFFF, 0, t, 6), 1.5, 1);
     return;
     }
   ShadowV(V, cgi.shPBody);
@@ -1325,7 +1346,16 @@ EX void drawPlayer(eMonster m, cell *where, const shiftmatrix& V, color_t col, d
 
   if(mapeditor::drawplayer && !mapeditor::drawUserShape(V, mapeditor::sgPlayer, cs.charid, cs.skincolor, where)) {
   
-    if(cs.charid >= 8) {
+    if(cs.charid >= 10) {
+      ShadowV(V, cgi.shSpaceship);
+      queuepoly(VBODY, cgi.shSpaceshipBase, fc(150, cs.skincolor, 4));
+      queuepoly(VBODY, cgi.shSpaceshipCockpit, fc(150, cs.eyecolor, 4));
+      queuepoly(VBODY, cgi.shSpaceshipGun, fc(150, cs.dresscolor, 4));
+      queuepoly(VBODY, cgi.shSpaceshipEngine, fc(150, cs.haircolor, 4));
+      queuepoly(VBODY * lmirror(), cgi.shSpaceshipGun, fc(150, cs.dresscolor, 4));
+      queuepoly(VBODY * lmirror(), cgi.shSpaceshipEngine, fc(150, cs.haircolor, 4));
+      }
+    else if(cs.charid >= 8) {
       /* famililar */
       if(!mmspatial && !footphase) {
         if(stop) return;
@@ -1528,7 +1558,16 @@ void drawMimic(eMonster m, cell *where, const shiftmatrix& V, color_t col, doubl
   
   if(mapeditor::drawUserShape(V, mapeditor::sgPlayer, cs.charid, darkena(col, 0, 0x80), where)) return;
   
-  if(cs.charid >= 8) {
+  if(cs.charid >= 10) {
+    ShadowV(V, cgi.shSpaceship);
+    queuepoly(VBODY, cgi.shSpaceshipBase, darkena(col, 0, 0xC0));
+    queuepoly(VBODY, cgi.shSpaceshipCockpit, darkena(col, 0, 0xC0));
+    queuepoly(VBODY, cgi.shSpaceshipGun, darkena(col, 0, 0xC0));
+    queuepoly(VBODY, cgi.shSpaceshipEngine, darkena(col, 0, 0xC0));
+    queuepoly(VBODY * lmirror(), cgi.shSpaceshipGun, darkena(col, 0, 0xC0));
+    queuepoly(VBODY * lmirror(), cgi.shSpaceshipEngine, darkena(col, 0, 0xC0));
+    }
+  else if(cs.charid >= 8) {
     queuepoly(VABODY, cgi.shWolfBody, darkena(col, 0, 0xC0));
     ShadowV(V, cgi.shWolfBody);
 
@@ -1644,7 +1683,7 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
   #endif
 
   if(!mmmon || !CAP_SHAPES) {
-    draw_ascii(V1, xch, asciicol, 1.5);
+    draw_ascii_or_zh(V1, xch, minf[m].name, asciicol, 1.5, 1);
     return true;
     }
 
@@ -1672,6 +1711,11 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
       return true;
     
     case moBullet:
+      if(getcs().charid >= 10) {
+        ShadowV(V, cgi.shKnife);
+        queuepoly(VBODY, cgi.shMissile, getcs().swordcolor);
+        return true;
+        }
       ShadowV(V, cgi.shKnife);
       queuepoly(VBODY * spin270(), cgi.shKnife, getcs().swordcolor);
       return true;
@@ -2645,7 +2689,7 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
     }
 
   else
-    draw_ascii(V1, minf[m].glyph, asciicol, 1.5);
+    draw_ascii_or_zh(V1, minf[m].glyph, minf[m].name, asciicol, 1.5, 1);
   
   return true;
 #endif
@@ -3600,7 +3644,9 @@ void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
 
       if((c->type & 1) && (isStunnable(c->monst) || isPushable(c->wall))) {
         transmatrix Centered = rgpushxto0(unshift(tC0(cwtV)));
-        int sd = keybd_subdir ? 1 : -1;
+        //int sd = keybd_subdir ? 1 : -1;
+        int sd = md.subdir;
+        if(keybd_subdir_enabled) sd = keybd_subdir;
 
         transmatrix T = iso_inverse(Centered) * rgpushxto0(Centered * tC0(V)) * lrspintox(Centered*tC0(V)) * spin(-sd * M_PI/S7) * xpush(0.2);
         
@@ -3893,7 +3939,7 @@ EX void pushdown(cell *c, int& q, const shiftmatrix &V, double down, bool rezoom
   #if MAXMDIM >= 4
   if(GDIM == 3) {
     for(int i=q; i<isize(ptds); i++) {
-      auto pp = dynamic_cast<dqi_poly*> (&*ptds[q++]);
+      auto pp = ptds[q++]->as_poly();
       if(!pp) continue;
       auto& ptd = *pp;
       ptd.V = ptd.V * lzpush(+down);
@@ -3914,7 +3960,7 @@ EX void pushdown(cell *c, int& q, const shiftmatrix &V, double down, bool rezoom
     }
   
   while(q < isize(ptds)) {
-    auto pp = dynamic_cast<dqi_poly*> (&*ptds[q++]);
+    auto pp = ptds[q++]->as_poly();
     if(!pp) continue;
     auto& ptd = *pp;
 
@@ -4097,8 +4143,11 @@ EX color_t transcolor(cell *c, cell *c2, color_t wcol) {
   return 0;
   }
 
+EX bool no_darken = false;
+
 // how much should be the d-th wall darkened in 3D
 EX int get_darkval(cell *c, int d) {
+  if(no_darken) return 0;
   if(mhybrid) {
     return d >= c->type - 2 ? 4 : 0;
     }
@@ -4773,6 +4822,8 @@ EX bool should_draw_mouse_cursor() {
   }
 
 EX void drawMarkers() {
+
+  shmup::draw_collision_debug();
 
   if(!(cmode & sm::NORMAL)) return;
 
@@ -5962,7 +6013,7 @@ EX void drawscreen() {
   
   bool normal = cmode & sm::NORMAL;
   
-  if((havewhat&HF_BUG) && darken == 0 && normal) for(int k=0; k<3; k++)
+  if((havewhat&HF_BUG) && darken == 0 && normal) if(hive::bugcount[0] || hive::bugcount[1] || hive::bugcount[2]) for(int k=0; k<3; k++)
     displayfr(vid.xres/2 + vid.fsize * 5 * (k-1), vid.fsize*2,   2, vid.fsize, 
       its(hive::bugcount[k]), minf[moBug0+k].color, 8);
     
@@ -6063,6 +6114,7 @@ struct animation {
   transmatrix attackat;
   bool mirrored;
   eItem thrown_item; /** for thrown items */
+  eMonster thrown_monster; /** for thrown monsters */
   };
 
 // we need separate animation layers for Orb of Domination and Tentacle+Ghost,
@@ -6114,7 +6166,7 @@ EX void animateMovement(const movei& m, int layer) {
     a.mirrored = !a.mirrored;
   }
 
-EX void animate_item_throw(cell *from, cell *to, eItem it) {
+EX void animate_item_throw(cell *from, cell *to, eItem it, eMonster mo IS(moNone)) {
 
   bool steps = false;
   again:
@@ -6130,6 +6182,7 @@ EX void animate_item_throw(cell *from, cell *to, eItem it) {
   if(steps) {
     animation& a = animations[LAYER_THROW][to];
     a.thrown_item = it;
+    a.thrown_monster = mo;
     }
   }
 
@@ -6146,6 +6199,14 @@ EX void animateAttackOrHug(const movei& m, int layer, int phase, ld ratio, ld de
   }
 
 EX void animateAttack(const movei& m, int layer) {
+  animateAttackOrHug(m, layer, 1, 1/3., 0);
+  }
+
+EX void animateCorrectAttack(const movei& m, int layer, eMonster who) {
+  if(among(who, moPlayer, moMimic, moIllusion, moShadow) && getcs().charid >= 10) {
+    animate_item_throw(m.s, m.t, itNone, moBullet);
+    return;
+    }
   animateAttackOrHug(m, layer, 1, 1/3., 0);
   }
 

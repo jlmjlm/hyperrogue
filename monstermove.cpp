@@ -103,6 +103,13 @@ EX void moveEffect(const movei& mi, eMonster m) {
     animateMovement(mi.rev(), LAYER_BOAT);
     tortoise::move_baby(cf, ct);
     }
+
+  if(isFrog(m) && !isNeighbor(cf, ct)) {
+    forCellEx(c1, ct) if(c1->monst && !isFrog(c1->monst) && !isFriendly(c1->monst)) {
+      c1->stuntime = min(c1->stuntime + 2, 7);
+      checkStunKill(c1);
+      }
+    }
   
   #if CAP_COMPLEX2
   if(isDie(m) && mi.proper())
@@ -735,7 +742,7 @@ EX cell *moveNormal(cell *c, flagtype mf) {
       }
     else if(m2) {
       attackMonster(c2, AF_NORMAL | AF_MSG, m);
-      animateAttack(mi, LAYER_SMALL);
+      animateCorrectAttack(mi, LAYER_SMALL, m);
       if(m == moFlailer && m2 == moIllusion) 
         attackMonster(c, 0, m2);
       return c2;
@@ -1149,7 +1156,7 @@ EX void groupmove2(const movei& mi, eMonster movtype, flagtype mf) {
     if(!(mf & MF_NOATTACKS)) for(int j=0; j<c->type; j++) 
       if(c->move(j) && canAttack(c, c->monst, c->move(j), c->move(j)->monst, af)) {
         attackMonster(c->move(j), AF_NORMAL | AF_GETPLAYER | AF_MSG, c->monst);
-        animateAttack(movei(c, j), LAYER_SMALL);
+        animateCorrectAttack(movei(c, j), LAYER_SMALL, c->monst);
         onpath_mark(c);
         // XLATC eagle
         return;
@@ -1217,7 +1224,8 @@ EX void groupmove(eMonster movtype, flagtype mf) {
       }
       
     if(movtype == moEagle && c->monst == moNone && !isPlayerOn(c) && !bird_disruption(c)) {
-      cell *c2 = whirlwind::jumpFromWhereTo(c, false);
+      jumpdata jdata;
+      cell *c2 = whirlwind::jumpFromWhereTo(c, false, jdata);
       groupmove2(movei(c2, c, STRONGWIND), movtype, mf);
       }
     
@@ -1730,7 +1738,7 @@ EX void movegolems(flagtype flags) {
         else if((flags & AF_CRUSH) && !canAttack(c, m, c2, c2->monst, flags ^ AF_CRUSH ^ AF_MUSTKILL))
           markOrb(itOrbEmpathy), markOrb(itOrbSlaying);
         attackMonster(c2, flags | AF_MSG, m);
-        animateAttack(movei(c, dir), LAYER_SMALL);
+        animateCorrectAttack(movei(c, dir), LAYER_SMALL, m);
         spread_plague(c, c2, dir, m);
         produceGhost(c2, m2, m);
         sideAttack(c, dir, m, 0);
@@ -2050,6 +2058,13 @@ EX void movemonsters() {
 
   specialMoves();
 
+  DEBB(DF_TURN, ("jumpers"));
+  if(havewhat & HF_JUMP) {
+    groupmove(moFrog, 0);
+    groupmove(moVaulter, 0);
+    groupmove(moPhaser, 0);
+    }
+
   DEBB(DF_TURN, ("ghosts"));
   moveghosts();
     
@@ -2075,12 +2090,6 @@ EX void movemonsters() {
   if(havewhat & HF_EAGLES) groupmove(moEagle, MF_NOATTACKS | MF_ONLYEAGLE);
   DEBB(DF_TURN, ("eagles"));
   if(havewhat & HF_REPTILE) groupmove(moReptile, 0);
-  DEBB(DF_TURN, ("jumpers"));
-  if(havewhat & HF_JUMP) {
-    groupmove(moFrog, 0);
-    groupmove(moVaulter, 0);
-    groupmove(moPhaser, 0);
-    }
   DEBB(DF_TURN, ("air"));
   if(havewhat & HF_AIR) {
     airmap.clear();

@@ -8,14 +8,6 @@ cross_result findflat(shiftpoint h) {
   return cross0(current * rgpushxto0(h));
   }
 
-struct cell_to_draw {
-  cross_result center;
-  ld d;
-  cell *c;
-  ads_matrix V;
-  bool operator < (const cell_to_draw& c2) const { return d > c2.d; }
-  };
-
 void apply_duality(shiftmatrix& S) {
   if(use_duality == 1) {
     S.T = unshift(S);
@@ -97,30 +89,41 @@ void draw_game_cell(const cell_to_draw& cd) {
     color_t col = 
       t == wtSolid ? 0x603000FF :
       t == wtDestructible ? 0x301800FF :
-      0x181818FF;
+      t == wtBarrier ? 0xC0C0C0FF :
+      empty_color(c);
+
+    color_t out = t == wtNone ? empty_outline(c) : 0xFF;
 
     for(auto h: hlist) curvepoint(h.h);
     addaura(shiftless(cd.center.h), col >> 8, 0);
-    queuecurve(shiftless(Id), 0x101010FF, col, PPR::WALL);
+    queuecurve(shiftless(Id), out, col, PPR::WALL);
     }
 
   if(view_proper_times) {
     string str = hr::format(tformat, cd.center.shift / ads_time_unit);
-    queuestr(shiftless(rgpushxto0(cd.center.h)), .1, str, 0xFF4040, 8);
+    queuestr(shiftless(rgpushxto0(cd.center.h)), time_scale * ads_scale, str, 0xFF4040, 8);
     }
 
-  for(auto& r: ci.rocks) {
-    auto& rock = *r;
+  // need i-loop because new rocks can be created in handle_turret
+
+  for(int i=0; i<isize(ci.rocks); i++) {
+    auto& rock = *ci.rocks[i];
 
     if(!paused) {
-      if(rock.type == oRock && rock.expire < pdata.score) { rock.resource = rtNone; rock.col = rock_color[rtNone]; rock.expire = 999999; }
-      if(rock.type == oResource && rock.expire < pdata.score) { rock.resource = rtNone; rock.col = rsrc_color[rtNone]; rock.shape = rsrc_shape[rtNone]; rock.expire = 999999; }
+      if(rock.type == oRock && expired(rock.expire, pdata)) { rock.resource = rtNone; rock.col = rock_color[rtNone]; rock.expire.score = 999999; }
+      if(rock.type == oResource && expired(rock.expire, pdata)) { rock.resource = rtNone; rock.col = rsrc_color[rtNone]; rock.shape = rsrc_shape[rtNone]; rock.expire.score = 999999; }
       }
     
+    ld ang = 0;
+
+    ads_matrix M;
+
     hybrid::in_actual([&]{
       dynamicval<eGeometry> b(geometry, gTwistedProduct);
-      auto h = V * rock.at;
-      rock.pt_main = cross0(current * h);
+      M = V * rock.at;
+      rock.pt_main = cross0(current * M);
+      if(rock.type == oTurret) handle_turret(&rock, ang);
+      if(ang) M = M * spin(ang);
       });
     
     if(rock.pt_main.shift < rock.life_start || rock.pt_main.shift > rock.life_end) continue;
@@ -130,7 +133,7 @@ void draw_game_cell(const cell_to_draw& cd) {
     auto& shape = *rock.shape;
     for(int i=0; i<isize(shape); i += 2) {
       hybrid::in_actual([&]{
-        auto h = V * rock.at * twist::uxpush(shape[i] * ads_scale) * twist::uypush(shape[i+1] * ads_scale);
+        auto h = M * twist::uxpush(shape[i] * ads_scale) * twist::uypush(shape[i+1] * ads_scale);
         cross_result f = cross0(current * h);
         rock.pts.push_back(f);
         });
@@ -162,13 +165,14 @@ void draw_game_cell(const cell_to_draw& cd) {
       curvepoint(rock.pts[0].h);
       queuecurve(shiftless(Id),
         rock.type == oMissile ? missile_color :
+        rock.type == oTurretMissile ? 0xFF8000FF :
         rock.type == oParticle ? rock.col :
         0x000000FF, rock.col, obj_prio[rock.type]);
       }
 
     if(view_proper_times && rock.type != oParticle) {
       string str = hr::format(tformat, rock.pt_main.shift / ads_time_unit);
-      queuestr(shiftless(rgpushxto0(rock.pt_main.h)), .1, str, 0xFFFFFF, 8);
+      queuestr(shiftless(rgpushxto0(rock.pt_main.h)), time_scale * ads_scale, str, 0xFFFFFF, 8);
       }
     }
   
@@ -214,7 +218,7 @@ void draw_game_cell(const cell_to_draw& cd) {
 
     if(view_proper_times) {
       string str = hr::format(tformat, (cr.shift + rock.start) / ads_time_unit);
-      queuestr(shiftless(rgpushxto0(cr.h)), .1, str, 0xC0C0C0, 8);
+      queuestr(shiftless(rgpushxto0(cr.h)), time_scale * ads_scale, str, 0xC0C0C0, 8);
       }
     }
   
@@ -255,6 +259,7 @@ void view_footer() {
 
 void view_ads_game() {
   displayed.clear();
+  cds_last = std::move(cds); cds.clear();
   
   bool hv = mhybrid;
 
@@ -315,10 +320,15 @@ void view_ads_game() {
       });
     
     int i = 0;
+    ld lastd = -10;
+
     while(!dq.empty()) {
 
-      i++; if(i > draw_per_frame) break;
+      i++;
       auto& cd = dq.top();
+      if(i > draw_per_frame && cd.d > lastd + 1e-4) break;
+      lastd = cd.d;
+      cds[cd.c] = cd;
       draw_game_cell(cd);
 
       cell *c = cd.c;
@@ -351,14 +361,9 @@ void view_ads_game() {
 
       if(view_proper_times) {
         string str = hr::format(tformat, ship_pt / ads_time_unit);
-        queuestr(shiftless(Id), .1, str, 0xFFFFFF, 8);
+        queuestr(shiftless(Id), time_scale * ads_scale, str, 0xFFFFFF, 8);
         }
-      }
-    
-    if(paused && view_proper_times) {
-      string str = hr::format(tformat, view_pt / ads_time_unit);
-      queuestr(shiftless(Id), .1, str, 0xFFFF00, 8);
-      }
+      }    
     }
 
   copyright_shown = "";

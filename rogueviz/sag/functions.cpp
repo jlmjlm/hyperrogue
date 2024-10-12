@@ -45,13 +45,11 @@ double costat(int vid, int sid) {
       }
 
     case smMatch: {
-      vertexdata& vd = vdata[vid];
-      for(int j=0; j<isize(vd.edges); j++) {
-        edgeinfo *ei = vd.edges[j].second;
-        int t2 = vd.edges[j].first;
+      for(auto& e: edge_weights[vid]) {
+        auto t2 = e.first;
         if(sagid[t2] != -1) {
           ld cdist = sagdist[sid][sagid[t2]];
-          ld expect = match_a / ei->weight2 + match_b;
+          ld expect = match_a / e.second + match_b;
           ld dist = cdist - expect;
           cost += dist * dist;
           }
@@ -60,11 +58,9 @@ double costat(int vid, int sid) {
       }
 
     case smClosest: {
-      vertexdata& vd = vdata[vid];
-      for(int j=0; j<isize(vd.edges); j++) {
-        edgeinfo *ei = vd.edges[j].second;
-        int t2 = vd.edges[j].first;
-        if(sagid[t2] != -1) cost += sagdist[sid][sagid[t2]] * ei->weight2;
+      for(auto& e: edge_weights[vid]) {
+        auto t2 = e.first;
+        if(sagid[t2] != -1) cost += sagdist[sid][sagid[t2]] * e.second;
         }
       
       if(!hubval.empty()) {
@@ -246,9 +242,23 @@ pair<ld, ld> compute_mAP() {
   return make_pair(maprank / DN, meanrank / tgood);
   }
 
+ld kendall;
+void compute_kendall() {
+  compute_cost(); println(hlog, "cost = ", cost);
+  vector<vector<ld> > weights;
+  int DN = isize(sagid);
+  weights.resize(DN);
+  for(int i=0; i<DN; i++) weights[i].resize(DN, 0);
+  for(auto& e: sagedges) weights[e.i][e.j] += e.weight2, weights[e.j][e.i] += e.weight2;
+  vector<pair<int, ld>> kdata;
+  for(int i=0; i<DN; i++) for(int j=0; j<i; j++) kdata.emplace_back(sagdist[sagid[i]][sagid[j]], -weights[i][j]);
+  kendall = stats::kendall(kdata);
+  }
+
 void prepare_method() {
   if(method == smLogistic) compute_loglik_tab();
   optimize_sag_loglik_auto();
+  if(method == smClosest) compute_cost();
   }
 
 bool known_pairs = false;
@@ -273,6 +283,11 @@ int function_read_args() {
 
   else if(argis("-sagrt-auto")) {
     compute_auto_rt();
+    }
+
+  else if(argis("-sag-kendall")) {
+    compute_kendall();
+    println(hlog, "kendall = ", kendall);
     }
 
   else if(argis("-sag-method-closest")) {  

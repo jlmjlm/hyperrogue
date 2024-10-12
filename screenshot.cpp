@@ -502,7 +502,7 @@ EX always_false in;
   EX void render() {
     #if MAXMDIM >= 4
     for(auto& p: ptds) {
-      auto p2 = dynamic_cast<dqi_poly*>(&*p);
+      auto p2 = p->as_poly();
       if(p2)
         prepare(*p2);
       }
@@ -524,7 +524,7 @@ EX always_false in;
     #endif
     
     for(auto& p: ptds) {
-      auto p2 = dynamic_cast<dqi_poly*>(&*p);
+      auto p2 = p->as_poly();
       if(p2)
         polygon(*p2);
       }
@@ -1392,10 +1392,13 @@ EX hookset<void(int, int)> hooks_record_anim;
 
 EX int record_frame_id = -1;
 
+EX bool recording_video;
+
 EX bool record_animation_of(reaction_t content) {
   lastticks = 0;
   ticks = 0;
   int oldturn = -1;
+  dynamicval<bool> rv(recording_video, true);
   for(int i=0; i<noframes; i++) {
     record_frame_id = i;
     if(i < min_frame || i > max_frame) continue;

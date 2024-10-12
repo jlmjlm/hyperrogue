@@ -198,8 +198,7 @@ struct rock_generator {
       ld alpha = rand_range(0, TAU);
       cshift += rand_range(0.5, 1) * (1 + cshift / 10);
       auto r = add(spin(alpha) * cspin(0, 2, step) * spin90() * lorentz(0, 3, rapidity));
-      eResourceType rt = eResourceType(2 + rand() % 4);
-      if(rt == rtGold) rt = rtHull;
+      eResourceType rt = eResourceType(1 + rand() % 4);
       r->type = oResource;
       r->resource = rt;
       r->shape = rsrc_shape[rt];
@@ -236,8 +235,8 @@ void init_ds_game() {
   /* also create shape_disk */
   shape_disk.clear();
   for(int d=0; d<=360; d += 15) {
-    shape_disk.push_back(sin(d*degree) * 0.1 * ds_scale);
-    shape_disk.push_back(cos(d*degree) * 0.1 * ds_scale);
+    shape_disk.push_back(sin(d*degree) * 0.1);
+    shape_disk.push_back(cos(d*degree) * 0.1);
     }
 
   rockgen.cshift += 2;
@@ -586,7 +585,7 @@ void view_ds_game() {
         ld t = rock.pt_main.shift;
         if(rock.type == oMainRock) t += current.shift;
         string str = hr::format(tformat, t / ds_time_unit);
-        queuestr(shiftless(sphereflip * rgpushxto0(rock.pt_main.h)), .1, str, 0xFFFF00, 8);
+        queuestr(shiftless(sphereflip * rgpushxto0(rock.pt_main.h)), time_scale * ds_scale, str, 0xFFFF00, 8);
         }
       
       if(rock.pt_main.h[2] > 0.1 && rock.life_end == HUGE_VAL) {
@@ -639,7 +638,7 @@ void view_ds_game() {
 
       if(view_proper_times) {
         string str = hr::format(tformat, (cr.shift + ss.start) / ds_time_unit);
-        queuestr(shiftless(sphereflip * rgpushxto0(cr.h)), .1, str, 0xC0C0C0, 8);
+        queuestr(shiftless(sphereflip * rgpushxto0(cr.h)), time_scale * ds_scale, str, 0xC0C0C0, 8);
         }
       }
 
@@ -665,15 +664,10 @@ void view_ds_game() {
 
       if(view_proper_times) {
         string str = hr::format(tformat, ship_pt / ds_time_unit);
-        queuestr(shiftless(sphereflip), .1, str, 0xFFFFFF, 8);
+        queuestr(shiftless(sphereflip), time_scale * ds_scale, str, 0xFFFFFF, 8);
         }
       }
     
-    if(paused && view_proper_times) {
-      string str = hr::format(tformat, view_pt / ds_time_unit);
-      queuestr(shiftless(sphereflip), .1, str, 0xFFFF00, 8);
-      }
-
     if(paused && !game_over && !in_replay && !hv && !which_cross) {
       vector<hyperpoint> pts;
       int ok = 0, bad = 0;
@@ -713,6 +707,7 @@ void ds_restart() {
 
   rocks.clear();
   history.clear();
+  displayed.clear();
   init_ds_game();
   reset_textures();
   pick_textures();
@@ -744,6 +739,7 @@ void run_ds_game() {
 void add_ds_cleanup() {
   rogueviz::on_cleanup_or_next([] {
     main_rock = nullptr;
+    displayed.clear();
     });
   }
 

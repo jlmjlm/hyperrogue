@@ -609,6 +609,31 @@ EX hyperpoint hyperboloid_form(hyperpoint ret) {
   return ret;
   }
 
+EX void product_projection(hyperpoint H, hyperpoint& ret, eModel proj) {
+  ld zlev = zlevel(H);
+  H /= exp(zlev);
+  H = space_to_perspective(H);
+  H[1] += 1;
+  double rad = sqhypot_d(2, H);
+  H /= rad;
+  H[1] -= 0.5;
+  H[1] = -H[1];
+  H[2] = 0; H[3] = 1; ret = H;
+  tie(H[1], H[2]) = make_pair( H[1] * cos(zlev), H[1] * sin(zlev) );
+
+  if(proj == mdDisk) {
+    H[1] = -H[1];
+    H[1] += 0.5;
+    rad = sqhypot_d(3, H);
+    H[0] /= rad; H[1] /= rad; H[2] /= rad;
+    H[1] -= 1;
+    }
+
+  H[3] = 1;
+
+  ret = NLP * H;
+  }
+
 EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
 
   hyperpoint H = H_orig.h;
@@ -687,6 +712,10 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       }
     
     case mdDisk: {
+      if(mproduct && pconf.alpha == 1) {
+        product_projection(H, ret, mdDisk);
+        break;
+        }
       if(nonisotropic) {
         ret = lp_apply(inverse_exp(H_orig, pNORMAL | pfNO_DISTANCE));
         ld w;
@@ -740,6 +769,10 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       }
     
     case mdHalfplane: {
+      if(mproduct) {
+        product_projection(H, ret, mdHalfplane);
+        break;
+        }
       if(sphere && vrhr::rendering()) {
         vr_sphere(ret, H, md);
         return;
@@ -2029,6 +2062,7 @@ void hrmap_standard::draw_at(cell *at, const shiftmatrix& where) {
   }
 
 EX bool has_fixed_yz() {
+  if(walking::on) return false;
   return (embedded_plane || mhybrid || nil || (euclid && WDIM == 3) || sol || nih || (cgflags & qSTRETCHABLE) || (hyperbolic && bt::in()));
   }
 
@@ -2048,7 +2082,7 @@ EX hyperpoint vertical_vector() {
   if(mproduct && vid.fixed_yz) {
     return get_view_orientation() * lztangent(1);
     }
-  if(((cgflags & qSTRETCHABLE) || (mtwisted && sphere)) && vid.fixed_yz) {
+  if(((cgflags & qSTRETCHABLE) || mtwisted) && vid.fixed_yz) {
     return stretch::itranslate(View * C0) * View * lztangent(1);
     }
   if((nil || (euclid && GDIM == 3) || sol || nih) && vid.fixed_yz) {
@@ -3280,6 +3314,12 @@ EX bool do_draw(cell *c, const shiftmatrix& T) {
   if(h) return h > 0;
 
   if(WDIM == 3) {
+
+    if(models::conformal_product_model()) {
+      ld z = zlevel(T.T * C0);
+      if(z > M_PI + 0.01 || z <= 0.01 - M_PI) return false;
+      }
+
     // do not care about cells outside of the track
     if(GDIM == 3 && racing::on && c->land == laMemory && cells_drawn >= S7+1) return false;
 

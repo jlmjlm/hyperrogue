@@ -793,6 +793,10 @@ EX namespace reg3 {
       int id = local_id.at(c).first;
       return move_sequences[id][i];
       }
+
+    int pattern_value(cell *c) override {
+      return local_id[c].first;
+      }
     };
 
   struct hrmap_quotient3 : hrmap_closed3 { };
@@ -1752,6 +1756,10 @@ EX namespace reg3 {
       extra_origins.push_back(created);
       return get_cell_at(created, fv);
       }
+
+    int pattern_value(cell *c) override {
+      return c->master->fieldval;
+      }
     };
 
   EX int get_aid(cell *c) {
@@ -2034,54 +2042,19 @@ EX namespace reg3 {
       }
     };
 
-  struct hrmap_h3_rule : hrmap_h3_abstract, ruleset {
-
-    heptagon *origin;
+  struct emerald_matcher {
     reg3::hrmap_quotient3 *emerald_map;
 
-    hrmap_quotient3 *qmap() override { return quotient_map; }
-
-    hrmap_h3_rule() {
-
-      println(hlog, "generating hrmap_h3_rule");
-
-      load_ruleset_new(get_rule_filename(false));
-      quotient_map = gen_quotient_map(minimize_quotient_maps, fp);
-      find_mappings();
-      
-      origin = init_heptagon(S7);
-      heptagon& h = *origin;
-      h.s = hsOrigin;
-      h.fiftyval = root[0];
-      if(PURE) h.c7 = newCell(S7, origin);
-      
-      emerald_map = gen_quotient_map(false, currfp);
-
-      h.emeraldval = 0;
-      
-      if(!PURE) get_cell_at(origin, 0);
-      }
-    
-    int connection(int fv, int d) override {
-      return qmap()->allh[fv]->move(d)->fieldval;
-      }
-
-    heptagon *getOrigin() override {
-      return origin;
-      }
-    
-    #define DEB 0
-    
-    heptagon *counterpart(heptagon *h) {
-      return quotient_map->allh[h->fieldval];
-      }
-    
+    int crsize;
     vector<short> evmemo;
     
-    void find_emeraldval(heptagon *target, heptagon *parent, int d) {
+    emerald_matcher() { crsize = 1; }
+
+    void find_emeraldval(heptagon *target, heptagon *parent, int d, hrmap_quotient3* qmap, int parent_fieldval) {
       generate_cellrotations();
       auto& cr = cgi.cellrotations;
       if(evmemo.empty()) {
+        crsize = isize(cr);
         println(hlog, "starting");
         map<int, int> matrix_hashtable;
         auto matrix_hash = [] (const transmatrix& M) {
@@ -2100,13 +2073,13 @@ EX namespace reg3 {
         
         for(int eid=0; eid<isize(emerald_map->allh); eid++)
         for(int k0=0; k0<isize(cr); k0++)
-        for(int fv=0; fv<isize(quotient_map->allh); fv++) {
+        for(int fv=0; fv<isize(qmap->allh); fv++) {
           for(int d=0; d<S7; d++) {
             int ed = cr[k0].mapping[d];
             auto cpart = emerald_map->allh[eid];
             int eid1 = emerald_map->allh[eid]->move(ed)->fieldval;
             const transmatrix& X = cr[cr[k0].inverse_id].M;
-            transmatrix U = quotient_map->iadj(quotient_map->allh[fv], d) * X * emerald_map->adj(cpart, ed);
+            transmatrix U = qmap->iadj(qmap->allh[fv], d) * X * emerald_map->adj(cpart, ed);
             int k1 = matrix_hashtable[matrix_hash(U)];
             /* for(int ik1=0; ik1<isize(cr); ik1++)  {
               auto& mX1 = cr[ik1].M;
@@ -2118,10 +2091,53 @@ EX namespace reg3 {
         println(hlog, "generated ", isize(evmemo));
         }
       int memo_id = parent->emeraldval;
-      memo_id = memo_id * isize(quotient_map->allh) + parent->fieldval;
+      memo_id = memo_id * isize(qmap->allh) + parent_fieldval;
       memo_id = memo_id * S7 + d;
       target->emeraldval = evmemo[memo_id];
-      target->zebraval = emerald_map->allh[target->emeraldval / isize(cr)]->zebraval;
+      target->zebraval = emerald_map->allh[target->emeraldval / crsize]->zebraval;
+      }
+
+    };
+
+  struct hrmap_h3_rule : hrmap_h3_abstract, ruleset, emerald_matcher {
+
+    heptagon *origin;
+
+    hrmap_quotient3 *qmap() override { return quotient_map; }
+
+    hrmap_h3_rule() {
+
+      println(hlog, "generating hrmap_h3_rule");
+
+      load_ruleset_new(get_rule_filename(false));
+      quotient_map = gen_quotient_map(minimize_quotient_maps, fp);
+      find_mappings();
+
+      origin = init_heptagon(S7);
+      heptagon& h = *origin;
+      h.s = hsOrigin;
+      h.fiftyval = root[0];
+      if(PURE) h.c7 = newCell(S7, origin);
+
+      emerald_map = gen_quotient_map(false, currfp);
+
+      h.emeraldval = 0;
+
+      if(!PURE) get_cell_at(origin, 0);
+      }
+
+    int connection(int fv, int d) override {
+      return qmap()->allh[fv]->move(d)->fieldval;
+      }
+
+    heptagon *getOrigin() override {
+      return origin;
+      }
+
+    #define DEB 0
+
+    heptagon *counterpart(heptagon *h) {
+      return quotient_map->allh[h->fieldval];
       }
 
     heptagon *create_step(heptagon *parent, int d) override {
@@ -2154,7 +2170,7 @@ EX namespace reg3 {
         res->fieldval = fv;
         res->distance = parent->distance + 1;
         res->fiftyval = id1;
-        find_emeraldval(res, parent, d);
+        find_emeraldval(res, parent, d, quotient_map, parent->fieldval);
         // res->c.connect(d2, parent, d, false);
         }
       
@@ -2168,7 +2184,7 @@ EX namespace reg3 {
         for(auto s: nonlooping_earlier_states[address{pfv, id}]) possible.push_back(s.second);
         id1 = hrand_elt(possible, 0);
         res->fiftyval = id1;
-        find_emeraldval(res, parent, d);
+        find_emeraldval(res, parent, d, quotient_map, parent->fieldval);
         }
 
       else {
@@ -2205,11 +2221,20 @@ EX namespace reg3 {
     bool link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) override {
       return ruleset_link_alt(h, alt, firststate, dir);
       }
+
+    int pattern_value(cell *c) override {
+      int id = c->master->emeraldval / crsize;
+      if(!PURE) {
+        id <<= 16;
+        id |= cell_id[c];
+        }
+      return id;
+      }
     };
 
   vector<heptspin> starts = {nullptr};
 
-  struct hrmap_h3_subrule : hrmap, ruleset {
+  struct hrmap_h3_subrule : hrmap, ruleset, emerald_matcher {
 
     heptagon *origin;
     hrmap_quotient3 *quotient_map;
@@ -2274,10 +2299,31 @@ EX namespace reg3 {
       h.fieldval = 0;
       h.fiftyval = root[0];
       h.c7 = newCell(t, origin);      
+
+      if(1) {
+        dynamicval<eVariation> dv(variation, eVariation::pure);
+        dynamicval<geometry_information*> dc(cgip, cgip);
+        check_cgi(); cgi.require_basics();
+        emerald_map = gen_quotient_map(false, currfp);
+        h.emeraldval = 0;
+        }
       }
 
     heptagon *getOrigin() override {
       return origin;
+      }
+
+    void find_emeraldval_path(heptagon *res, heptagon *parent, int d, cell *cpart) {
+      auto& mseq = quotient_map->get_move_seq(cpart, d);
+      res->emeraldval = parent->emeraldval;
+      res->zebraval = parent->zebraval;
+      heptagon *h = cpart->master;
+      for(auto m: mseq) {
+        find_emeraldval(res, res, m, quotient_map, h->fieldval);
+        h = h->move(m);
+        }
+
+      hassert(h == quotient_map->acells[res->fieldval]->master);
       }
 
     heptagon *create_step(heptagon *parent, int d) override {
@@ -2298,8 +2344,9 @@ EX namespace reg3 {
 
       int qid = parent->fieldval;
 
-      int d2 = quotient_map->acells[qid]->c.spin(d);
-      int qid2 = quotient_map->local_id[quotient_map->acells[qid]->move(d)].first;
+      auto cpart = quotient_map->acells[qid];
+      int d2 = cpart->c.spin(d);
+      int qid2 = quotient_map->local_id[cpart->move(d)].first;
 
       heptagon *res = nullptr;
 
@@ -2314,6 +2361,7 @@ EX namespace reg3 {
         res->fieldval = qid2;
         res->distance = parent->distance + 1;
         res->fiftyval = id1;
+        find_emeraldval_path(res, parent, d, cpart);
         }
 
       else if(other[pos] == ('A' + d) && other[pos+1] == ',') {
@@ -2328,6 +2376,7 @@ EX namespace reg3 {
         res->fieldval = qid2;
         res->distance = parent->distance - 1;
         res->fiftyval = id1;
+        find_emeraldval_path(res, parent, d, cpart);
         }
 
       else {
@@ -2463,6 +2512,15 @@ EX namespace reg3 {
           }
         println(f);
         }
+      }
+
+    int pattern_value(cell *c) override {
+      int id = c->master->emeraldval / crsize;
+      if(!PURE) {
+        id <<= 16;
+        id |= quotient_map->local_id[quotient_map->acells[c->master->fieldval]].second;
+        }
+      return id;
       }
     };
 
