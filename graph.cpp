@@ -3612,7 +3612,7 @@ EX transmatrix applyDowndir(cell *c, const cellfunction& cf) {
   return ddspin180(c, patterns::downdir(c, cf));
   }
 
-EX bool keybd_subdir;
+//EX bool keybd_subdir;
 
 void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
   if(viewdists) return;
