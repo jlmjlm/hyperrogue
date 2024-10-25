@@ -1553,12 +1553,14 @@ EX namespace ccolor {
   #define CCO [] (cell *c, data& cco) -> color_t
 
   bool is_mirrored(cell *c) {
+    #if CAP_ARCM
     if(arcm::in()) {
       int id = arcm::id_of(c->master);
       int tid = arcm::current.tilegroup[id];
       int tid2 = arcm::current.tilegroup[id^1];
       return (id&1) && (tid != tid2);
       }
+    #endif
     if(arb::in()) {
       int id = shvid(c);
       auto& sh = arb::current.shapes[id];
@@ -1668,6 +1670,7 @@ EX namespace ccolor {
     CCO { return cco.ctab[patterns::sevenval(c)]; },
     {0xC00000, 0xC08000, 0xC0C000, 0x00C000, 0xC0C0, 0x00C0, 0xC000C0});
 
+#if CAP_CRYSTAL
   EX data crystal_colors = data("Crystal coordinates", [] { return cryst; },
     CCO { return crystal::colorize(c, 'K'); }, {});
 
@@ -1682,6 +1685,7 @@ EX namespace ccolor {
 
   EX data crystal_diagonal = data("Crystal diagonal", [] { return cryst; },
     CCO { return crystal::colorize(c, '/'); }, {});
+#endif
 
   EX data nil_penrose = data("Nil staircase", [] { return nil; },
     CCO { return nilv::colorize(c, '/'); }, {});

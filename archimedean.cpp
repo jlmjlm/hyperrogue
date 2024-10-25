@@ -7,6 +7,9 @@
  *  These are tilings available in the 'Archimedean' option in Geometry Experiments; simpler Archimedean tilings are defined in other files.
  */
 
+#if !ARCHIMEDEAN_CPP__
+#define ARCHIMEDEAN_CPP__ 1
+
 #include "hyper.h"
 namespace hr {
 
@@ -1650,3 +1653,5 @@ EX map<gp::loc, cdata>& get_cdata() { return ((arcm::hrmap_archimedean*) (curren
 EX }
 
 }
+
+#endif
