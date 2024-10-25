@@ -19,11 +19,11 @@
 #define CAP_SAVE 0
 #define CAP_TRANS 0
 
-#include "../../archimedean.cpp" // JLM
+//#include "../../archimedean.cpp" // JLM
 #ifdef BWEB
 #include "../../hyperweb.cpp"
 #else
-#include "../../hyper.cpp"
+//#include "../../hyper.cpp"
 #endif
 #include "../simple-impossible.cpp"
 //#include "../rogueviz.cpp"

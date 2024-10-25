@@ -5,6 +5,7 @@
  *  \brief Yendor Quest/Challenge, Pure Tactics Mode, Peace Mode
  */
 
+#if CAP_SAVE
 #include "hyper.h"
 namespace hr {
 
@@ -1489,7 +1490,9 @@ void mode_screen_for_current() {
 
   dialog::addBreak(100);
 
+  #if CAP_SAVE
   dialog::addSelItem(XLAT("scores recorded"), its(qty_scores_for[mc]), 's');
+  #endif
   dialog::add_action([] { modecode(); scores::load(); scores::which_mode = current_modecode; });
 
   dialog::addSelItem(XLAT("Yendor Challenge"), its(yendor::compute_tscore(mc)), 'y');
@@ -1550,6 +1553,7 @@ EX bool include_unused_modes;
 
 EX string mode_to_search;
 
+#if CAP_SAVE
 int gscore(modecode_t xc) { if(!qty_scores_for.count(xc)) return 0; return qty_scores_for[xc]; }
 int gscoreall(modecode_t xc) { return gscore(xc) * 100 + tactic::compute_tscore(xc) * 10 + yendor::compute_tscore(xc); }
 string gdisplay(modecode_t xc) {
@@ -1558,6 +1562,7 @@ string gdisplay(modecode_t xc) {
   if(mode_description_of.count(xc)) return out + mode_description_of[xc];
   else return out + "(mode " + its(xc) + ")";
   }
+#endif
 
 EX vector<modecode_t> mode_list;
 EX map<modecode_t, string> modename;
@@ -1613,9 +1618,11 @@ EX void list_saved_custom_modes() {
 
   for(auto m: mode_list) {
     string out;
+    #if CAP_SAVE
     if(qty_scores_for.count(m)) out += XLAT(" scores: %1", its(qty_scores_for[m]));
     if(yendor::bestscore.count(m)) out = XLAT(" Yendor: %1", its(yendor::compute_tscore(m)));
     if(tactic::recordsum.count(m)) out += XLAT(" tactic: %1", its(tactic::compute_tscore(m)));
+    #endif
     if(out == "") { unused++; if(!include_unused_modes) continue; }
     else out = out.substr(1);
     if(m == current_mc) mode_description_of[m] = mode_description1();
@@ -1729,3 +1736,4 @@ int read_mode_args() {
 auto ah = addHook(hooks_args, 0, read_mode_args);
 #endif
 }
+#endif
