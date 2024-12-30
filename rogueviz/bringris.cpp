@@ -1,9 +1,11 @@
 // non-Euclidean falling block game, implemented using the HyperRogue engine
 // Copyright (C) 2011-2021 Zeno Rogue, see 'hyper.cpp' for details
 
+#define BRINGRIS_VER "2.0"
+
 #ifdef BRINGRIS
 
-#define CUSTOM_CAPTION "Bringris 2.0"
+#define CUSTOM_CAPTION "Bringris " BRINGRIS_VER
 
 #define MAXMDIM 4
 
@@ -78,8 +80,11 @@ struct bgeometry {
   string name;
   string cap;
   flagtype flags;
+  int stars, stars_needed, default_max_piece;
   reaction_t create;
   };
+
+bool stars_enabled = true;
 
 enum eBringrisMove { bmDown, bmLeft, bmUp, bmRight, bmTurnLeft, bmTurnRight, bmDrop, bmFullDrop, bmPause, bmNothing, bmLast };
 
@@ -93,7 +98,6 @@ int lti;
 
 int bgeom = 0;
 
-int max_piece;
 bool rotate_allowed = false;
 
 bool in_bringris;
@@ -114,9 +118,6 @@ vector<cell*> out_level;
 
 map<cell*, int> center_distance;
 
-bool pro_game;
-
-int well_size = 10;
 int camera = 3;
 
 int facing_mod = 0;
@@ -130,13 +131,23 @@ cellwalker at;
 int move_started;
 int move_at;
 
-int completed;
-int bricks, cubes;
-
-ld score;
-
 bool paused;
 bool explore;
+
+struct gamedata {
+  string bgeom_name;
+  string myname;
+  string timerstart, timerend;
+  int max_piece;
+  bool pro_game;
+  ld score;
+  int bricks, completed, cubes, well_size, levelsize, seconds;
+  vector<string> lmap;
+  auto sorter() { static double err = -1; return tie(pro_game ? score : err, completed, bricks, cubes, seconds); }
+  };
+
+gamedata cur;
+vector<gamedata> allsaves;
 
 enum eState {
   tsPreGame, tsFalling, tsBetween, tsCollect, tsGameover
@@ -161,8 +172,13 @@ cell *shift_block_target(int dir);
 void shift_block(int dir, bool camera_only = false);
 void rotate_block(int dir, bool camera_only = false);
 
+void start_new_game();
+void clear_map();
+void save();
+void load();
+
 vector<bgeometry> bgeoms = {
-  {"Bring surface", "the original Bringris geometry", HYPERBOLIC, [] {
+  {"Bring surface", "the original Bringris geometry", HYPERBOLIC, 0, 0, 4, [] {
     using namespace fieldpattern;
     current_extra = 2;
     auto& gxcur = fgeomextras[current_extra];
@@ -175,11 +191,10 @@ vector<bgeometry> bgeoms = {
     set_variation(eVariation::unrectified);
 
     set_geometry(gProduct);
-    max_piece = 4;
     rotate_allowed = false;
     }},
 
-  {"torus", "Euclidean level geometry", EUCLIDEAN, [] {
+  {"torus", "Euclidean level geometry", EUCLIDEAN, 0, 0, 4, [] {
     auto& T0 = euc::eu_input.user_axes;
     T0[0][0] = 5;
     T0[0][1] = 0;
@@ -189,19 +204,17 @@ vector<bgeometry> bgeoms = {
     set_geometry(gEuclidSquare);
     set_variation(eVariation::pure);
     set_geometry(gProduct);
-    max_piece = 4;
     rotate_allowed = true;
     }},
 
-  {"Cube", "spherical level geometry", SPHERICAL, [] {
+  {"Cube", "spherical level geometry", SPHERICAL, 0, 0, 3, [] {
     set_geometry(gSmallSphere);
     set_variation(eVariation::pure);
     set_geometry(gProduct);
-    max_piece = 3;
     rotate_allowed = false;
     }},
 
-  {"Klein bottle", "non-orientable manifold", EUCLIDEAN | NONORIENTABLE, [] {
+  {"Klein bottle", "non-orientable manifold", EUCLIDEAN | NONORIENTABLE, 0, 1000, 4, [] {
     auto& T0 = euc::eu_input.user_axes;
     T0[0][0] = 5;
     T0[0][1] = 0;
@@ -211,11 +224,10 @@ vector<bgeometry> bgeoms = {
     set_geometry(gEuclidSquare);
     set_variation(eVariation::pure);
     set_geometry(gProduct);
-    max_piece = 4;
     rotate_allowed = true;
     }},
 
-  {"pentagons", "different tiles on the Bring surface", HYPERBOLIC | HDUAL, [] {
+  {"pentagons", "different tiles on the Bring surface", HYPERBOLIC | HDUAL, 0, 1500, 4, [] {
     using namespace fieldpattern;
     current_extra = 2;
     auto& gxcur = fgeomextras[current_extra];
@@ -225,11 +237,19 @@ vector<bgeometry> bgeoms = {
     set_geometry(gFieldQuotient);
     set_variation(eVariation::pure);
     set_geometry(gProduct);
-    max_piece = 4;
     rotate_allowed = false;
     }},
 
-  {"double cube", "six squares around a vertex", HYPERBOLIC, [] {
+  {"bounded well", "five squares around a vertex", BOUNDED_WELL, 0, 2000, 4, [] {
+    set_geometry(g45);
+    gp::param = gp::loc(1, 1);
+    set_variation(eVariation::unrectified);
+    set_geometry(gProduct);
+
+    rotate_allowed = false;
+    }},
+
+  {"double cube", "six squares around a vertex", HYPERBOLIC, 0, 2500, 3, [] {
     using namespace fieldpattern;
     current_extra = 3;
     auto& gxcur = fgeomextras[current_extra];
@@ -242,11 +262,10 @@ vector<bgeometry> bgeoms = {
     set_variation(eVariation::unrectified);
 
     set_geometry(gProduct);
-    max_piece = 3;
     rotate_allowed = true;
     }},
 
-  {"30/6", "six squares around a vertex", HYPERBOLIC, [] {
+  {"30/6", "six squares around a vertex", HYPERBOLIC, 0, 3000, 4, [] {
     using namespace fieldpattern;
     current_extra = 3;
     auto& gxcur = fgeomextras[current_extra];
@@ -259,11 +278,10 @@ vector<bgeometry> bgeoms = {
     set_variation(eVariation::unrectified);
 
     set_geometry(gProduct);
-    max_piece = 4;
     rotate_allowed = true;
     }},
 
-  {"42", "seven squares around a vertex", HYPERBOLIC, [] {
+  {"42", "seven squares around a vertex", HYPERBOLIC, 0, 4000, 4, [] {
     using namespace fieldpattern;
     current_extra = 4;
     auto& gxcur = fgeomextras[current_extra];
@@ -276,32 +294,20 @@ vector<bgeometry> bgeoms = {
     set_variation(eVariation::unrectified);
 
     set_geometry(gProduct);
-    max_piece = 4;
     rotate_allowed = false;
     }},
 
-  {"bounded well", "five squares around a vertex", BOUNDED_WELL, [] {
-    set_geometry(g45);
-    gp::param = gp::loc(1, 1);
-    set_variation(eVariation::unrectified);
-    set_geometry(gProduct);
-
-    max_piece = 4;
-    rotate_allowed = false;
-    }},
-
-  {"mirrored Bring", "hyperbolic and non-orientable", HYPERBOLIC | NONORIENTABLE | ASYMMETRIC_ONLY, [] {
+  {"mirrored Bring", "hyperbolic and non-orientable", HYPERBOLIC | NONORIENTABLE | ASYMMETRIC_ONLY, 0, 5000, 4, [] {
     set_geometry(gBring);
     gp::param = gp::loc(1, 1);
     set_variation(eVariation::unrectified);
     start_game();
     subquotient::create_subquotient(2);
     set_geometry(gProduct);
-    max_piece = 4;
     rotate_allowed = false;
     }},
 
-  {"giant", "like mirrored Bring but much larger", HYPERBOLIC | NONORIENTABLE, [] {
+  {"giant", "like mirrored Bring but much larger", HYPERBOLIC | NONORIENTABLE, 0, 6000, 5, [] {
     using namespace fieldpattern;
     current_extra = 2;
     auto& gxcur = fgeomextras[current_extra];
@@ -315,12 +321,11 @@ vector<bgeometry> bgeoms = {
     subquotient::create_subquotient(2);
 
     set_geometry(gProduct);
-    max_piece = 5;
     rotate_allowed = false;
-    well_size = 6;
+    cur.well_size = 6;
     }},
 
-  {"orbifold", "one fifth of the giant", HYPERBOLIC | NONORIENTABLE | ORBIFOLD, [] {
+  {"orbifold", "one fifth of the giant", HYPERBOLIC | NONORIENTABLE | ORBIFOLD, 0, 7000, 4, [] {
     using namespace fieldpattern;
     current_extra = 2;
     auto& gxcur = fgeomextras[current_extra];
@@ -334,25 +339,22 @@ vector<bgeometry> bgeoms = {
     subquotient::create_subquotient(10);
 
     set_geometry(gProduct);
-    max_piece = 4;
     rotate_allowed = false;
     }},
 
-  {"torus: shear", "Nil geometry: are you sure you want this?", SECRET, [] {
+  {"torus: shear", "Nil geometry: are you sure you want this?", 0, 0, 10000, 4, [] {
     nilv::nilperiod = make_array(5, 0, 5);
     // nilv::set_flags();
     set_geometry(gNil);
-    max_piece = 4;
     rotate_allowed = false;
     }},
 
 #if CAP_SOLV
-  {"torus: Arnold's Cat", "Solv geometry: flat shapes are crazy enough", SECRET | FLAT_ONLY, [] {
+  {"torus: Arnold's Cat", "Solv geometry: flat shapes are crazy enough", FLAT_ONLY, 0, 12000, 2, [] {
     asonov::period_xy = 5;
     asonov::period_z = 0;
     asonov::set_flags();
     set_geometry(gArnoldCat);
-    max_piece = 2;
     rotate_allowed = false;
     }},
 #endif
@@ -362,8 +364,9 @@ void create_game();
 
 void enable_bgeom() {
   stop_game_and_switch_mode(rg::nothing);
-  well_size = 10;
+  cur.well_size = 10;
   bgeoms[bgeom].create();
+  cur.max_piece = bgeoms[bgeom].default_max_piece;
   start_game();
   create_game();
   state = tsPreGame;
@@ -603,7 +606,7 @@ void generate_shapes_rec(vector<cellwalker>& sofar, code_t& code, int cnt) {
   }
 
 void generate_shapes(int cnt) {
-  vector<cellwalker> cws = { get_at(get_center(), -well_size - 1) };
+  vector<cellwalker> cws = { get_at(get_center(), -cur.well_size - 1) };
   code_t co = {};
   generate_shapes_rec(cws, co, cnt);
   }
@@ -639,7 +642,7 @@ color_t hipso[] = {
 
 color_t get_hipso(ld y) {
   y += 12;
-  if(well_size <= 5) y *= 2;
+  if(cur.well_size <= 5) y *= 2;
   return hipso[gmod(y, 13)];
   }
 
@@ -702,8 +705,8 @@ bool check_bshift(cellwalker c0, cellwalker c1) {
   }
 
 ld current_move_time_limit() {
-  // return 50000 * pow(.9, completed) + 10000. / (1 + completed);
-  return 3500 * pow(.995, completed * isize(level));
+  // return 50000 * pow(.9, cur.completed) + 10000. / (1 + cur.completed);
+  return 3500 * pow(.995, cur.completed * isize(level));
   }
 
 int turn_animation = 500;
@@ -739,7 +742,7 @@ void new_piece() {
   if(well_center && true) {
     again:
     if(get_where(at.at).first != well_center) {
-      at.at = get_at(get_where(at.at).first, -well_size - 1);  
+      at.at = get_at(get_where(at.at).first, -cur.well_size - 1);
       int d = center_distance[get_where(at.at).first];
       for(int i=0; i<4; i++) {
         auto mov = get_where(shift_block_target(i)).first;
@@ -752,14 +755,15 @@ void new_piece() {
       }
     while(at.spin) rotate_block(1, true);
     }  
-  at.at = get_at(get_where(at.at).first, -well_size - 1);  
+  at.at = get_at(get_where(at.at).first, -cur.well_size - 1);
   shape_id = next_shape_id;
   next_shape_id = choose_piece();
   if(shape_conflict(at)) {
     playSound(cwt.at, "die-bomberbird");
     state = tsGameover;
-    if(pro_game && max_piece == 4)
-      rv_leaderboard(bgeoms[bgeom].name, score);
+    if(cur.pro_game && cur.max_piece == bgeoms[bgeom].default_max_piece)
+      rv_leaderboard(bgeoms[bgeom].name, cur.score);
+    save();
     }
   else {
     draw_shape();
@@ -775,7 +779,7 @@ void find_lines() {
   by_level.clear();
   // println(hlog, "Removing levels");
   
-  for(int z=1; z<=well_size; z++) {
+  for(int z=1; z<=cur.well_size; z++) {
     int ct = 0;
     for(auto lev: level) {
       cell *c = get_at(lev, -z);
@@ -788,7 +792,7 @@ void find_lines() {
   int points = 0;
   
   if(true) {
-    for(int z=1; z<=well_size; z++) if(by_level[z-1] >= isize(level)) {
+    for(int z=1; z<=cur.well_size; z++) if(by_level[z-1] >= isize(level)) {
       points++;
       for(auto lev: level) {
         cell *c = get_at(lev, -z);
@@ -798,7 +802,7 @@ void find_lines() {
     }
   else {
     // int lines_found = 0;
-    for(int z=1; z<=well_size; z++) {
+    for(int z=1; z<=cur.well_size; z++) {
       for(auto lev: level) for(int d=0; d<lev->type; d++) {
         cellwalker cw(get_at(lev, -z), d);
         cellwalker cw0 = cw;
@@ -825,17 +829,17 @@ void find_lines() {
   if(!to_disappear.empty()) {
     move_at = ticks + collect_animation;
     state = tsCollect;
-    score += 100000. * points * (points+1.) / current_move_time_limit();
-    completed += points;
+    cur.score += 100000. * points * (points+1.) / current_move_time_limit();
+    cur.completed += points;
     playSound(cwt.at, points == 1 ? "pickup-gold" : "orb-mind");
-    if(points == 4 && pro_game && max_piece == 4) rv_achievement("BRINGRISFOUR");
+    if(points == 4 && cur.pro_game && cur.max_piece == 4 && bgeoms[bgeom].default_max_piece == 4) rv_achievement("BRINGRISFOUR");
     }
   }
 
 void disappear_lines() {
   for(auto lev: level) {
     int nz = 1;
-    for(int z=1; z<=well_size; z++) {
+    for(int z=1; z<=cur.well_size; z++) {
       cell *c1 = get_at(lev, -z);
       if(!to_disappear.count(c1)) {
         cell *c0 = get_at(lev, -nz);
@@ -862,11 +866,11 @@ void state_loop() {
     
 void fallen() {
   draw_shape();
-  bricks++;
-  cubes += isize(piecelist[shape_id].code)+1;
+  cur.bricks++;
+  cur.cubes += isize(piecelist[shape_id].code)+1;
   state = tsBetween;
   playSound(cwt.at, "closegate");
-  score += 200000. / (current_move_time_limit() * 3 + ticks - move_started);
+  cur.score += 200000. / (current_move_time_limit() * 3 + ticks - move_started);
   }
 
 void drop() {
@@ -1131,7 +1135,7 @@ void draw_holes(int zlev) {
   if(d) remove_shape();
   for(auto lev: level) {
     bool covered = false;
-    for(int z=well_size; z>=1; z--) {
+    for(int z=cur.well_size; z>=1; z--) {
       cell *c1 = get_at(lev, -z);
       if(c1->wall) covered = true;
       else if(covered) {
@@ -1174,8 +1178,6 @@ void draw_all_noray(int zlev) {
     }
   }
 
-void start_new_game();
-
 bool use_equidistant;
 
 void bringris_frame() {
@@ -1206,7 +1208,7 @@ renderbuffer *next_buffer;
 
 void draw_screen(int xstart, bool show_next) {
   int steps = camera_level - (-get_z(at.at));
-  if(state != tsFalling) steps = camera_level - (well_size + 1);
+  if(state != tsFalling) steps = camera_level - (cur.well_size + 1);
 
   #if CAP_VR
   if(!explore) {
@@ -1246,7 +1248,7 @@ void draw_screen(int xstart, bool show_next) {
       ld lv = -cgi.plevel * steps;
       shift_view(ztangent(lv));
       rotate_view(cspin(1, 2, cur_ang));
-      shift_view(ztangent(cgi.plevel * (2 + max_piece)));
+      shift_view(ztangent(cgi.plevel * (2 + cur.max_piece)));
       centerover = ncenter;
       anims::moved();
       }
@@ -1269,7 +1271,7 @@ void draw_screen(int xstart, bool show_next) {
     if(state == tsCollect && ticks >= move_at) 
       disappear_lines();
     
-    if(ticks >= move_at && state == tsFalling && pro_game) {
+    if(ticks >= move_at && state == tsFalling && cur.pro_game) {
       auto_drop();
       }
 
@@ -1285,27 +1287,39 @@ void geometry_menu() {
   clearMessages();
   dialog::init("Bringris geometries");
   dialog::addBreak(100);
+  int total_stars = 0;
+  for(int i=0; i<isize(bgeoms); i++) total_stars += bgeoms[i].stars;
   for(int i=0; i<isize(bgeoms); i++) {
-    dialog::addTitle(bgeoms[i].name, i == bgeom ? 0xFF00 : 0xFF0000, 150);
-    dialog::items.back().key = 'a' + i;
-    dialog::add_action([i] {      
-      enable_bgeom(i);
-      });
-    dialog::addInfo(bgeoms[i].cap);
-    dialog::items.back().key = 'a' + i;
-    dialog::addBreak(50);
-    if(i == bgeom) bgeoms[i].flags &= ~SECRET;
-    if(bgeoms[i].flags & SECRET) {
-      dialog::items.pop_back();
-      dialog::items.pop_back();
-      dialog::items.pop_back();
+    if(total_stars >= bgeoms[i].stars_needed || !stars_enabled) {
+      dialog::addTitle(bgeoms[i].name, i == bgeom ? 0xFF00 : 0xFF0000, 150);
+      dialog::items.back().key = 'a' + i;
+      dialog::add_action([i] {
+        enable_bgeom(i);
+        });
+      dialog::addInfo(bgeoms[i].cap);
+      dialog::items.back().key = 'a' + i;
+      if(!stars_enabled) ;
+      else if(bgeoms[i].stars) dialog::addInfo("stars: " + its(bgeoms[i].stars));
+      else dialog::addBreak(100);
+      dialog::addBreak(50);
+      if(i == bgeom) bgeoms[i].flags &= ~SECRET;
+      if(bgeoms[i].flags & SECRET) {
+        dialog::items.pop_back();
+        dialog::items.pop_back();
+        dialog::items.pop_back();
+        }
+      }
+    else {
+      dialog::addTitle("locked", 0x404040, 150);
+      if(stars_enabled) dialog::addInfo("stars needed: " + its(bgeoms[i].stars_needed));
+      dialog::addBreak(50);
       }
     }
   dialog::addBreak(100);
-  dialog::addSelItem("max piece", its(max_piece), 'M');
+  dialog::addSelItem("max piece", its(cur.max_piece), 'M');
   dialog::add_action([] {
-    max_piece++;
-    if(max_piece == 6) max_piece = 2;
+    cur.max_piece++;
+    if(cur.max_piece == 6) cur.max_piece = 2;
     create_game();
     state = tsPreGame;
     });
@@ -1317,6 +1331,14 @@ void geometry_menu() {
     dialog::addBreak(100);
 
   dialog::addBreak(100);
+  if(stars_enabled) {
+    if(total_stars < 6000)
+    dialog::addHelp("Collect stars to unlock more spaces!\n\n"
+      "training mode: 1 block removed = 1 star\n\n"
+      "expert mode: 1 block removed = 5 stars\n\n"
+      "only best score per space counts");
+    dialog::addInfo("currently " + its(total_stars) + " stars");
+    }
   dialog::addBack();
   dialog::display();
   }
@@ -1403,6 +1425,64 @@ void settings_menu() {
     });
   #endif
   
+  dialog::addBack();
+  dialog::display();
+  }
+
+bool hi_pro;
+
+void hiscore_menu() {
+  emptyscreen();
+  dialog::init("High scores");
+  string s = bgeoms[bgeom].name;
+  if(cur.max_piece != bgeoms[bgeom].default_max_piece) s = s + " (block " + its(cur.max_piece) + ")";
+  dialog::addInfo(s);
+  dialog::addItem(hi_pro ? "expert mode" : "training mode", 'm');
+  dialog::add_action([] { hi_pro = !hi_pro; });
+  vector<gamedata*> v;
+  for(auto& ad: allsaves)
+    if(ad.bgeom_name == bgeoms[bgeom].name && ad.max_piece == cur.max_piece && ad.pro_game == hi_pro)
+      v.push_back(&ad);
+  sort(v.begin(), v.end(), [] (gamedata* g1, gamedata* g2) { return g1->sorter() > g2->sorter(); });
+  dialog::start_list(900, 900, '1');
+  for(auto ad: v) {
+    dialog::addSelItem(ad->myname, hi_pro ? fts(ad->score) : its(ad->completed), dialog::list_fake_key++);
+    dialog::add_action_push([ad] {
+      emptyscreen();
+      dialog::init();
+      if(hi_pro) dialog::addSelItem("score", fts(ad->score), 's');
+      dialog::addSelItem("levels", fts(ad->completed), 'l');
+      dialog::addSelItem("bricks", fts(ad->bricks), 'b');
+      dialog::addSelItem("cubes", fts(ad->cubes), 'c');
+      dialog::addItem("explore", 'e');
+      dialog::add_action([ad] {
+
+        clear_map();
+
+        for(int z=0; z<=ad->well_size; z++) {
+          println(hlog, "z = ", z);
+          string s = ad->lmap[z];
+          println(hlog, "s = ", s);
+          int index = 0;
+          for(auto lev: level) {
+            cell *c = get_at(lev, -z);
+            char key = s[index++];
+            if(key == '.')  c->wall = waNone;
+            else c->wall = waWaxWall, c->landparam = get_hipso(z);
+            }
+          cur.lmap.push_back(s);
+          }
+
+        state = tsGameover;  explore = true;
+        ray::reset_raycaster_map();
+        popScreen();
+        popScreen();
+        });
+      dialog::addBack();
+      dialog::display();
+      });
+    }
+  dialog::end_list();
   dialog::addBack();
   dialog::display();
   }
@@ -1596,11 +1676,11 @@ void run() {
   displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 1, 0, vid.fsize, its(isize(level)), winf[waBarrier].color, 0);
 
   if(state != tsPreGame) {
-    displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 16, 0, vid.fsize, "LEVELS " + its(completed), winf[waBarrier].color, 0);
-    displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 15, 0, vid.fsize, "BRICKS " + its(bricks), winf[waBarrier].color, 0);
-    displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 14, 0, vid.fsize, "CUBES " + its(cubes), winf[waBarrier].color, 0);
-    if(pro_game)
-      displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 13, 0, vid.fsize, "SCORE " + fts(int(score)), winf[waBarrier].color, 0);
+    displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 16, 0, vid.fsize, "LEVELS " + its(cur.completed), winf[waBarrier].color, 0);
+    displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 15, 0, vid.fsize, "BRICKS " + its(cur.bricks), winf[waBarrier].color, 0);
+    displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 14, 0, vid.fsize, "CUBES " + its(cur.cubes), winf[waBarrier].color, 0);
+    if(cur.pro_game)
+      displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 13, 0, vid.fsize, "SCORE " + fts(int(cur.score)), winf[waBarrier].color, 0);
     }
   
   if(show_next) {
@@ -1630,19 +1710,20 @@ void run() {
     else if(state == tsGameover) {
       displayButtonS(xx, vid.fsize * 2, "game over", 0xFFFFFFFF, 8, vid.fsize);
       }
-    if(displayButtonS(xx, vid.fsize * 4, "NEW GAME", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'n';
+    if(displayButtonS(xx, vid.fsize * 4, "TRAINING", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 't';
     if(displayButtonS(xx, vid.fsize * 6, "EXPERT GAME", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'x';
     if(displayButtonS(xx, vid.fsize * 8, "SETTINGS", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 's';
     if(state != tsPreGame)
       if(displayButtonS(xx, vid.fsize * 10, "EXPLORE", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'e';
+    if(displayButtonS(xx, vid.fsize * 12, "HI SCORES", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'h';
     if(!ISWEB) {
-      if(displayButtonS(xx, vid.fsize * 12, "QUIT", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'q';
+      if(displayButtonS(xx, vid.fsize * 14, "QUIT", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'q';
       }
-    else if(state == tsGameover)
-      if(displayButtonS(xx, vid.fsize * 12, "TWEET", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 't';
+    /* else if(state == tsGameover)
+      if(displayButtonS(xx, vid.fsize * 14, "TWEET", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'T'; */
     
     if(vrhr::active())
-      if(displayButtonS(xx, vid.fsize * 14, "RESET VR", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'V';
+      if(displayButtonS(xx, vid.fsize * 16, "RESET VR", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'V';
     }
   }
   
@@ -1730,21 +1811,21 @@ void run() {
       if(!paused) move_at = move_at - ticks;
       explore = false;
       }
-    if(sym == 't' && state == tsGameover) {
+    if(sym == 'T' && state == tsGameover) {
       const vector<const char*> emoji =
         {"😀","😎","👽","🤖","😺","🎩","🎓","👑","💍","🐯","🦁","🐮","🐷","🐽","🐸","🐙","🐵","🐦","🐧","🐔","🐒","🙉","🙈","🐣","🐥","🐺","🐗","🐴","🦄","🐝","🐛","🐢","🦀","🦂","🕷","🐜","🐞","🐌","🐠","🐟","🐡","🐬","🐋","🐊","🐆","🐘","🐫","🐪","🐄","🐂","🐃","🐏","🐑","🐀","🐁","🐓","🦃","🐉","🐾","🐿","🐇","🐈","🐩","🐕","🐲","🌵","🍁","🌻","🌎","⭐️","⚡️","🔥","❄️","☔️","☂️","💧","🍏","🍎","🍐","🍋","🍌","🍉","🍇","🌶","🍅","🍍","🍑","🍈","🍓","🌽","🍠","🍯","🍞","🍗","🧀","🍖","🍤","🌯","🌮","🍝","🍕","🌭","🍟","🍔","⚽️","🎱","🏆","🎪","🎲","🎳","🚗","🚕","🚙","🏎","⛺️","⛩","🕹","💾","☎️","⏱","🔦","💡","💰","💎","🔨","💣","🔑","❤️","🔔"};
 
       string out;
-      if(pro_game) {
-        out = "Got " + its(score) + " points for completing " + its(completed) + " levels in #Bringris!";
+      if(cur.pro_game) {
+        out = "Got " + its(cur.score) + " points for completing " + its(cur.completed) + " levels in #Bringris!";
         }
-      else if(completed) {
-        out = "Used " + its(bricks) + " blocks to complete " + its(completed) + " levels in #Bringris!";
+      else if(cur.completed) {
+        out = "Used " + its(cur.bricks) + " blocks to complete " + its(cur.completed) + " levels in #Bringris!";
         }
       else {
-        out = "Dropped " + its(bricks) + " blocks in #Bringris!";
+        out = "Dropped " + its(cur.bricks) + " blocks in #Bringris!";
         }
-      if(bgeom || max_piece != 4) out += " (" + bgeoms[bgeom].name + "/" + its(max_piece) + ")";
+      if(bgeom || cur.max_piece != 4) out += " (" + bgeoms[bgeom].name + "/" + its(cur.max_piece) + ")";
       unsigned hash = time(NULL) / 600;
       for(char c: out) hash = 171 * hash + c;
       std::mt19937 invr;
@@ -1768,21 +1849,24 @@ void run() {
     if(sym == 'V') {
       reset_vr_ref();
       }
-    if(in_menu && sym == 'n') {
+    if(in_menu && sym == 't') {
       start_new_game();
       paused = false;
       explore = false;
-      pro_game = false;
+      cur.pro_game = false;
       playSound(cwt.at, "elementalgem");
       }
     if(in_menu && sym == 's') {
       pushScreen(settings_menu);
       }
+    if(in_menu && sym == 'h') {
+      pushScreen(hiscore_menu);
+      }
     if(in_menu && sym == 'x') {
       start_new_game();
       paused = false;
       explore = false;
-      pro_game = true;
+      cur.pro_game = true;
       playSound(cwt.at, "elementalgem");
       }
     #if CAP_SHOT
@@ -1864,11 +1948,8 @@ void reset_view() {
   set_view();
   pView = tView;
   }
-  
-void start_new_game() {
-  
-  for(auto& p: piecelist) p.count = 0;
 
+void clear_map() {
   for(auto lev: level) for(int z=0; z<=camera_level+1; z++) {
     cell *c = get_at(lev, -z);
     setdist(c, 7, nullptr);
@@ -1878,7 +1959,7 @@ void start_new_game() {
       c->wall = waBarrier, c->land = laBarrier;
     else if(z <= camera_level)
       c->wall = waNone;
-    else 
+    else
       c->wall = waWaxWall, c->land = laCanvas, c->landparam = 0xC000C0;
     }
 
@@ -1888,9 +1969,18 @@ void start_new_game() {
     c->land = laCanvas;
     c->wall = waWaxWall;
     c->landparam = (get_hipso(z) & 0xFCFCFC) >> 2;
-    }
+    }  
+  }
   
-  at = get_at(get_center(), -well_size - 1);
+void start_new_game() {
+
+  timerstart = time(NULL);
+
+  for(auto& p: piecelist) p.count = 0;
+
+  clear_map();
+
+  at = get_at(get_center(), -cur.well_size - 1);
   next_shape_id = choose_piece();
   
   state = tsBetween;
@@ -1900,10 +1990,10 @@ void start_new_game() {
 
   // reset_view();
 
-  completed = 0;
-  bricks = 0;
-  cubes = 0;
-  score = 0;
+  cur.completed = 0;
+  cur.bricks = 0;
+  cur.cubes = 0;
+  cur.score = 0;
   }
 
 void get_level() {
@@ -2000,12 +2090,12 @@ void create_game() {
   piecelist.clear();
   piecelist.reserve(2000);
   seen_blocks.clear();
-  for(int ps=1; ps<=max_piece; ps++)  
+  for(int ps=1; ps<=cur.max_piece; ps++)
     generate_shapes(ps);
   list_all();
   // println(hlog, "level size = ", isize(level));
   
-  camera_level = well_size + max_piece + camera;
+  camera_level = cur.well_size + cur.max_piece + camera;
   
   playermoved = false;
   ray::max_iter_current() = solnil ? 600 : 200;
@@ -2021,6 +2111,7 @@ void init_all() {
   showstartmenu = false;
   pushScreen(run);  
   in_bringris = true;
+  load();
   }
 
 int args() {
@@ -2086,6 +2177,7 @@ void default_config() {
   sconfig_savers(scfg_bringris, "bringris");
 
   param_i(bgeom, "bringris-geometry", 0);
+  param_b(stars_enabled, "bringris_stars", true);
   lps_add(lps_bringris, ray::want_use, ray::want_use);
   #if CAP_VR
   lps_add(lps_bringris, vrhr::hsm, vrhr::hsm);
@@ -2134,6 +2226,69 @@ auto hook1=
       if(arg::curphase == 2) init_all();      
       });
 #endif
+
+void fill_gamedata() {
+  cur.bgeom_name = bgeoms[bgeom].name;
+  time_t timer;
+  timer = time(NULL);
+  char buf[128];
+  strftime(buf, 128, "%c", localtime(&timerstart)); cur.timerstart = buf;
+  strftime(buf, 128, "%c", localtime(&timer)); cur.timerend = buf;
+  cur.myname = cur.timerstart;
+  cur.levelsize = isize(level);
+  cur.seconds = int(timer - timerstart);
+  cur.lmap.clear();
+  for(int z=0; z<=cur.well_size; z++) {
+    string s;
+    for(auto lev: level) {
+      cell *c = get_at(lev, -z);
+      s += (c->wall ? '#' : '.');
+      }
+    cur.lmap.push_back(s);
+    }
+  }
+
+void save(const gamedata& sd) {
+  #if CAP_SAVE
+  fhstream f("bringris.save", "at");
+  println(f, "Bringris ", BRINGRIS_VER);
+  println(f, sd.bgeom_name);
+  println(f, sd.timerstart);
+  println(f, sd.timerend);
+  println(f, sd.max_piece, " ", sd.pro_game ? sd.score : -1, " ", sd.bricks, " ", sd.completed, " ", sd.cubes, " ", sd.well_size, " ", sd.levelsize, " ", sd.seconds);
+  for(auto& s: sd.lmap) println(f, s.c_str());
+  #endif
+  }
+
+void save() {
+  fill_gamedata();
+  save(cur);
+  allsaves.push_back(cur);
+  }
+
+void load() {
+  allsaves.clear();
+  fhstream f("bringris.save", "rt");
+  if(!f.f) return;
+  string s;
+  while(!feof(f.f)) {
+    s = scanline_noblank(f);
+    if(s == "Bringris 2.0") {
+      gamedata gd;
+      gd.bgeom_name = scanline_noblank(f);
+      gd.myname = scanline_noblank(f);
+      gd.timerstart = scanline_noblank(f);
+      gd.timerend = scanline_noblank(f);
+      sscanf(scanline_noblank(f).c_str(), "%d%lf%d%d%d%d%d%d",
+        &gd.max_piece, &gd.score, &gd.bricks, &gd.completed, &gd.cubes, &gd.well_size, &gd.levelsize, &gd.seconds);
+      gd.pro_game = gd.score >= 0;
+      for(int i=0; i<=gd.well_size; i++) gd.lmap.push_back(scanline_noblank(f));
+      allsaves.push_back(gd);
+      for(auto& g: bgeoms) if(g.name == gd.bgeom_name && g.default_max_piece == gd.max_piece)
+        g.stars = max(g.stars, (gd.pro_game ? 5 : 1) * gd.completed * gd.levelsize);
+      }
+    }
+  }
 
 }
 }

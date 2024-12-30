@@ -431,7 +431,7 @@ EX void show_chaos() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
   dialog::init(XLAT("land structure"));
-  chaosUnlocked = chaosUnlocked || autocheat;
+  chaosUnlocked = chaosUnlocked || unlock_all || autocheat;
 
   dialog::addHelp(
     XLAT("In the Chaos mode, lands change very often, and "
@@ -804,7 +804,7 @@ EX void showChangeMode() {
 #endif
   dialog::addBoolItem(XLAT("%1 Challenge", moPrincess), (princess::challenge), 'P');
   dialog::add_action_confirmed([] {
-    if(!princess::everSaved && !autocheat)
+    if(!princess::everSaved && !autocheat && !unlock_all)
       addMessage(XLAT("Save %the1 first to unlock this challenge!", moPrincess));
     else restart_game(rg::princess);
     });  
@@ -814,7 +814,7 @@ EX void showChangeMode() {
   dialog::addBoolItem(XLAT("Yendor Challenge"), (yendor::on), 'y');
   dialog::add_action([] {
     clearMessages();
-    if(yendor::everwon || autocheat)
+    if(yendor::everwon || autocheat || unlock_all)
       pushScreen(yendor::showMenu);
     else gotoHelp(yendor::chelp);
     });
@@ -843,6 +843,15 @@ EX bool showHalloween() {
   int day = tm.tm_mday;
   if(month == 10 && day >= 24) return true;
   if(month == 11 && day <= 7) return true;
+  return false;
+  }
+
+EX bool showFestive() {
+  time_t t = time(NULL);
+  struct tm tm = *localtime(&t);
+  int month = tm.tm_mon + 1;
+  int day = tm.tm_mday;
+  if(month == 12 && day >= 24 && day <= 26) return true;
   return false;
   }
 

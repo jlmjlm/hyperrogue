@@ -22,8 +22,12 @@ EX bool return_false() { return false; }
 
 EX bool use_bool_dialog;
 
+EX bool unlock_all;
+
 /** set to true if a parameter was changed as a consequence of changing linked parameters */
 EX bool linked_consequence;
+
+EX bool hr_hud_enabled = true;
 
 EX void adjust_linked() {
   indenter ind(2);
@@ -1053,6 +1057,7 @@ EX purehookset hooks_configfile;
 
 EX ld mapfontscale = 100;
 
+#if CAP_SDLTTF
 EX void font_reaction() {
   if(among(font_id, 5, 6)) {
     int fid = font_id;
@@ -1062,6 +1067,7 @@ EX void font_reaction() {
       });
     }
   }
+#endif
 
 EX void initConfig() {
   
@@ -1153,11 +1159,13 @@ EX void initConfig() {
   initcs(vid.cs); paramset(vid.cs, "single");
   param_b(vid.samegender, "princess choice", false);
   param_i(vid.language, "language", -1);  
+  #if CAP_SDLTTF
   param_enum(font_id, "font_id", 0)
   ->editable(font_names, "select font", 'f')
   ->manual_reaction = font_reaction;
   param_str(font_filenames[5], "ttf_font");
   param_str(font_filenames[6], "otf_font");
+  #endif
   param_b(vid.drawmousecircle, "mouse circle", ISMOBILE || ISPANDORA);
   param_b(vid.revcontrol, "reverse control", false);
   #if CAP_AUDIO
@@ -1296,6 +1304,10 @@ EX void initConfig() {
   -> help("Disable if you do not want particle effects and similar.");
   param_i(vid.framelimit, "frame limit", 999);
 
+  param_b(festive_option, "festive", 1)
+  -> editable("holiday options", 'h')
+  -> help("Special graphical effects on holidays.");
+
   #if !ISMOBWEB
   param_b(vid.want_vsync, "vsync", true)
   -> help("Disable if you want to see the actual framerate rendered by the engine.")
@@ -1405,6 +1417,7 @@ EX void initConfig() {
   -> help("Background particle effects, e.g., in the Blizzard.");
   // control
   
+  #if CAP_SDL
   param_enum(joy_init, "joyinit", jiFast)
     ->editable({{"off", "do not use joysticks"}, {"fast", "do not wait until the joysticks are initialized"}, {"wait", "wait until the joysticks are initialized"}}, "joystick initialization", 'j');
   param_i(vid.joyvalue, "vid.joyvalue", 4800);
@@ -1413,6 +1426,7 @@ EX void initConfig() {
   param_i(vid.joypanthreshold, "vid.joypanthreshold", 2500);
   param_f(vid.joypanspeed, "vid.joypanspeed", ISPANDORA ? 0.0001 : 0);
   param_b(autojoy, "autojoy");
+  #endif
     
   vid.killreduction = 0;
   
@@ -1768,6 +1782,9 @@ EX void initConfig() {
   
   param_i(stamplen, "stamplen");
   param_f(anims::period, "animperiod");
+
+  param_b(unlock_all, "unlock_all")
+  -> editable("allow access to all unlockable content", 'U');
 
   param_b(use_custom_land_list, "customland_use")->be_non_editable();
   for(int i=0; i<landtypes; i++) {
@@ -2208,6 +2225,8 @@ EX void showSpecialEffects() {
   dialog::addBoolItem_action(XLAT("floating bubbles: all treasures"), vid.bubbles_all, 'a');
   dialog::addBoolItem_action(XLAT("background particle effects"), (vid.backeffects), 'b');
 
+  add_edit(festive_option);
+
   dialog::addBreak(50);
   dialog::addBack();
   dialog::display();
@@ -2493,7 +2512,9 @@ EX void configureInterface() {
   dialog::add_action_push(selectLanguageScreen);
 #endif
 
+  #if CAP_SDLTTF
   add_edit(font_id);
+  #endif
 
   dialog::addSelItem(XLAT("player character"), numplayers() > 1 ? "" : csname(vid.cs), 'g');
   dialog::add_action_push(showCustomizeChar);
@@ -2517,14 +2538,16 @@ EX void configureInterface() {
   
   add_edit(vid.msgleft);
   
-  add_edit(glyphsortorder);
-  add_edit(vid.graphglyph);
-  add_edit(less_in_landscape);
-  add_edit(less_in_portrait);
+  if(hr_hud_enabled) {
+    add_edit(glyphsortorder);
+    add_edit(vid.graphglyph);
+    add_edit(less_in_landscape);
+    add_edit(less_in_portrait);
+    add_edit(display_yasc_codes);
+    if(casual) add_edit(display_semicasual);
+    add_edit(vid.orbmode);
+    }
 
-  add_edit(display_yasc_codes);
-  if(casual) add_edit(display_semicasual);
-  add_edit(vid.orbmode);
   add_edit(zh_ascii);
 
   dialog::addSelItem(XLAT("draw crosshair"), crosshair_size > 0 ? fts(crosshair_size) : ONOFF(false), 'x');
@@ -3499,6 +3522,22 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   -> editable("apply color/pattern changes to canvas automatically", 'l');
   param_str(ccolor::color_formula, "color_formula")
   -> editor = [] { ccolor::config_formula(false); };
+
+  param_i(count_max_cells, "count_max_cells", 100000)->editable(100, 1000000, log(10), "max cells to count",
+    "Counting stops if that many cells are reached.", 'c')
+  ->set_sets([] { dialog::scaleLog(); });
+
+  param_i(count_max_dist, "count_max_dist", 999)->editable(5, 1000, 1, "max distance to check",
+    "Counting stops if this distance is reached.", 'd');
+
+  param_b(use_analyzer, "count_use_analyzer", true)->editable("use analyzer if possible", 'a');
+  param_b(use_sight_range_instead, "count_use_sight", true)->editable("use sight range instead", 's');
+
+/*    dialog::editNumber(vid.cells_drawn_limit, 100, 1000000, log(10), 10000, XLAT("limit on cells drawn"),
+      XLAT("This limit exists to protect the engine from freezing when too many cells would be drawn according to the current options.")
+      );
+    dialog::scaleLog(); */
+
   });
 
 EX void switchcolor(unsigned int& c, unsigned int* cs) {
@@ -4365,6 +4404,7 @@ EX int read_config_args() {
   else return 1;
   return 0;
   }
+#endif
 
 EX void set_char_by_name(charstyle& cs, const string& s) {
   if(s == "dodek") {
@@ -4418,6 +4458,7 @@ EX void set_char_by_name(charstyle& cs, const string& s) {
     }
   }
 
+#if CAP_COMMANDLINE
 EX int read_param_args() {
   const string& s = arg::args();
   auto pos = s.find("=");

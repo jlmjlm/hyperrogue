@@ -250,10 +250,26 @@ EX int font_id = 0;
 #ifdef FONTCONFIG
 TTF_Font* findfont(int siz) {
 
+  auto orig = cfont->filename;
+
   FcPattern   *pat;
   FcResult	result;
   if (!FcInit()) return nullptr;
-  pat = FcNameParse((FcChar8 *)cfont->filename.c_str());
+
+  string s =cfont->filename;
+  auto rep = [&] (string what, string by) {
+    int pos = s.size() - what.size();
+    if(pos < 0) return;
+    if(s.substr(pos) == what) s = s.substr(0, pos) + by;
+    };
+  rep(".ttf", "");
+  rep(".otf", "");
+  rep(".TTF", "");
+  rep(".OTF", "");
+  rep("-Bold", ":weight=bold");
+  rep("-Regular", ":weight=regular");
+
+  pat = FcNameParse((FcChar8 *)s.c_str());
   FcConfigSubstitute(0, pat, FcMatchPattern);
   FcDefaultSubstitute(pat);
 
@@ -270,7 +286,7 @@ TTF_Font* findfont(int siz) {
   FcFini();
   cfont->use_fontconfig = false;
   if(debugflags & DF_INIT) println(hlog, "fontpath is: ", cfont->filename);
-  return TTF_OpenFont(cfont->filename, siz);
+  return TTF_OpenFont(cfont->filename.c_str(), siz);
   }
 #endif
 
@@ -282,7 +298,7 @@ void loadfont(int siz) {
 
     #ifdef FONTCONFIG
     if(cf == NULL && cfont->use_fontconfig)
-      cf = find_font_using_fontconfig(siz);
+      cf = findfont(siz);
     #endif
 
     if(cf == NULL) {
@@ -475,7 +491,9 @@ EX fontdata* font_by_name(string fname) {
     fd.use_fontconfig = true;
     #endif
     for(int i=0; i<=max_glfont_size; i++) fd.glfont[i] = nullptr;
+    #if CAP_SDLTTF
     for(int i=0; i<=max_font_size; i++) fd.font[i] = nullptr;
+    #endif
     fd.finf = nullptr;
     }
   return &fd;
@@ -1479,6 +1497,7 @@ EX int SDL_Init1(Uint32 flags) {
   }
 #endif
 
+#if CAP_SDLTTF
 EX void set_cfont() {
   int f = font_id;
   int fch = f;
@@ -1487,6 +1506,7 @@ EX void set_cfont() {
   cfont = font_by_name(font_filenames[last_font_id = f]);
   cfont_chinese = font_by_name(font_filenames[fch]);
   }
+#endif
 
 EX void init_font() {
 #if CAP_SDLTTF
@@ -1515,7 +1535,9 @@ fontdata::~fontdata() {
 
 EX void close_font() {
   fontdatas.clear();
+#if CAP_SDLTTF
   TTF_Quit();
+#endif
   }
 
 EX void init_graph() {

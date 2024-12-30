@@ -325,19 +325,42 @@ void clear_path(level *l) {
 
 string fname = "horizontal.nrl";
 
+ld total_stars = 0;
+
 void pick_level() {
   dialog::init(XLAT("select the track"), 0xC0C0FFFF, 150, 100);
+  ld cur_stars = 0;
   for(auto l: all_levels) {
-    dialog::addItem(l->name, l->hotkey);
-    dialog::add_action([l] {
-      curlev = l;
-      recompute_plan_transform = true;
-      l->init();
-      clear_path(l);
-      popScreen();
-      });
+    ld score_here = 0;
+    for(int gid=0; gid<isize(l->goals); gid++) {
+      if(isize(l->records[0])) {
+        auto man = l->records[0][gid];
+        if(man) score_here += l->goals[gid].sa(man) * 2;
+        }
+      if(isize(l->records[1])) {
+        auto plan = l->records[1][gid];
+        if(plan) score_here += l->goals[gid].sa(plan);
+        }
+      cur_stars += score_here;
+      }
+
+    if(l->stars_needed > total_stars) {
+      dialog::addSelItem(l->name, "stars needed: " + its(l->stars_needed), l->hotkey);
+      }
+    else {
+      dialog::addSelItem(l->name, its(score_here), l->hotkey);
+      dialog::add_action([l] {
+        curlev = l;
+        recompute_plan_transform = true;
+        l->init();
+        clear_path(l);
+        popScreen();
+        });
+      }
     }
+  total_stars = cur_stars;
   dialog::addBreak(100);
+  dialog::addSelItem("stars collected", its(total_stars), 0);
   dialog::addItem("load a level from a file", '0');
   dialog::add_action([] {
     dialog::openFileDialog(fname, XLAT("level to load:"), ".nrl", [] () {
@@ -383,11 +406,11 @@ void pick_game() {
     auto man = curlev->records[0][gid];
     auto plan = curlev->records[1][gid];
     if(man && plan)
-      dialog::addInfo("manual: " + format_timer(man) + " planning: " + format_timer(plan), g.color);
+      dialog::addInfo("manual: " + format_timer_goal(man, g, false) + " planning: " + format_timer_goal(plan, g, true), g.color);
     else if(man)
-      dialog::addInfo("manual: " + format_timer(man), g.color);
+      dialog::addInfo("manual: " + format_timer_goal(man, g, false), g.color);
     else if(plan)
-      dialog::addInfo("planning: " + format_timer(plan), g.color);
+      dialog::addInfo("planning: " + format_timer_goal(plan, g, true), g.color);
     else
       dialog::addInfo("goal not obtained:", g.color);
     dialog::addBreak(50);
@@ -401,8 +424,10 @@ void pick_game() {
   dialog::addBreak(100);
   add_edit(planning_mode);
   dialog::addItem(XLAT("play this track"), SDLK_ESCAPE);
-  dialog::addItem(XLAT("quit Nil Rider"), 'q');
-  dialog::add_action([] { quitmainloop = true; });
+  dialog::addItem(XLAT("Nil Rider main menu"), 'm');
+  dialog::add_action([] { popScreen(); pushScreen(main_menu); });
+  /* dialog::addItem(XLAT("quit Nil Rider"), 'q');
+  dialog::add_action([] { quitmainloop = true; }); */
   dialog::display();
   }
 
@@ -577,6 +602,48 @@ void restart() {
   clear_path(curlev);
   }
 
+string nilrider_help =
+  "You ride a unicycle and need to reach the goal triangles. The unicycle is powered only by the gravity.\n\n"
+  "The twist is that the game takes place in a world with Nil geometry! You know those impossible staircases and "
+  "waterfalls and triangles; Nil makes these possible. You gain speed simply by going in circles!\n\n"
+
+  "More precisely, every point in Nil has well-defined North, South, East, West, Up, and Down directions. "
+  "However, the up/down direction works different than in the Euclidean geometry: when you make a loop which "
+  "would return you to the same place in the Euclidean geometry, its counterpart in Nil changes your vertical "
+  "coordinate by the value proportional to the signed area of the loop projected on the NESW plane.\n\n"
+
+  "Nil Rider has two modes: manual (control the unicycle manually) and planning (try to construct the best path possible).\n\n"
+
+  "The world is viewed as it would be seen by a camera that was in our simulated world, assuming Fermat's principle (that the "
+  "light travels along geodesics, i.e., locally shortest lines). Most geodesics in Nil are helical.";
+
+string nilrider_instruments_help =
+
+  "The instrument with the blue arrow is the compass. It shows the current compass direction (NESW).\n\n"
+
+  "The instrument with the green arrow is the clinometer. If it points up, you are going up slope (and thus slowing down), if it points down, you are going down (and thus accelerating).\n\n"
+
+  "The gray line is the minimum camera angle (but the camera never goes below the current slope).\n\n"
+
+  "The instrument with the red arrow is the speed meter. It shows the current kinetic energy (proportional to speed squared).\n\n"
+
+  "If you return to the same location, your kinetic energy changes by the signed area of the loop (projected on the NESW plane). In most levels, the unit of energy (as shown on the speed meter) is a square (16x16 pixels).\n\n";
+
+void help_instruments();
+
+void help_main() {
+  gotoHelp(nilrider_help);
+  help_extensions.push_back(help_extension{'v', "video about Nil geometry", [] () {
+    open_url("https://youtu.be/FNX1rZotjjI");
+    }});
+  help_extensions.push_back(help_extension{'i', "what do the instruments do?", [] () { popScreen(); help_instruments(); }});
+  }
+
+void help_instruments() {
+  gotoHelp(nilrider_instruments_help);
+  help_extensions.push_back(help_extension{'r', "return", [] () { popScreen(); help_main(); }});
+  }
+
 void main_menu() {
   clearMessages();
   poly_outline = 0xFF;
@@ -608,7 +675,10 @@ void main_menu() {
     }
 
   dialog::addItem("track / mode / goals", 't');
-  dialog::add_action_push(pick_game);
+  dialog::add_action([] { popScreen(); pushScreen(pick_game); });
+
+  dialog::addItem("help", 'h');
+  dialog::add_action(help_main);
 
   dialog::addItem("change settings", 'o');
   dialog::add_action_push(settings);
@@ -706,6 +776,18 @@ void default_settings() {
   #endif
   }
 
+void vrqm_ext() {
+  dialog::addItem("restart Nil Rider", 'r');
+  dialog::add_action([] {
+    println(hlog, "nilrider restart");
+    nilrider::restart();
+    });
+  dialog::addBoolItem("stepped Nil Rider", nilrider::stepped_display, 's');
+  dialog::add_action([] {
+    println(hlog, "nilrider stepped");
+    nilrider::stepped_display = !nilrider::stepped_display;
+    });
+  }
 
 void initialize() {
   load();
@@ -747,6 +829,7 @@ void initialize() {
   rv_hook(hooks_resetGL, 100, cleanup_textures);
   rv_hook(hooks_music, 100, nilrider_music);
   rv_hook(hooks_sync_music, 100, sync_music);
+  rv_hook(vrhr::vr_quickmenu_extensions, 101, vrqm_ext);
   on = true;
   on_cleanup_or_next([] { on = false; });
   pushScreen(run);

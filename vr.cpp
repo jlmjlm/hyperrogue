@@ -1357,12 +1357,16 @@ EX void enable_button() {
     dialog::addInfo(XLAT("VR initialized correctly"), 0x00C000);
   }
 
+EX string refdist() {
+  E4;
+  hyperpoint h = hmd_at * inverse(hmd_ref_at) * C0;
+  return state ? fts(hypot_d(3, h)) + "m" : "";
+  }
+
 EX void reference_button() {
   if(enabled && among(hsm, eHeadset::reference, eHeadset::model_viewing)) {
-    E4;
-    hyperpoint h = hmd_at * inverse(hmd_ref_at) * C0;
       
-    dialog::addSelItem(XLAT("reset the reference point"), state ? fts(hypot_d(3, h)) + "m" : "", 'r');
+    dialog::addSelItem(XLAT("reset the reference point"), refdist(), 'r');
     dialog::add_action([] { hmd_ref_at = hmd_at; });
     }
   else dialog::addBreak(100);
@@ -1618,6 +1622,92 @@ EX void handoff() {
   }
 
 #endif
+
+EX purehookset vr_quickmenu_extensions;
+
+EX void show_vr_quickmenu() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  dialog::init(XLAT("VR quickmenu"));
+  dialog::addHelp(XLAT("These hotkeys can be activated at any time by pressing Alt+key. They are mostly useful when showing VR to someone. Demos can define extra hotkeys."));
+  callhooks(vr_quickmenu_extensions);
+  dialog::display();
+  }
+
+bool vr_keys(int sym, int uni) {
+  #if !ISMOBILE
+  if(!(cmode & sm::NORMAL)) return false;
+  const Uint8 *keystate = SDL12_GetKeyState(NULL);
+  #if CAP_SDL2
+  if(keystate[SDL_SCANCODE_LALT] || keystate[SDL_SCANCODE_RALT])
+  #else
+  if(keystate[SDLK_LALT] || keystate[SDLK_RALT])
+  #endif
+    {
+    dialog::key_actions.clear();
+    callhooks(vr_quickmenu_extensions);
+    if(dialog::key_actions.count(uni)) { dialog::key_actions[uni](); return true; }
+    }
+  return false;
+  #endif
+  }
+
+auto hookvr = addHook(vr_quickmenu_extensions, 100, [] {
+  dialog::addSelItem(XLAT("increase camera speed"), fts(camera_speed), ',');
+  dialog::add_action([] { camera_speed *= 1.2; println(hlog, "camera_speed = ", camera_speed); });
+  dialog::addSelItem(XLAT("decrease camera speed"), fts(camera_speed), '.');
+  dialog::add_action([] { camera_speed /= 1.2; println(hlog, "camera_speed = ", camera_speed); });
+  #if CAP_VR
+  if(vrhr::active()) {
+    if(in_perspective()) {
+      dialog::addSelItem(XLAT("increase absolute unit"), fts(vrhr::absolute_unit_in_meters), 'a');
+      dialog::add_action([] {
+        vrhr::absolute_unit_in_meters *= 1.2;
+        walking::eye_level *= 1.2;
+        println(hlog, "vr absolute unit set to ", vrhr::absolute_unit_in_meters);
+        });
+      dialog::addSelItem(XLAT("decrease absolute unit"), fts(vrhr::absolute_unit_in_meters), 'z');
+      dialog::add_action([] {
+        vrhr::absolute_unit_in_meters /= 1.2;
+        walking::eye_level /= 1.2;
+        println(hlog, "vr absolute unit set to ", vrhr::absolute_unit_in_meters);
+        });
+      }
+    else {
+      dialog::addSelItem(XLAT("increase model size"), fts(pconf.vr_scale_factor), 'a');
+      dialog::add_action([] {
+        pconf.vr_scale_factor *= 1.2;
+        println(hlog, "vr scale factor set to ", pconf.vr_scale_factor);
+        });
+      dialog::addSelItem(XLAT("decrease model size"), fts(pconf.vr_scale_factor), 'z');
+      dialog::add_action([] {
+        pconf.vr_scale_factor *= 1.2;
+        println(hlog, "vr scale factor set to ", pconf.vr_scale_factor);
+        });
+      dialog::addSelItem(XLAT("increase Z-shift"), fts(pconf.vr_zshift), 'c');
+      dialog::add_action([] {
+        pconf.vr_zshift += 0.5;
+        });
+      dialog::addSelItem(XLAT("decrease Z-shift"), fts(pconf.vr_zshift), 'd');
+      dialog::add_action([] {
+        pconf.vr_zshift -= 0.5;
+        });
+      }
+    dialog::addBoolItem(XLAT("always show HUD"), always_show_hud, 'x');
+    dialog::add_action([] {
+      always_show_hud = !always_show_hud;
+      println(hlog, "hud ", ONOFF(always_show_hud));
+      });
+    dialog::addSelItem(XLAT("reset VR reference"), refdist(), 'v');
+    dialog::add_action([] {
+      println(hlog, "vr reference reset");
+      vrhr::hmd_ref_at = vrhr::hmd_at;
+      });
+    }
+  #endif
+  dialog::addItem(XLAT("VR quickmenu help"), 'h');
+  dialog::add_action_push(show_vr_quickmenu);
+  })
+  + addHook(hooks_handleKey, 101, vr_keys);
 
 EX }
 }

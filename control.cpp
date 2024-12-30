@@ -554,23 +554,7 @@ EX array<int, 8> keys_vi = {{'l', 'n', 'j', 'b', 'h', 'y', 'k', 'u'}};
 EX array<int, 8> keys_wasd = {{'d', 'c', 'x', 'z', 'a', 'q', 'w', 'e'}};
 EX array<int, 8> keys_numpad = {{SDLK_KP6, SDLK_KP3, SDLK_KP2, SDLK_KP1, SDLK_KP4, SDLK_KP7, SDLK_KP8, SDLK_KP9}};
   
-EX void handleKeyNormal(int sym, int uni) {
-
-  if(cheater && sym < 256 && sym > 0) {
-    if(applyCheat(uni))
-      uni = sym = 0;
-    }
-
-  #if CAP_SHOT
-  if(uni == 'A') { pushScreen(shot::menu); uni = sym = 0; }
-  #endif
-
-  if(DEFAULTNOR(sym)) handlePanning(sym, uni);
-  
-#ifdef SCALETUNER
-  if(handleTune(sym, uni)) return;
-#endif
-
+EX void handle_movement(int sym, int uni) {
   if(!(uni >= 'A' && uni <= 'Z') && DEFAULTCONTROL && !game_keys_scroll) {
     for(int i=0; i<8; i++)
       if(among(sym, keys_vi[i], keys_wasd[i], (uni >= '0' && uni <= '9' && !ISMAC) ? -1 : keys_numpad[i]))
@@ -585,6 +569,26 @@ EX void handleKeyNormal(int sym, int uni) {
     if(sym == SDLK_UP) movepckeydir(6 - (pandora_leftclick?1:0) + (pandora_rightclick?1:0));
     }
 #endif
+  }
+
+EX void handleKeyNormal(int sym, int uni) {
+
+  if(cheater && sym < 256 && sym > 0 && !dialog::key_actions.count(uni)) {
+    if(applyCheat(uni))
+      uni = sym = 0;
+    }
+
+  #if CAP_SHOT
+  if(uni == 'A' && !dialog::key_actions.count('A')) { pushScreen(shot::menu); uni = sym = 0; }
+  #endif
+
+  if(DEFAULTNOR(sym)) handlePanning(sym, uni);
+  
+#ifdef SCALETUNER
+  if(handleTune(sym, uni)) return;
+#endif
+
+  handle_movement(sym, uni);
 
   #if CAP_COMPLEX2
   if(DEFAULTNOR(sym)) {
@@ -1018,7 +1022,11 @@ EX void mainloopiter() {
     ld t = (ticks - lastticks) * shiftmul / 1000.;
     lastticks = ticks;
 
+    #if CAP_SDL2
+    #define dkey(x) keystate[int(x - 'a' + 4)] && DEFAULTNOR(x - 'a' + 4)
+    #else
     #define dkey(x) keystate[int(x)] && DEFAULTNOR(x)
+    #endif
 
     if(dkey('d')) full_rotate_camera(0, -t);
     if(dkey('a')) full_rotate_camera(0, t);

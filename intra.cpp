@@ -167,7 +167,7 @@ EX portal_data make_portal(cellwalker cw, int spin) {
       if(cw.spin == cw.at->type - 2)
         fac.pop_back();
       else
-        fac.erase(fac.begin() + 1);
+        fac.erase(fac.begin());
       id.scale = log(2)/2;
       }
     #else
@@ -541,7 +541,7 @@ EX void shift_view_portal(hyperpoint H) {
   // println(hlog, "maxv = ", maxv);
   shift_view(H * maxv * scale);
   check_portal_movement();
-  shift_view_portal(H * (1 - maxv) * scale);
+  shift_view_portal(H * (1 - maxv));
   }
 
 EX const connection_data* through_portal() {
@@ -609,7 +609,7 @@ EX void check_portal_movement() {
       analyze_orthonormal(ds, ss);
       }
 
-    set_view(ds[0], ds[1], ds[2]);
+    set_view(ds[0], ds[1], ds[2]); decide_lpu();
 
     if(debug_portal & 8) {
       array<hyperpoint, 4> xds; /* camera, forward, upward */
@@ -1205,6 +1205,14 @@ auto a = addHook(hooks_configfile, 100, [] {
     floor_dir = -1;
     on_floor_of = nullptr;
     ticks_last = ticks_end = ticks;
+    })
++ addHook(vrhr::vr_quickmenu_extensions, 105, [] {
+    if(!intra::in) return;
+    dialog::addBoolItem("walking mode", 'w', on);
+    dialog::add_action([] {
+      switch_walking();
+      println(hlog, "walking set to ", ONOFF(on));
+      });
     });
 
 EX }

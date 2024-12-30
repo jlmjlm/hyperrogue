@@ -2958,15 +2958,10 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
         if(mapeditor::drawUserShape(Vb, mapeditor::sgMonster, c->monst, (col << 8) + 0xFF, c)) 
           return false;
 
-        if(isIvy(c) || isMutantIvy(c) || c->monst == moFriendlyIvy)
+        if(isIvy(c) || isMutantIvy(c) || c->monst == moFriendlyIvy) {
           queuepoly(Vb, cgi.shIBranch, (col << 8) + 0xFF);
-/*         else if(c->monst < moTentacle && wormstyle == 0) {
-          ShadowV(Vb, cgi.shTentacleX, PPR::GIANTSHADOW);
-          queuepoly(at_smart_lof(Vb, cgi.ABODY), cgi.shTentacleX, 0xFF);
-          queuepoly(at_smart_lof(Vb, cgi.ABODY), cgi.shTentacle, (col << 8) + 0xFF);
-          } */
-//        else if(c->monst < moTentacle) {
-//          }
+          christmas_lights(c, Vb);
+          }
 
         else if(c->monst == moDragonHead || c->monst == moDragonTail) {
           char part = dragon::bodypart(c, dragon::findhead(c));
@@ -3262,16 +3257,13 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
       if(cgi.emb->is_euc_in_product()) { }
       else if(WDIM == 2 || mproduct) {
         hyperpoint V0 = inverse_shift(Vs, where * tile_center());
-        ld z = 0;
         if(gproduct) {
           auto d = product_decompose(V0);
-          z = d.first;
           V0 = d.second;
           }
           
         if(hypot_d(2, tC0(unshift(Vs))) > 1e-3) {
           Vs = Vs * lrspintox(V0);
-          if(gproduct) Vs = orthogonal_move(Vs, z);
           }
         }
       else if(!sl2) {
@@ -3333,6 +3325,86 @@ EX bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, col
     }
 #endif
   return res;
+  }
+
+EX color_t christmas_color(int d, bool simple) {
+  array<color_t, 5> cols = { 0x10101, 0x10100, 0x000001, 0x00100, 0x10000 };
+  color_t v = cols[gmod(d, 5)];
+  v *= 0x3F;
+  int mode;
+  if(false) {
+    mode = gmod(ticks / 20000, 2) ? 1 : 3;
+    }
+  else {
+    int t = gmod(ticks, 11000);
+    if(t > 10000) mode = 4;
+    else mode = 1 + gmod(ticks / 11000, 3);
+    }
+  switch(mode) {
+    case 0:
+      break;
+    case 1:
+      if((ticks/100 - d) % 16) v = 0;
+      break;
+    case 2: {
+      int z = gmod(d * 500 - ticks, 8000);
+      if(z > 1500) v = 0;
+      else if(z < 500) { v /= 0x3F; v *= 0x3F * z / 500; }
+      else if(z > 1000) { v /= 0x3F; v *= 0x3F * (1500 - z) / 500; }
+      break;
+      }
+    case 3:
+      if((-ticks / 100 - d) % 16) v = 0;
+      break;
+    case 4:
+      v /= 0x3F;
+      v *= int(0x20 + 0x1F * (1 - cos(ticks / 500. * TAU)) / 2);
+      break;
+    }
+  return v;
+  }
+
+EX std::unordered_map<cell*, array<int, 3>> shines, old_shines;
+
+EX bool festive, festive_date;
+EX bool festive_option = true;
+
+EX void christmas_lights(cell *c, const shiftmatrix& Vb) {
+  if(!festive) return;
+  int lev = 0;
+  if(isMutantIvy(c)) lev = (c->stuntime - 1) & 15;
+  else {
+    auto c1 = c;
+    while(lev < 100 && c1->cpdist <= 7 && (isIvy(c1->monst) || c1->monst == moFriendlyIvy) && !among(c1->monst, moIvyRoot) && c1->mondir != NODIR) {
+      c1 = c1->cmove(c1->mondir); lev++;
+      }
+    }
+  auto cn = c->cmove(c->mondir);
+  ld dist = hdist0(currentmap->adj(c, c->mondir) * C0);
+  for(int a: {0, 1, 2}) {
+    color_t col = christmas_color(3*lev-a, c->monst == moMutant);
+    int bri = max(part(col, 0), max(part(col, 1), part(col, 2)));
+    color_t fcol = 0x7E + (col << 9) + 0x1010101 * int(129 * bri / 0x3F);
+    queuepoly(Vb * xpush(dist * (a*2+1) / 6), cgi.shChristmasLight, fcol);
+    for(int p: {0,1,2}) {
+      int val = part(col, p);
+      if(!val) continue;
+      if(a == 0) {
+        shines[c][p] += 2 * val;
+        forCellEx(c1, c) shines[c1][p] += val;
+        }
+      if(a == 2) {
+        shines[cn][p] += 2 * val;
+        forCellEx(c1, cn) shines[c1][p] += val;
+        }
+      if(a == 1) {
+        shines[c][p] += val;
+        shines[cn][p] += val;
+        forCellEx(c1, c) shines[c1][p] += val / 2;
+        forCellEx(c1, cn) shines[c1][p] += val / 2;
+        }
+      }
+    }
   }
 
 #define AURA 180
@@ -4419,8 +4491,9 @@ EX subcellshape& generate_subcellshape_if_needed(cell *c, int id) {
     vector<hyperpoint> l;
     int z = a ? 1 : -1;
     hyperpoint ctr = zpush0(z * cgi.plevel/2);
+    int qty = (mproduct || WDIM == 2) ? 1 : 3;
     for(int i=0; i<c1->type; i++)
-      if(mproduct || WDIM == 2)
+      if(qty == 1)
         l.push_back(hybrid::get_corner(c1, i, 0, z));
       else {
         l.push_back(ctr);
@@ -4431,7 +4504,7 @@ EX subcellshape& generate_subcellshape_if_needed(cell *c, int id) {
         l.push_back(hybrid::get_corner(c1, i, 0, z));
         }
     if(a == 0) std::reverse(l.begin()+1, l.end());
-    if(a == 1) std::rotate(l.begin(), l.begin()+3, l.end());
+    if(a == 1) std::rotate(l.begin(), l.begin()+qty, l.end());
     ss.faces.push_back(l);
     }
   
@@ -5659,7 +5732,9 @@ EX void calcparam() {
   ld fov = vid.fov * degree / 2;
   cd->tanfov = sin(fov) / (cos(fov) + get_stereo_param());
   
+  #if CAP_SDLTTF
   set_cfont();
+  #endif
   callhooks(hooks_calcparam);
   reset_projection();
   }
@@ -5798,6 +5873,9 @@ EX void gamescreen() {
 
   if(history::includeHistory) history::restore();
 
+  festive = festive_date && festive_option;
+  old_shines = std::move(shines); shines.clear();
+
   anims::apply();
 #if CAP_RUG
   if(rug::rugged) {
@@ -5855,6 +5933,19 @@ EX void emptyscreen() {
 EX int nohelp;
 EX bool no_find_player;
 
+EX void show_menu_button() {
+  if(menu_format != "")
+    displayButton(vid.xres-8, vid.yres-vid.fsize, eval_programmable_string(menu_format), 'v', 16);
+  else if(nomenukey || ISMOBILE)
+    ;
+#if CAP_TOUR
+  else if(tour::on)
+    displayButton(vid.xres-8, vid.yres-vid.fsize, XLAT("(ESC) tour menu"), SDLK_ESCAPE, 16);
+#endif
+  else
+    displayButton(vid.xres-8, vid.yres-vid.fsize, XLAT("(v) menu"), 'v', 16);
+  }
+
 EX void normalscreen() {
   help = "@";
 
@@ -5869,18 +5960,7 @@ EX void normalscreen() {
   if(viewdists && show_distance_lists) cmode |= sm::SIDE | sm::MAYDARK;
   gamescreen(); drawStats();
 
-  if(menu_format != "") {
-    displayColorButton(vid.xres-8, vid.yres-vid.fsize,
-            eval_programmable_string(menu_format), 'v', 16, 0, 0xFFFFFF);
-    }
-  else if(nomenukey || ISMOBILE)
-    ;
-#if CAP_TOUR
-  else if(tour::on) 
-    displayButton(vid.xres-8, vid.yres-vid.fsize, XLAT("(ESC) tour menu"), SDLK_ESCAPE, 16);
-#endif
-  else
-    displayButton(vid.xres-8, vid.yres-vid.fsize, XLAT("(v) menu"), 'v', 16);
+  show_menu_button();
   keyhandler = handleKeyNormal;
 
   if(!playerfound && !anims::any_on() && !sphere && !no_find_player && mapeditor::drawplayer)
