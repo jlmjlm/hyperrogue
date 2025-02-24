@@ -90,11 +90,15 @@ void gen_terrain(cell *c, cellinfo& ci, int level = 0) {
             if(ci_at[c2].type < wtSolid)
               ci_at[c2].type = wtSolid;
       }
-    r = hrand(100);
-    if(r < gate_frequency(c))
-      ci_at[c].type = wtGate;
     }
   ci.mpd_terrain = level;
+
+  auto gf = gate_frequency(c);
+  if(gf) {
+    int r = hrand(100);
+    if(r < gf)
+      ci_at[c].type = wtGate;
+    }
 
   if(c->land == laBarrier)
     ci_at[c].type = wtBarrier;
@@ -234,7 +238,7 @@ void gen_rocks(cell *c, cellinfo& ci, int radius) {
       hybrid::in_actual([&] {
         add_turret(c, ci, p.get());
         for(int r=0; r<6; r++)
-          add_rsrc(c, ci, p.get(spin(r * 60._deg) * twist::uxpush(turret_dist * ads_scale)));
+          add_rsrc(c, ci, p.get(spin(r * 60._deg) * twist::uxpush(turret_dist * get_scale())));
         turrets++;
         });
       }
@@ -277,16 +281,16 @@ bool pointcrash(hyperpoint h, const vector<cross_result>& vf) {
   return winding & 1;
   }
 
-void common_crash_ship() {
+void common_crash_ship(const string &reason) {
   invincibility_pt = ship_pt + DS_(how_much_invincibility);
   pdata.hitpoints--;
-  if(pdata.hitpoints <= 0) game_over = true;
+  if(pdata.hitpoints <= 0) game_over_with_message(reason);
   playSound(nullptr, "explosion");
   }
   
-void ads_crash_ship() {
+void ads_crash_ship(const string &reason) {
   if(ship_pt < invincibility_pt) return;
-  common_crash_ship();
+  common_crash_ship(reason);
   hybrid::in_actual([&] {
     gen_particles(rpoisson(crash_particle_qty * 2), vctr, ads_inverse(current * vctrV) * spin(ang*degree), rsrc_color[rtHull], crash_particle_rapidity, crash_particle_life);
     });
@@ -410,7 +414,7 @@ void handle_turret(ads_object *t, ld& angle_at_time) {
     if(t->last_shot >= t->life_end) return;
     ld angle = lerp(it0->second.angle, nts.angle, ilerp(it0->first, ctime, t->last_shot));
     // println(hlog, "shooting at angle ", angle, " at time ", t->last_shot);
-    ads_matrix S0 = ads_inverse(p->V) * t1 * spin(angle) * twist::uxpush(turret_length * ads_scale) * lorentz(0, 2, ads_missile_rapidity);
+    ads_matrix S0 = ads_inverse(p->V) * t1 * spin(angle) * twist::uxpush(turret_length * get_scale()) * lorentz(0, 2, ads_missile_rapidity);
     auto r = std::make_unique<ads_object> (oTurretMissile, t->owner, S0, rsrc_color[rtAmmo]);
     r->shape = &shape_missile;
     r->life_start = 0; r->life_end = M_PI;
@@ -454,6 +458,8 @@ void handle_crashes() {
         if(pointcrash(h, r->pts)) {
           m->life_end = m->pt_main.shift;
           r->life_end = r->pt_main.shift;
+          if(r->type == oTurret) cur.turrets_hit++;
+          if(r->type == oRock) cur.rocks_hit++;
           hybrid::in_actual([&] {
             gen_particles(rpoisson(crash_particle_qty), m->owner, m->at * ads_matrix(Id, m->life_end), missile_color, crash_particle_rapidity, crash_particle_life);
             gen_particles(rpoisson(crash_particle_qty), r->owner, r->at * ads_matrix(Id, r->life_end), r->col, crash_particle_rapidity, crash_particle_life);
@@ -464,25 +470,27 @@ void handle_crashes() {
         }
       }
     if(!game_over) for(int i=0; i<isize(shape_ship); i+=2) {
+      ld ads_scale = get_scale();
       hyperpoint h = spin(ang*degree) * hpxyz(shape_ship[i] * ads_scale, shape_ship[i+1] * ads_scale, 1);
       for(auto r: rocks) {
-        if(pointcrash(h, r->pts)) ads_crash_ship();
+        if(pointcrash(h, r->pts)) ads_crash_ship(r->type == oTurret ? "crashed into a turret" : "crashed into an asteroid");
         }
       for(auto r: enemy_missiles) {
         if(pointcrash(h, r->pts)) {
           r->life_end = r->pt_main.shift;
-          ads_crash_ship();
+          ads_crash_ship("hit by a missile");
           }
         }
       for(auto r: resources) {
         if(pointcrash(h, r->pts)) {
           r->life_end = r->pt_main.shift;
+          cur.rsrc_collected++;
           gain_resource(r->resource);
           }
         }
 
       hyperpoint h1 = normalize(h);
-      bool crashed = false;
+      bool crashed = false; string crash_what;
       hybrid::in_actual([&] {
         h1[3] = h1[2]; h1[2] = 0;
         ads_point rel = ads_inverse(current * vctrV) * ads_point(h1, 0);
@@ -495,10 +503,13 @@ void handle_crashes() {
         if(ci.type == wtDestructible || ci.type == wtSolid || (ci.type == wtGate && (int(floor(t)) & 3) == 0) || ci.type == wtBarrier) {
           if(!crashed && ship_pt > invincibility_pt) println(hlog, "crashed at t = ", t / TAU, " shift = ", rel.shift/TAU, " sec = ", w.second*cgi.plevel/TAU);
           crashed = true;
+          if(ci.type == wtGate) crash_what = "crashed into a gate";
+          if(ci.type == wtDestructible || ci.type == wtSolid) crash_what = "crashed into a wall";
+          if(ci.type == wtBarrier) crash_what = "hit a Great Wall";
           }
         });
 
-      if(crashed) ads_crash_ship();
+      if(crashed) ads_crash_ship(crash_what);
       }
     });
   }

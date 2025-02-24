@@ -48,14 +48,7 @@
 #define SUBQ
 #endif
 
-#include "../hyper.h"
-
-#ifdef RVCOL
-namespace hr {
-  void rv_achievement(const string& name);
-  void rv_leaderboard(const string& name, int score);
-  }
-#endif
+#include "rogueviz.h"
 
 #define solnil (nil || sol)
 
@@ -74,8 +67,6 @@ local_parameter_set lps_bringris("bringris:");
 local_parameter_set lps_bringris_explore("bringris:explore:", &lps_bringris);
 local_parameter_set lps_bringris_play("bringris:play:", &lps_bringris);
 
-multi::config scfg_bringris;
-
 struct bgeometry {
   string name;
   string cap;
@@ -86,9 +77,9 @@ struct bgeometry {
 
 bool stars_enabled = true;
 
-enum eBringrisMove { bmDown, bmLeft, bmUp, bmRight, bmTurnLeft, bmTurnRight, bmDrop, bmFullDrop, bmPause, bmNothing, bmLast };
+enum eBringrisMove { bmUp=4, bmRight=5, bmDown=6, bmLeft=7, bmFullDrop=8, bmTurnLeft=9, bmTurnRight=10, bmDrop=11, bmPause=12, bmNothing=13, bmLast=14 };
 
-vector<string> move_names = { "move down", "move left", "move up", "move right", "turn left", "turn right", "drop by one", "full drop", "pause", "do nothing" };
+vector<string> move_names = { "", "", "", "", "move up", "move right", "move down", "move left", "full drop", "turn left", "turn right", "drop by one", "pause", "do nothing" };
 
 int camera_level;
 
@@ -761,8 +752,10 @@ void new_piece() {
   if(shape_conflict(at)) {
     playSound(cwt.at, "die-bomberbird");
     state = tsGameover;
+    #if RCVOL
     if(cur.pro_game && cur.max_piece == bgeoms[bgeom].default_max_piece)
       rv_leaderboard(bgeoms[bgeom].name, cur.score);
+    #endif
     save();
     }
   else {
@@ -832,7 +825,9 @@ void find_lines() {
     cur.score += 100000. * points * (points+1.) / current_move_time_limit();
     cur.completed += points;
     playSound(cwt.at, points == 1 ? "pickup-gold" : "orb-mind");
+    #if RVCOL
     if(points == 4 && cur.pro_game && cur.max_piece == 4 && bgeoms[bgeom].default_max_piece == 4) rv_achievement("BRINGRISFOUR");
+    #endif
     }
   }
 
@@ -1023,7 +1018,7 @@ void shift_block(int dir, bool camera_only) {
       at1 = flatspin(flatspin(at, 1) + wstep, 2);
     }
   else {
-    int kspin = (t/2) - dir;     
+    int kspin = (t/2) - dir;
     at1 = flatspin(at, dir);  
     at1 = flatspin(at1 + wstep, kspin);
     }
@@ -1032,7 +1027,9 @@ void shift_block(int dir, bool camera_only) {
   
   if(camera_only || !shape_conflict(at1)) {
     // playSound(cwt.at, "hit-crush1");
+    #if RVCOL
     if(check_bshift(at, at1)) rv_achievement("BSHIFT");
+    #endif
     at = at1;
     if(solnil) {
       pView = pView * currentmap->adj(cwt.at, nilmap(dir));
@@ -1046,12 +1043,12 @@ void shift_block(int dir, bool camera_only) {
   }
 
 void bringris_action(int k) {
-  if(k < 4) shift_block(k);
-  if(k == 4) rotate_block(1);
-  if(k == 5) rotate_block(-1);
-  if(k == 6) drop();
-  if(k == 7) fulldrop();
-  if(k == 8) paused = true;
+  if(k >= 4 && k < 8) shift_block((k-4)^2);
+  if(k == bmTurnLeft) rotate_block(1);
+  if(k == bmTurnRight) rotate_block(-1);
+  if(k == bmDrop) drop();
+  if(k == bmFullDrop) fulldrop();
+  if(k == bmPause) paused = true;
   }
 
 void create_matrices() {
@@ -1408,7 +1405,7 @@ void settings_menu() {
   dialog::addItem("visuals & Virtual Reality", 'v');
   dialog::add_action_push(visual_menu);
   dialog::addItem("configure keys", 'k');
-  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Bringris keys", scfg_bringris));
+  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Bringris keys", multi::scfg_default));
 
   #if CAP_AUDIO
   add_edit(effvolume);
@@ -1499,7 +1496,7 @@ void adjust_animation(ld part) {
     hyperpoint vec = inverse_exp(shiftless(tC0(T)));
     transmatrix Tspin = gpushxto0(tC0(T)) * T;
     ld alpha = atan2(Tspin*xpush0(1));
-    println(hlog, "vec=", vec, " part = ", part);
+    // println(hlog, "vec=", vec, " part = ", part);
     pView = spin(alpha * part) * gpushxto0(direct_exp(vec*part)) * pView;
     fixmatrix(pView);
     View = tView;
@@ -1732,11 +1729,13 @@ void run() {
     if(explore && sym == SDLK_BACKSPACE) 
       explore = false;
 
+    auto& act = multi::action_states[1];
+
     if(state == tsFalling && !paused) {
-      multi::handleInput(0, scfg_bringris);
+      multi::handleInput(0, multi::scfg_default);
       bool consumed = false;
       for(int i=0; i<bmLast; i++)
-        if(multi::actionspressed[16+i] && !multi::lactionpressed[16+i]) {
+        if(act[i].pressed()) {
           bringris_action(i);
           consumed = true;
           }
@@ -2144,6 +2143,19 @@ int args() {
     init_all();
     }
 
+  else if(argis("-bringris-drop")) {
+    PHASEFROM(2);
+    start_new_game();
+    paused = false;
+    explore = false;
+    cur.pro_game = false;
+    new_piece(); fulldrop(); fallen(); new_piece(); fulldrop();
+    }
+
+  else if(argis("-bringris-explore")) {
+    explore = true;
+    }
+
   else if(argis("-ray-off"))
     use_raycaster = false;
 
@@ -2158,23 +2170,12 @@ int args() {
   return 0;
   }
 
-void change_default_key(int key, int val) {
-  int* t = scfg_bringris.keyaction;
-  t[key] = val;
-  }
-
 void default_config() {
-  clear_config(scfg_bringris);
-  change_default_key('s', 16 + 0);
-  change_default_key('a', 16 + 1);
-  change_default_key('w', 16 + 2);
-  change_default_key('d', 16 + 3);
-  change_default_key('q', 16 + 4);
-  change_default_key('e', 16 + 5);
-  change_default_key(' ', 16 + 6);
-  change_default_key('\r',16 + 7);
-  change_default_key('p', 16 + 8);
-  sconfig_savers(scfg_bringris, "bringris");
+  multi::change_default_key(lps_bringris, '\r', 16 + 8);
+  multi::change_default_key(lps_bringris, 'q',  16 + 9);
+  multi::change_default_key(lps_bringris, 'e',  16 + 10);
+  multi::change_default_key(lps_bringris, ' ',  16 + 11);
+  multi::change_default_key(lps_bringris, 'p',  16 + 12);
 
   param_i(bgeom, "bringris-geometry", 0);
   param_b(stars_enabled, "bringris_stars", true);
@@ -2209,7 +2210,7 @@ auto hooks =
   + addHook(hooks_frame, 100, bringris_frame)
   + addHook(hooks_configfile, 300, default_config)
   + addHook(dialog::hooks_display_dialog, 100, [] () {
-      if(dialog::items[0].body == "Bringris keys") {
+      if(dialog::items.size() && dialog::items[0].body == "Bringris keys") {
         dialog::addBreak(200);
         if(!rotate_allowed)
           dialog::addHelp("note: rotation keys only available when necessary");
@@ -2253,6 +2254,7 @@ void save(const gamedata& sd) {
   fhstream f("bringris.save", "at");
   println(f, "Bringris ", BRINGRIS_VER);
   println(f, sd.bgeom_name);
+  println(f, "unnamed");
   println(f, sd.timerstart);
   println(f, sd.timerend);
   println(f, sd.max_piece, " ", sd.pro_game ? sd.score : -1, " ", sd.bricks, " ", sd.completed, " ", sd.cubes, " ", sd.well_size, " ", sd.levelsize, " ", sd.seconds);

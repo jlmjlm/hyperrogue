@@ -2,7 +2,7 @@
 /* Compile with mymake -O3 -rv rogueviz/ads/ads-game */
 /* Best run with -ads-menu; more detailed options are available too */
 
-#define VER_RH "0.2"
+#define VER_RH "1.0"
 
 #ifdef RELHELL
 
@@ -41,31 +41,23 @@ namespace rogueviz { std::vector<hr::reaction_t> cleanup; }
 #include "ds-texture.cpp"
 #include "views.cpp"
 #include "tour.cpp"
+#include "help.cpp"
+#include "hiscore.cpp"
 
 namespace hr {
 
 namespace ads_game {
 
-void change_default_key(int key, int val) {
-  int* t = scfg_ads.keyaction;
-  t[key] = val;
-  }
+/* ADS-specific keys */
 
 void set_default_keys() {
-  clear_config(scfg_ads);
-  change_default_key('s', 16 + 0);
-  change_default_key('a', 16 + 1);
-  change_default_key('w', 16 + 2);
-  change_default_key('d', 16 + 3);
-  change_default_key('f', 16 + 4);
-  change_default_key('p', 16 + 5);
-  change_default_key('t', 16 + 6);
-  change_default_key('o', 16 + 7);
-  change_default_key('m', 16 + 8);
-  change_default_key('i', 16 + 9);
-  change_default_key('k', 16 + 10);
-  change_default_key('l', 16 + 11);
-  sconfig_savers(scfg_ads, "ads");
+  multi::change_default_key(lps_relhell, 'p', 16 + 9);
+  multi::change_default_key(lps_relhell, 't', 16 + 10);
+  multi::change_default_key(lps_relhell, 'o', 16 + 11);
+  multi::change_default_key(lps_relhell, 'm', 16 + 12);
+  multi::change_default_key(lps_relhell, 'i', 16 + 13);
+  multi::change_default_key(lps_relhell, 'k', 16 + 14);
+  multi::change_default_key(lps_relhell, 'l', 16 + 15);
   }
 
 void restart() {
@@ -93,9 +85,12 @@ void restart() {
 
   paused = false;
   ship_pt = 0;
+  init_gamedata();
   }
 
 void run_ads_game_hooks() {
+  rogueviz::rv_hook(hooks_global_mouseover, 100, generate_mouseovers);
+  rogueviz::rv_change<color_t>(titlecolor, 0);
   rogueviz::rv_hook(hooks_frame, 100, view_ads_game);
   rogueviz::rv_hook(hooks_prestats, 100, display_rsrc);
   rogueviz::rv_hook(hooks_handleKey, 150, handleKey);
@@ -105,14 +100,22 @@ void run_ads_game_hooks() {
   rogueviz::rv_hook(hooks_nextland, 0, ads_nextland);
   }
 
+void run_size_hooks() {
+  rogueviz::rv_hook(hooks_scalefactor, 100, [] (geometry_information *i) {
+    i->scalefactor = vid.creature_scale / 3;
+    });
+  rogueviz::rv_hook(hooks_cgi_string, 100, [] (string& s) { s += " ads"; });
+  }
+
 void run_ads_game() {
 
   if(!sl2) set_geometry(gTwistedProduct);
   if(hybrid::csteps) {
     stop_game();
     hybrid::csteps = 0;
-    hybrid::reconfigure();
     }
+  run_size_hooks();
+  hybrid::reconfigure(); // we need to reconfigure to take scalefactor change into account
   run_ads_game_hooks();
   start_game();
 
@@ -155,7 +158,7 @@ local_parameter_set lps_relhell_ds_spacetime_pers("relhell:ads:pers:", &lps_relh
 void default_settings() {
   set_default_keys();
 
-  lps_add(lps_relhell, nohelp, 1);
+  // lps_add(lps_relhell, nohelp, 1);
   lps_add(lps_relhell, nomenukey, true);
   lps_add(lps_relhell, nomap, true);
   lps_add(lps_relhell, no_find_player, true);
@@ -185,6 +188,12 @@ void default_settings() {
   lps_add(lps_relhell_ads_spacetime, vid.grid, false);
   lps_add(lps_relhell_ads_spacetime, slr::range_xy, 2.);
   lps_add(lps_relhell_ads_spacetime, slr::range_z, 2.);
+
+  charstyle& cs = getcs();
+  lps_add(lps_relhell, cs.skincolor, 0xFFFFFFFF);
+  lps_add(lps_relhell, cs.eyecolor, 0x8080FFFF);
+  lps_add(lps_relhell, cs.dresscolor, 0xFFC0C0FF);
+  lps_add(lps_relhell, cs.haircolor, 0xC0FFC0FF);
   }
 
 void gamedata(hr::gamedata* gd) {
@@ -209,6 +218,7 @@ void gamedata(hr::gamedata* gd) {
   }
 
 void set_config() {
+  load_hiscores();
   lps_enable(&lps_relhell);
   // enable_canvas();
   }
@@ -223,7 +233,7 @@ void run_ads_game_std() {
   }
 
 void change_scale(ld s) {
-  ads_scale *= s;
+  vid.creature_scale *= s;
   rock_density /= (s * s);
   rock_max_rapidity *= s;
   ads_simspeed *= s;
@@ -254,10 +264,10 @@ auto shot_hooks =
     -> editable(0, 2*TAU, TAU/4, "AdS game speed", "Controls the speed of the game, in absolute units per second.", 's');
     param_f(ds_simspeed, "ds_game_simspeed")
     -> editable(0, 2*TAU, TAU/4, "dS game speed", "Controls the speed of the game, in absolute units per second.", 's');
-    param_f(ads_scale, "ads_game_scale")
+    /*param_f(ads_scale, "ads_game_scale")
     -> editable(0, 2, 0.1, "AdS game scale", "Controls the scaling of game objects.", 'c');
     param_f(ds_scale, "ds_game_scale")
-    -> editable(0, 2, 0.1, "dS game scale", "Controls the scaling of game objects.", 'c');
+    -> editable(0, 2, 0.1, "dS game scale", "Controls the scaling of game objects.", 'c'); */
     param_f(ads_accel, "ads_game_accel")
     -> editable(0, 30, 1, "AdS acceleration", "Controls your ship's acceleration, in absolute units per second squared.", 'a');
     param_f(ds_accel, "ds_game_accel")
@@ -321,6 +331,9 @@ auto shot_hooks =
     -> editable(0, 100, 5, "step quantity in the spacetime display", "", 'q');
 
     param_color(ghost_color, "color:ghost", true);
+
+    param_enum(hi_sort_by, "sort_by", 3)
+     ->editable({{"platinum", ""}, {"plasteel", ""}, {"uranium", ""}, {"total score", ""}}, "sort high scores by", 'h');
 
     rsrc_config();
     });

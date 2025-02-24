@@ -3,6 +3,7 @@ namespace hr {
 namespace ads_game {
 
 void adjust_for_scale() {
+  ld ads_scale = get_scale();
   if(ads_scale < 0.3) max_gen_per_frame = 1, draw_per_frame = 30;
   else if(ads_scale < 0.8) max_gen_per_frame = 2, draw_per_frame = 100;
   else max_gen_per_frame = 3, draw_per_frame = 1000;
@@ -16,7 +17,7 @@ void edit_difficulty() {
   add_edit(DS_(simspeed));
   add_edit(DS_(accel));
   add_edit(DS_(how_much_invincibility));
-  add_edit(DS_(scale));
+  add_edit(vid.creature_scale);
   add_edit(DS_(missile_rapidity));
 
   if(!main_rock) {
@@ -170,9 +171,14 @@ void game_menu() {
 
   dialog::addItem(XLAT("restart game"), 'r');
   dialog::add_action([] {
+    game_over_with_message("restarted");
+    save_to_hiscores();
     if(main_rock) ds_restart();
     else restart();
     popScreen(); });
+
+  dialog::addItem(XLAT("highscores"), 'h');
+  dialog::add_action_push(hiscore_menu);
 
   dialog::addItem(XLAT("refill cheat"), 'R');
   dialog::add_action([] { init_rsrc(); popScreen(); });
@@ -181,7 +187,7 @@ void game_menu() {
   dialog::add_action([] { current.T = Id; vctrV = Id; });
 
   dialog::addItem("configure keys", 'k');
-  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Relative Hell keys", scfg_ads));
+  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Relative Hell keys", multi::scfg_default));
 
   #if CAP_AUDIO
   add_edit(effvolume);
@@ -208,6 +214,8 @@ void game_menu() {
 
   dialog::addItem("quit the game", 'q');
   dialog::add_action([] {
+    game_over_with_message("quit");
+    save_to_hiscores();
     quitmainloop = true;
     });
 

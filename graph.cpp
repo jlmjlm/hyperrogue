@@ -360,7 +360,7 @@ EX void drawPlayerEffects(const shiftmatrix& V, const shiftmatrix& Vparam, cell 
   if(items[itOrbShield] > (shmup::on ? 0 : ORBBASE)) drawShield(V, itOrbShield);
   if(items[itOrbShell] > (shmup::on ? 0 : ORBBASE)) drawShield(V, itOrbShell);
 
-  if(items[itOrbSpeed]) drawSpeed(V); 
+  if(items[itOrbSpeed]) drawSpeed(V, (items[itOrbSpeed] % 2) ? 1.1 : 0.8);
   if(items[itCurseGluttony]) drawCurse(V, itCurseGluttony); 
   if(items[itCurseRepulsion]) drawCurse(V, itCurseRepulsion); 
 
@@ -5579,7 +5579,6 @@ EX void drawthemap() {
   bool useRangedOrb = (!(vid.shifttarget & 1) && haveRangedOrb() && lmouseover && lmouseover->cpdist > 1) || (keystate[SDL12(SDLK_RSHIFT, SDL_SCANCODE_RSHIFT)] | keystate[SDL12(SDLK_LSHIFT, SDL_SCANCODE_LSHIFT)]);
   if(!useRangedOrb && !(cmode & sm::MAP) && !(cmode & sm::DRAW) && DEFAULTCONTROL && !mouseout() && !dual::state) {
     dynamicval<eGravity> gs(gravity_state, gravity_state);
-    void calcMousedest();
     calcMousedest();
     cellwalker cw = cwt; bool f = flipplayer;
     items[itWarning]+=2;

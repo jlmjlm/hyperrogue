@@ -241,7 +241,7 @@ EX void buildCredits() {
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
     "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
     "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight, jennlbw, Kali Ranya, spiritbackup, Dylan, L_Lord, AntiRogue, "
-    "masonlgreen, A human, Pasu4"
+    "masonlgreen, A human, Pasu4, inbetween selves, CodeParade, Existentialistic, blejanre"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -894,6 +894,8 @@ int windtotal;
 
 EX hookset<void(cell*)> hooks_mouseover;
 
+EX hookset<bool()> hooks_global_mouseover;
+
 template<class T> void set_help_to(T t) { 
   help = bygen([t] {
     gotoHelpFor(t);
@@ -903,6 +905,8 @@ template<class T> void set_help_to(T t) {
 
 EX void describeMouseover() {
   DEBBI(DF_GRAPH, ("describeMouseover"));
+
+  if(callhandlers(0, hooks_global_mouseover)) return;
 
   cell *c = mousing ? mouseover : playermoved ? NULL : centerover;
   string& out = mouseovers;
