@@ -88,7 +88,8 @@ inline void drawcell(cell *c, const shiftmatrix& V) {
 static constexpr int trapcol[4] = {0x904040, 0xA02020, 0xD00000, 0x303030};
 static constexpr int terracol[8] = {0xD000, 0xE25050, 0xD0D0D0, 0x606060, 0x303030, 0x181818, 0x0080, 0x8080};
 
-EX colortable prairie_colors = { 0x102030, 0x905010 };
+EX colortable prairie_colors = { 0x402000, 0x503000 };
+EX colortable prairie_colors_high_cont = { 0x102030, 0x905010 };
 EX colortable mountain_colors = { 0x181008*2, 0x181008*4 };
 EX colortable tower_colors = { 0x202010, 0x404030 };
 EX colortable westwall_colors = { 0x211F6F, 0x413F8F };
@@ -115,7 +116,15 @@ void celldrawer::addaura() {
 /* Eclectic City's version of Red Rock is of slightly different color, */
 /* to make it different from hot cells */
 void eclectic_red(color_t& col) {
-  part(col, 0) = part(col, 2) * 3 / 4;
+  if (!higher_contrast) {
+    part(col, 0) = part(col, 2) * 3 / 4;
+    } else {
+    auto v = part(col, 0) + part(col, 1) + part(col, 2);
+    auto t = part(col, 0);
+    part(col, 0) = part(col, 1);
+    part(col, 1) = part(col, 2);
+    part(col, 2) = t + v/3;
+    }
   }
 
 constexpr ld spinspeed = .75 / M_PI;
@@ -209,10 +218,12 @@ void celldrawer::setcolors() {
       for(int a=0; a<21; a++)
         if((b >> a) & 1)
           fcol += variant::features[a].color_change;
-      /*if(c->wall == waAncientGrave)
-        wcol = 0x080808;
-      else if(c->wall == waFreshGrave)
-        wcol = 0x202020;*/
+      if(!higher_contrast) {
+        if(c->wall == waAncientGrave)
+          wcol = 0x080808;
+        else if(c->wall == waFreshGrave)
+          wcol = 0x202020;
+        }
       break;
       }
     #endif
@@ -400,7 +411,8 @@ void celldrawer::setcolors() {
     #if CAP_FIELD
     case laPrairie:
       if(prairie::isriver(c)) {
-        fcol = get_color_auto3(prairie::get_val(c), prairie_colors);
+        fcol = get_color_auto3(prairie::get_val(c),
+                  higher_contrast ? prairie_colors_high_cont : prairie_colors);
         }
       else {
         fcol = 0x004000 + 0x001000 * c->LHU.fi.walldist;
@@ -510,8 +522,10 @@ void celldrawer::setcolors() {
         if(c->monst == moFriendlyGhost) 
           fcol = gradient(fcol, fghostcolor(c), 0, .5, 1);
     
-        /* if(c->wall == waSmallTree) wcol = 0x006000;
-        else if(c->wall == waBigTree) wcol = 0x008000; */
+        if (!higher_contrast) {
+          if(c->wall == waSmallTree) wcol = 0x004000;
+          else if(c->wall == waBigTree) wcol = 0x008000;
+          }
         }
     }
   
@@ -710,7 +724,10 @@ int celldrawer::getSnakelevColor(int i, int last) {
     if(c->land == laEclectic)
       eclectic_red(col);
     }
-  return darkena(col, fd, 0xFF);
+  if (!higher_contrast)
+    return darkena(col, fd, 0xFF);
+  else
+    return darkena(col, 0, 0xFF);
   }
 
 void celldrawer::draw_wallshadow() {
