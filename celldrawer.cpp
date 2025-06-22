@@ -119,11 +119,25 @@ void eclectic_red(color_t& col) {
   if (!higher_contrast) {
     part(col, 0) = part(col, 2) * 3 / 4;
     } else {
+      switch (col) {
+        case 0x630037: col = 0xB0FFB0; return;
+        case 0xC03E3E: col = 0x60C060; return;
+        case 0xD85507: col = 0x00FF00; return;
+        default: col = 0xFFFFFF; return;
+      }
+    //col >>= 8;
+    /* auto v = part(col, 0) + part(col, 1) + part(col, 2);
+    swap(part(col, 2), part(col, 1));
+    part(col, 0) += v/3 + 16;
+    part(col, 1) += v/2 + 32;
+    part(col, 2) += v/3 + 16; */
+/*
     auto v = part(col, 0) + part(col, 1) + part(col, 2);
     auto t = part(col, 0);
-    part(col, 0) = part(col, 1);
+    part(col, 0) = part(col, 1) + 16;
     part(col, 1) = part(col, 2);
-    part(col, 2) = t + v/3;
+    part(col, 2) = t + 16;
+*/
     }
   }
 
