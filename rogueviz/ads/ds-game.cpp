@@ -17,6 +17,8 @@ void set_default_keys();
 
 vector<unique_ptr<ads_object>> rocks;
 
+bool disable_ds_gen;
+
 struct rock_generator {
   ld cshift;
 
@@ -113,7 +115,7 @@ struct rock_generator {
     ld step = rand_range(0.17, 0.23);
     for(int i=0; i<45; i++) {
       cshift += step;
-      add(spin(alpha + i * TAU / 30) * div_matrix());
+      add(spin(alpha + i * TAU / 30) * div_matrix())->subtype = 1;
       }
     cshift += rand_range(.3, .7);
     }
@@ -125,7 +127,7 @@ struct rock_generator {
     ld step = rand_range(0.17, 0.23);
     for(int i=0; i<45; i++) {
       cshift += step;
-      add(spin(alpha + i * TAU / 30) * conv_matrix());
+      add(spin(alpha + i * TAU / 30) * conv_matrix())->subtype = 2;
       }
     cshift += rand_range(.3, .7);
     }
@@ -190,10 +192,12 @@ struct rock_generator {
     }
 
   void add_until(ld t) {
+    if(disable_ds_gen) return;
     while(cshift < t) add_random();
     }
 
   void add_rsrc_until(ld t) {
+    if(disable_ds_gen) return;
     while(cshift < t) {
       ld rapidity = rand_range(0, 3);
       ld step = rand_range(.2, .5);
@@ -214,6 +218,8 @@ rock_generator rockgen, rsrcgen;
 
 auto future_shown = 5 * TAU;
 
+auto future_shown_condiv = 2 * TAU;
+
 /** start with a fixed good-looking sequence */
 bool demo;
 
@@ -233,6 +239,9 @@ void init_ds_game() {
   main_rock->col = 0xFF;
   main_rock->shape = &shape_gold;
   main_rock->type = oMainRock;
+
+  // do not shift time
+  main_rock->pt_main.shift = 0;
 
   /* also create shape_disk */
   shape_disk.clear();
@@ -345,6 +354,7 @@ bool ds_turn(int idelta) {
   if(!(cmode & sm::NORMAL)) return false;
 
   ds_handle_crashes();
+  if(no_param_change && !all_params_default()) no_param_change = false;
 
   auto& act = multi::action_states[1];
 
@@ -394,6 +404,11 @@ bool ds_turn(int idelta) {
 
     auto& mshift = main_rock->pt_main.shift;
     if(mshift) {
+      #if RVCOL
+      constexpr ld win_time = 60;
+      if(current.shift < win_time && (current.shift + mshift) >= win_time && !game_over && no_param_change)
+        rogueviz::rv_achievement("DSGAME");
+      #endif
       current.shift += mshift;
       current.T = current.T * lorentz(2, 3, mshift);
       mshift = 0;
@@ -520,8 +535,8 @@ void view_ds_game() {
       poly_outline = 0xFF;
       if(rock.type == oMainRock) rock.at.shift = current.shift;
     
-      if(rock.at.shift < current.shift - future_shown) continue;
-      if(rock.at.shift > current.shift + future_shown) continue;
+      if(current.shift < rock.at.shift - (rock.subtype == 1 ? future_shown_condiv : future_shown)) continue;
+      if(current.shift > rock.at.shift + (rock.subtype == 2 ? future_shown_condiv : future_shown)) continue;
 
       if(1) {
         dynamicval<eGeometry> g(geometry, gSpace435);
@@ -603,12 +618,11 @@ void view_ds_game() {
 
       if(view_proper_times && rock.type != oParticle) {
         ld t = rock.pt_main.shift;
-        ld ds_scale = get_scale();
         if(rock.type == oMainRock) t += current.shift;
         string str = hr::format(tformat, t / ds_time_unit);
-        queuestr(shiftless(sphereflip * rgpushxto0(rock.pt_main.h)), time_scale * ds_scale, str, 0xFFFF00, 8);
+        queuestr(shiftless(sphereflip * rgpushxto0(rock.pt_main.h)), time_scale, str, 0xFFFF00, 8);
         }
-      
+
       if(rock.pt_main.h[2] > 0.1 && rock.life_end == HUGE_VAL) {
         displayed.push_back(&rock);
         }
@@ -664,16 +678,15 @@ void view_ds_game() {
 
       if(view_proper_times) {
         string str = hr::format(tformat, (cr.shift + ss.start) / ds_time_unit);
-        ld ds_scale = get_scale();
-        queuestr(shiftless(sphereflip * rgpushxto0(cr.h)), time_scale * ds_scale, str, 0xC0C0C0, 8);
+        queuestr(shiftless(sphereflip * rgpushxto0(cr.h)), time_scale, str, 0xC0C0C0, 8);
         }
       }
 
     if(!game_over && !paused) {
       poly_outline = 0xFF;
-      if(ship_pt < invincibility_pt) {
+      if(ship_pt < invincibility_pt && invincibility_pt < HUGE_VAL) {
         ld u = (invincibility_pt-ship_pt) / ds_how_much_invincibility;
-        poly_outline = gradient(shipcolor, rsrc_color[rtHull], 0, 0.5 + cos(5*u*TAU), 1);
+        poly_outline = gradient(shipcolor, rsrc_color[rtHull], 1, cos(5*u*TAU), -1);
         }
       render_ship_parts([&] (const hpcshape& sh, color_t col, int sym) {
         if(hv) {
@@ -693,9 +706,8 @@ void view_ds_game() {
       poly_outline = 0xFF;
 
       if(view_proper_times) {
-        ld ds_scale = get_scale();
         string str = hr::format(tformat, ship_pt / ds_time_unit);
-        queuestr(shiftless(sphereflip), time_scale * ds_scale, str, 0xFFFFFF, 8);
+        queuestr(shiftless(sphereflip), time_scale, str, 0xFFFFFF, 8);
         }
       }
     
@@ -736,6 +748,7 @@ void ds_restart() {
     }
 
   ship_pt = 0;
+  no_param_change = all_params_default();
 
   rocks.clear();
   history.clear();
@@ -755,6 +768,7 @@ void run_ds_game_hooks() {
   rogueviz::rv_hook(anims::hooks_anim, 100, replay_animation);
   rogueviz::rv_hook(hooks_global_mouseover, 100, generate_mouseovers);
   rogueviz::rv_change<color_t>(titlecolor, 0xFFC000);
+  rv_hook(hooks_music, 100, [] (eLand& l) { l = mfcode("C5"); return false; });
   }
 
 void run_ds_game() {

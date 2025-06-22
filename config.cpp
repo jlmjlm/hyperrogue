@@ -177,6 +177,7 @@ struct list_parameter : parameter {
   virtual int get_value() = 0;
   virtual void set_value(int i) = 0;
   vector<pair<string, string> > options;
+  reaction_t extras;
   list_parameter* editable(const vector<pair<string, string> >& o, string menu_item_name, char key) {
     is_editable = true;
     options = o;
@@ -186,6 +187,11 @@ struct list_parameter : parameter {
     return this;
     }
   void show_edit_option(key_type key) override;
+  list_parameter* add_extra(reaction_t r) {
+    if(extras) { auto e = extras; extras = [e, r] { e(); r(); }; }
+    else extras = r;
+    return this;
+    }
   };
 
 namespace anims {
@@ -222,8 +228,9 @@ template<class T> struct enum_parameter : list_parameter {
   bool load_from_animation(const string& s) override {
     if(anim_value != *value) return false;
     load(s);
+    bool changed = anim_value != *value;
     anim_value = *value;
-    return true;
+    return changed;
     }
   void load_as_animation(const string& s) override {
     load(s);
@@ -278,8 +285,9 @@ template<class T> struct val_parameter : public parameter {
   bool load_from_animation(const string& s) override {
     if(anim_value != *value) return false;
     load(s);
+    bool changed = anim_value != *value;
     anim_value = *value;
-    return true;
+    return changed;
     }
   void load_as_animation(const string& s) override {
     load(s);
@@ -512,8 +520,9 @@ struct custom_parameter : public parameter {
   bool load_from_animation(const string& s) override {
     if(anim_value != get_cld()) return false;
     load(s);
+    auto bak = anim_value;
     anim_value = get_cld();
-    return true;
+    return anim_value != bak;
     }
   void load_as_animation(const string& s) override {
     load(s);
@@ -1116,9 +1125,11 @@ EX void initConfig() {
   -> editable("simplified display of apeirogons", 'f')
   -> help("Connect the ends of the apeirogon segment with the boundary point using straight lines. This should be faster and, in most cases, actually more correct.");
   param_b(arb::convert::minimize_on_convert, "tes_minimize_on_convert", false)
-  -> editable("consider all symmetries when converting", 'm');
+  -> editable("consider all symmetries when converting", 'm')
+  -> set_reaction(rulegen::change_minimize_on_convert);
   param_b(arb::convert::reverse_order, "tes_reverse_order", false)
-  -> editable("tes reverse order on convert", 'r');
+  -> editable("tes reverse order on convert", 'r')
+  -> set_reaction(rulegen::change_rulegen_params);
 
   param_b(display_yasc_codes, "yasc", false)
   -> editable("YASC codes", 'Y')
@@ -1624,6 +1635,7 @@ EX void initConfig() {
   param_f(sightranges[gECell120], "sight-120cell-elliptic", M_PI);
   param_f(sightranges[gRhombic3], "sight-rhombic", 10.5 * emul);
   param_f(sightranges[gBitrunc3], "sight-bitrunc", 12 * emul);
+  param_f(sightranges[gOctTet3], "sight-octtet", 12 * emul);
   param_f(sightranges[gSpace534], "sight-534", 4 + bonus);
   param_f(sightranges[gSpace435], "sight-435", 3.8 + bonus);
 
@@ -3017,7 +3029,7 @@ EX void show3D_height_details() {
     dialog::addBreak(100);
     dialog::addHelp(lalign(0, "absolute altitudes:\n\n"
       "depth ", cgi.INFDEEP,
-      " water ", tie(cgi.BOTTOM, cgi.SHALLOW, cgi.LAKE),
+      " water ", tie(cgi.DEEP, cgi.SHALLOW, cgi.WATERLEVEL),
       " floor ", cgi.FLOOR,
       " eye ", vid.eye,
       " walls ", tie(cgi.WALL, cgi.HIGH, cgi.HIGH2),
@@ -3253,7 +3265,7 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   param_f(vid.creature_scale, parameter_names("creature_scale", "3d-creaturescale"), 1)
     ->editable(0, 1, .1, "Creature scale", "", 'C')
     ->set_extra([] { dialog::addInfo(XLAT("changing this during shmup is counted as cheating")); })
-    ->set_reaction([] { if(shmup::on) cheater++; });
+    ->set_reaction([] { propagate_scale_change(); if(shmup::on) cheater++; });
   param_f(vid.height_width, parameter_names("heiwi", "3d-heightwidth"), 1.5)
     ->editable(0, 1, .1, "Height to width", "", 'h');
   param_f(vid.yshift, parameter_names("yshift", "Y shift"), 0)
@@ -3591,11 +3603,10 @@ EX void showCustomizeChar() {
   flat_model_enabler fme;
 
   initquickqueue();
-  transmatrix V = atscreenpos(vid.xres/2, firsty, scale);
-  
+  shiftmatrix V = atscreenpos(vid.xres/2, firsty, scale);
   double alpha = atan2(mousex - vid.xres/2, mousey - firsty) - 90._deg;
   V = V * spin(alpha);
-  drawMonsterType(moPlayer, NULL, shiftless(V), 0, cc_footphase / scale, NOCOLOR);
+  drawMonsterType(moPlayer, NULL, V, 0, cc_footphase / scale, NOCOLOR);
   quickqueue();
   
   keyhandler = [] (int sym, int uni) {
@@ -4066,6 +4077,8 @@ void list_parameter::show_edit_option(key_type key) {
       dialog::addHelp(XLAT(text));
       dialog::addBreak(100);
       }
+
+    if(extras) extras();
     dialog::addBack();
     dialog::display();
     };

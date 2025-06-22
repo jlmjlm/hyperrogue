@@ -65,7 +65,7 @@ void change_scale(ld s);
 /** all the missiles and objects currently displayed */
 vector<struct ads_object*> displayed;
 
-ld time_scale = .1;
+ld time_scale = .5;
 
 color_t missile_color = 0xFF0000FF;
 
@@ -82,7 +82,7 @@ struct player_data {
   };
 
 ld ads_how_much_invincibility = TAU / 4;
-ld ds_how_much_invincibility = TAU / 4;
+ld ds_how_much_invincibility = TAU / 8;
 
 player_data pdata, ads_max_pdata, ads_tank_pdata, ds_max_pdata, ds_tank_pdata;
 
@@ -198,10 +198,12 @@ struct ads_object {
   ld life_start, life_end;
   cross_result pt_main;
   vector<cross_result> pts;
+  int subtype;
 
   ads_object(eObjType t, cell *_owner, const ads_matrix& T, color_t _col) : type(t), owner(_owner), at(T), col(_col) {
     life_start = -HUGE_VAL;
     life_end = HUGE_VAL;
+    subtype = 0;
     }
   };
 
@@ -249,5 +251,14 @@ void load_hiscores();
 
 string get_main_help();
 int generate_mouseovers();
+
+bool all_params_default();
+bool no_param_change;
+bool params_changed();
+
+void start_relhell_tour();
+
+void ads_restart();
+void run_ads_game();
 
 }}

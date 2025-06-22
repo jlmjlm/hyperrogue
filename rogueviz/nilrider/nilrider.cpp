@@ -179,7 +179,7 @@ bool turn(int delta) {
             if(g.achievement_name != "") rogueviz::rv_achievement(g.achievement_name);
             if(g.leaderboard_name != "") {
               auto res = curlev->current_score[gid];
-              rogueviz::rv_leaderboard(g.leaderboard_name, abs(res) * 1000);
+              rogueviz::rv_leaderboard(g.leaderboard_name + (planning_mode ? " (planning)" : ""), abs(res) * 1000, -1, rvlc::ms);
               }
             }
           gid++;
@@ -373,7 +373,7 @@ void pick_level() {
         }
       });
     });
-  dialog::addBack();
+  dialog::addItem(XLAT("play this track"), SDLK_ESCAPE);
   dialog::display();
   }
 

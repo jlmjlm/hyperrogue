@@ -32,7 +32,7 @@ EX int slider_x;
 EX function <void(int sym, int uni)> keyhandler = [] (int sym, int uni) {};
 EX function <bool(SDL_Event &ev)> joyhandler = [] (SDL_Event &ev) {return false;};
 
-#if CAP_SDL2
+#if SDLVER >= 2
 EX void ignore_text(const SDL_TextInputEvent&) {}
 EX function <void(const SDL_TextInputEvent&)> texthandler = ignore_text;
 #endif
@@ -40,7 +40,7 @@ EX function <void(const SDL_TextInputEvent&)> texthandler = ignore_text;
 EX void reset_handlers() {
   keyhandler = [] (int sym, int uni) {};
   joyhandler = [] (SDL_Event &ev) {return false;};
-  #if CAP_SDL2
+  #if SDLVER >= 2
   texthandler = ignore_text;
   #endif
   }
@@ -254,10 +254,14 @@ EX void initJoysticks_async() {
 
 EX void countJoysticks() {
   DEBB(DF_INIT, ("opening joysticks"));
+  #if SDLVER <= 2
   numsticks = SDL_NumJoysticks();
+  #else
+  SDL_GetJoysticks(&numsticks);
+  #endif
   if(numsticks > 8) numsticks = 8;
   for(int i=0; i<numsticks; i++) {
-    sticks[i] = SDL_JoystickOpen(i);
+    sticks[i] = SDL_OpenJoystick(i);
     /* printf("axes = %d, balls = %d, buttons = %d, hats = %d\n",
       SDL_JoystickNumAxes(sticks[i]),
       SDL_JoystickNumBalls(sticks[i]),
@@ -272,7 +276,7 @@ EX void initJoysticks() {
   DEBBI(DF_INIT, ("init joystick"));
 
   DEBB(DF_INIT, ("init joystick subsystem"));
-  if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) == -1)
+  if (SDL_error_in(SDL_InitSubSystem(SDL_INIT_JOYSTICK)))
   {
     printf("Failed to initialize joysticks.\n");
     numsticks = 0;
@@ -286,7 +290,7 @@ EX void initJoysticks() {
 EX void closeJoysticks() {
   DEBB(DF_INIT, ("close joysticks"));
   for(int i=0; i<numsticks; i++) {
-    SDL_JoystickClose(sticks[i]), sticks[i] = NULL;
+    SDL_CloseJoystick(sticks[i]), sticks[i] = NULL;
     }
   numsticks = 0;
   }
@@ -396,6 +400,7 @@ EX ld camera_speed = 1;
 EX ld camera_rot_speed = 1;
 
 EX void full_forward_camera(ld t) {
+  if(t) currently_scrolling = true;
   if(anyshiftclick) 
     zoom_or_fov(exp(-t/10.));
   else if(GDIM == 3) {
@@ -410,6 +415,7 @@ EX void full_cstrafe_camera(int dir, ld t) {
     shift_view(ctangent(dir, t * camera_speed));
     didsomething = true;
     playermoved = false;
+    if(t) currently_scrolling = true;
     }
   }
 
@@ -425,6 +431,7 @@ EX ld third_person_rotation = 0;
 
 EX void full_rotate_camera(int dir, ld val) {
   if(!val) return;
+  currently_scrolling = true;
   if(rug::rug_control() && lshiftclick) {
     val *= camera_rot_speed;
     hyperpoint h;
@@ -479,6 +486,7 @@ EX void full_rotate_camera(int dir, ld val) {
   }
 
 EX void full_rotate_view(ld h, ld v) {
+  if(v) currently_scrolling = true;
   if(history::on && !rug::rug_control())
     models::rotation = spin(h * camera_rot_speed) * models::rotation;
   else {
@@ -492,8 +500,8 @@ EX void full_rotate_view(ld h, ld v) {
 EX void handlePanning(int sym, int uni) {
   if(mousepan && dual::split([=] { handlePanning(sym, uni); })) return;
   if(GDIM == 3) {
-    if(sym == PSEUDOKEY_WHEELUP) shift_view(ztangent(-0.05*shiftmul) * camera_speed), didsomething = true, playermoved = false;
-    if(sym == PSEUDOKEY_WHEELDOWN) shift_view(ztangent(0.05*shiftmul) * camera_speed), didsomething = true, playermoved = false;
+    if(sym == PSEUDOKEY_WHEELUP) shift_view(ztangent(-0.05*shiftmul) * camera_speed), didsomething = true, playermoved = false, currently_scrolling = true;
+    if(sym == PSEUDOKEY_WHEELDOWN) shift_view(ztangent(0.05*shiftmul) * camera_speed), didsomething = true, playermoved = false, currently_scrolling = true;
     }
 
   #if CAP_RUG
@@ -520,7 +528,7 @@ EX void handlePanning(int sym, int uni) {
   if(sym == PSEUDOKEY_WHEELUP && GDIM == 2) {
     ld jx = (mousex - current_display->xcenter - .0) / current_display->radius / 10;
     ld jy = (mousey - current_display->ycenter - .0) / current_display->radius / 10;
-    playermoved = false;
+    playermoved = false; currently_scrolling = true;
     rotate_view(gpushxto0(hpxy(jx * camera_speed, jy * camera_speed)));
     sym = 1;
     }
@@ -778,6 +786,10 @@ EX bool mouseaiming(bool shmupon) {
 
 EX purehookset hooks_control;
 
+EX bool stillscreen;
+
+EX bool currently_scrolling;
+
 EX void mainloopiter() {
   GLWRAP;
   DEBB(DF_GRAPH, ("main loop\n"));
@@ -805,7 +817,7 @@ EX void mainloopiter() {
   timetowait = lastframe + 1000 / cframelimit - ticks;
 
   cframelimit = vid.framelimit;
-  if(outoffocus && cframelimit > 10) cframelimit = 10;  
+  if(stillscreen && cframelimit > 10) cframelimit = 10;
   
   bool normal = cmode & sm::NORMAL;
   
@@ -828,8 +840,10 @@ EX void mainloopiter() {
     oldmousepan = mousepan;
     #if CAP_MOUSEGRAB
     if(mousepan) {    
-      #if CAP_SDL2
-      SDL_SetRelativeMouseMode(SDL_TRUE);
+      #if SDLVER >= 3
+      SDL_SetWindowRelativeMouseMode(s_window, true);
+      #elif SDLVER >= 2
+      SDL_SetRelativeMouseMode(SDL23(SDL_TRUE, true));
       #else
       SDL_WM_GrabInput(SDL_GRAB_ON);
       SDL_ShowCursor(SDL_DISABLE);
@@ -837,8 +851,10 @@ EX void mainloopiter() {
       mouseaim_x = mouseaim_y = 0;
       }
     else {
-      #if CAP_SDL2
-      SDL_SetRelativeMouseMode(SDL_FALSE);
+      #if SDLVER >= 3
+      SDL_SetWindowRelativeMouseMode(s_window, false);
+      #elif SDLVER >= 2
+      SDL_SetRelativeMouseMode(SDL23(SDL_FALSE, false));
       #else
       SDL_WM_GrabInput( SDL_GRAB_OFF );
       SDL_ShowCursor(SDL_ENABLE);
@@ -853,8 +869,11 @@ EX void mainloopiter() {
   timetowait = 0;
 #endif
 
-  if(timetowait > 0)
+  if(timetowait > 0) {
+    #if SDLVER == 1
     SDL_Delay(timetowait);
+    #endif
+    }
   else {
     ors::check_orientation();
     if(cmode & sm::CENTER) {
@@ -881,10 +900,9 @@ EX void mainloopiter() {
 
   getcshift = 1;
   
-  #if CAP_SDL2
-  
-  const Uint8 *keystate = SDL_GetKeyboardState(NULL);
+  const sdl_keystate_type *keystate = SDL12_GetKeyState(NULL);
 
+  #if SDLVER >= 2
   pandora_rightclick = keystate[SDL_SCANCODE_RCTRL];
   pandora_leftclick = keystate[SDL_SCANCODE_RSHIFT];
 
@@ -900,9 +918,6 @@ EX void mainloopiter() {
   if(keystate[SDL_SCANCODE_LALT] || keystate[SDL_SCANCODE_RALT]) getcshift *= 10;
 
   #else
-
-  Uint8 *keystate = SDL_GetKeyState(NULL);
-
   pandora_rightclick = keystate[SDLK_RCTRL];
   pandora_leftclick = keystate[SDLK_RSHIFT];
 
@@ -925,6 +940,7 @@ EX void mainloopiter() {
   forcetarget = anyshiftclick;
   
   didsomething = false;
+  currently_scrolling = false;
   
   if(vid.shifttarget&1) {
     #if ISPANDORA
@@ -992,7 +1008,7 @@ EX void mainloopiter() {
     ld t = (ticks - lastticks) * shiftmul / 1000.;
     lastticks = ticks;
     
-    #if CAP_SDL2
+    #if SDLVER >= 2
     if(keystate[SDL_SCANCODE_END] && GDIM == 3 && DEFAULTNOR(SDL_SCANCODE_END)) full_forward_camera(-t);
     if(keystate[SDL_SCANCODE_HOME] && GDIM == 3 && DEFAULTNOR(SDL_SCANCODE_HOME)) full_forward_camera(t);
     if(keystate[SDL_SCANCODE_RIGHT] && DEFAULTNOR(SDL_SCANCODE_RIGHT)) full_rotate_camera(0, -t);
@@ -1022,7 +1038,7 @@ EX void mainloopiter() {
     ld t = (ticks - lastticks) * shiftmul / 1000.;
     lastticks = ticks;
 
-    #if CAP_SDL2
+    #if SDLVER >= 2
     #define dkey(x) keystate[int(x - 'a' + 4)] && DEFAULTNOR(x - 'a' + 4)
     #else
     #define dkey(x) keystate[int(x)] && DEFAULTNOR(x)
@@ -1047,7 +1063,6 @@ EX void mainloopiter() {
   #if CAP_VR
   vrhr::vr_control();
   #endif
-  achievement_pump();  
 
   callhooks(hooks_control);
 
@@ -1061,6 +1076,14 @@ EX void mainloopiter() {
   if((cmode & (sm::DRAW | sm::MAP)) && holdmouse && anims::ma && mouseover)
     handlekey(getcstat, getcstat);
 
+  if(((SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_MMASK)) && !mouseout2())
+    currently_scrolling = true;
+
+  #if SDLVER >= 2
+  if(timetowait > 0) {
+    if(SDL_WaitEventTimeout(&ev, timetowait)) handle_event(ev);
+    }
+  #endif
   while(SDL_PollEvent(&ev)) handle_event(ev);
   fix_mouseh();
 
@@ -1085,7 +1108,14 @@ EX void handle_event(SDL_Event& ev) {
       countJoysticks();
       } */
 
-    #if CAP_SDL2
+    #if SDLVER == 3
+    if(ev.type == SDL_EVENT_WINDOW_MOUSE_ENTER) outoffocus = false;
+    if(ev.type == SDL_EVENT_WINDOW_MOUSE_LEAVE) outoffocus = true;
+    if(ev.type == SDL_EVENT_WINDOW_EXPOSED) drawscreen();
+    if(ev.type == SDL_EVENT_WINDOW_RESIZED) resize_screen_to(ev.window.data1, ev.window.data2);
+    #endif
+
+    #if SDLVER == 2
     if(ev.type == SDL_WINDOWEVENT) {
       auto w = ev.window.event;
       if(w == SDL_WINDOWEVENT_ENTER)
@@ -1097,8 +1127,9 @@ EX void handle_event(SDL_Event& ev) {
       if(w == SDL_WINDOWEVENT_RESIZED)
         resize_screen_to(ev.window.data1, ev.window.data2);
       }
+    #endif
     
-    #else
+    #if SDLVER == 1
     if(ev.type == SDL_ACTIVEEVENT) {
       if(ev.active.state & SDL_APPINPUTFOCUS) {
         if(ev.active.gain) {
@@ -1119,7 +1150,7 @@ EX void handle_event(SDL_Event& ev) {
     #endif
 
 #if CAP_SDLJOY    
-    if(ev.type == SDL_JOYAXISMOTION && normal && DEFAULTCONTROL) {
+    if(ev.type == SDL_EVENT_JOYSTICK_AXIS_MOTION && normal && DEFAULTCONTROL) {
       if(ev.jaxis.which == 0) {
         if(ev.jaxis.axis == 0)
           joyx = ev.jaxis.value;
@@ -1142,64 +1173,65 @@ EX void handle_event(SDL_Event& ev) {
     
     if(joyhandler && joyhandler(ev)) ;
 
-    else if(ev.type == SDL_JOYHATMOTION && !normal) {
+    else if(ev.type == SDL_EVENT_JOYSTICK_HAT_MOTION && !normal) {
       if(ev.jhat.value == SDL_HAT_UP) sym = SDLK_UP;
       if(ev.jhat.value == SDL_HAT_DOWN) sym = SDLK_DOWN;
       if(ev.jhat.value == SDL_HAT_LEFT) sym = SDLK_LEFT;
       if(ev.jhat.value == SDL_HAT_RIGHT) sym = SDLK_RIGHT;
       }
 
-    else if(ev.type == SDL_JOYBUTTONDOWN && normal && DEFAULTCONTROL) {
+    else if(ev.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN && normal && DEFAULTCONTROL) {
       flashMessages();
       movepcto(joydir);
       joy_ignore_next = true;
       checkjoy();
       }
 
-    else if(ev.type == SDL_JOYBUTTONDOWN && !normal) {
+    else if(ev.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN && !normal) {
       sym = uni = SDLK_RETURN;
       }
 #endif
 
-    if(ev.type == SDL_KEYDOWN) {
+    if(ev.type == SDL_EVENT_KEY_DOWN) {
       flashMessages();
       mousing = false;
-      sym = ev.key.keysym.sym;
-      #if CAP_SDL2
-      uni = ev.key.keysym.sym;
-      if(uni == '=' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '+';
-      if(uni == '1' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '!';
-      if(uni == '2' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '@';
-      if(uni == '3' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '#';
-      if(uni == '4' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '$';
-      if(uni == '5' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '%';
-      if(uni == '6' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '^';
-      if(uni == '7' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '&';
-      if(uni == '8' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '*';
-      if(uni == '9' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = '(';
-      if(uni == '0' && (ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT))) uni = ')';
+      sym = SDL23(ev.key.keysym.sym, ev.key.key);
+      auto mod = SDL23(ev.key.keysym.mod, ev.key.mod);
+      #if SDLVER >= 2
+      uni = SDL23(ev.key.keysym.sym, ev.key.key);
+      if(uni == '=' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '+';
+      if(uni == '1' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '!';
+      if(uni == '2' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '@';
+      if(uni == '3' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '#';
+      if(uni == '4' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '$';
+      if(uni == '5' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '%';
+      if(uni == '6' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '^';
+      if(uni == '7' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '&';
+      if(uni == '8' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '*';
+      if(uni == '9' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = '(';
+      if(uni == '0' && (mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT))) uni = ')';
       if(uni >= 'a' && uni <= 'z') {
-        if(ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT)) uni -= 32;
-        else if(ev.key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) uni -= 96;        
+        if(mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT)) uni -= 32;
+        else if(mod & (SDL_KMOD_LCTRL | SDL_KMOD_RCTRL)) uni -= 96;        
         }      
       #else
       uni = ev.key.keysym.unicode;
       if(uni == 0 && (sym >= 'a' && sym <= 'z')) {
-        if(ev.key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) uni = sym - 96;
+        if(ev.key.keysym.mod & (SDL_KMOD_LCTRL | SDL_KMOD_RCTRL)) uni = sym - 96;
         }
-      if(ev.key.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT)) shiftmul = -1;
-      if(ev.key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) shiftmul /= 10;
+      if(ev.key.keysym.mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT)) shiftmul = -1;
+      if(ev.key.keysym.mod & (SDL_KMOD_LCTRL | SDL_KMOD_RCTRL)) shiftmul /= 10;
       #endif
-      numlock_on = ev.key.keysym.mod & KMOD_NUM;
-      if(sym == SDLK_RETURN && (ev.key.keysym.mod & (KMOD_LALT | KMOD_RALT))) {
+      numlock_on = mod & SDL_KMOD_NUM;
+      if(sym == SDLK_RETURN && (mod & (SDL_KMOD_LALT | SDL_KMOD_RALT))) {
         sym = 0; uni = 0;
         vid.want_fullscreen = !vid.want_fullscreen;
         apply_screen_settings();
         }
       }
     
-    #if CAP_SDL2
-    if(ev.type == SDL_TEXTINPUT) {
+    #if SDLVER >= 2
+    if(ev.type == SDL_EVENT_TEXT_INPUT) {
       texthandler(ev.text);
       }
     #endif
@@ -1211,8 +1243,8 @@ EX void handle_event(SDL_Event& ev) {
     
     bool rollchange = (cmode & sm::OVERVIEW) && getcstat >= 2000 && cheater;
 
-    if(ev.type == SDL_MOUSEBUTTONDOWN || ev.type == SDL_MOUSEBUTTONUP SDL12(, || ev.type == SDL_MOUSEWHEEL)) {
-      mousepressed = ev.type == SDL_MOUSEBUTTONDOWN;
+    if(ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN || ev.type == SDL_EVENT_MOUSE_BUTTON_UP SDL12(, || ev.type == SDL_EVENT_MOUSE_WHEEL)) {
+      mousepressed = ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
       if(mousepressed) flashMessages();
       mousing = true;
       which_pointer = 0;
@@ -1220,8 +1252,8 @@ EX void handle_event(SDL_Event& ev) {
       holdmouse = false;
       invslider = false;
       
-      bool down = ev.type == SDL_MOUSEBUTTONDOWN SDL12(, || ev.type == SDL_MOUSEWHEEL);
-      bool up = ev.type == SDL_MOUSEBUTTONUP;
+      bool down = ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN SDL12(, || ev.type == SDL_EVENT_MOUSE_WHEEL);
+      bool up = ev.type == SDL_EVENT_MOUSE_BUTTON_UP;
       
       bool act = false;
       
@@ -1256,8 +1288,8 @@ EX void handle_event(SDL_Event& ev) {
         sym = getcstat, uni = getcstat, shiftmul = getcshift;
         }
       
-      else if(SDL12(ev.button.button==SDL_BUTTON_WHEELDOWN || ev.button.button == SDL_BUTTON_WHEELUP, ev.type == SDL_MOUSEWHEEL)) {
-        #if CAP_SDL2
+      else if(SDL12(ev.button.button==SDL_BUTTON_WHEELDOWN || ev.button.button == SDL_BUTTON_WHEELUP, ev.type == SDL_EVENT_MOUSE_WHEEL)) {
+        #if SDLVER >= 2
         ld dir = ev.wheel.y * 0.25;
         #else
         ld dir = ev.button.button == SDL_BUTTON_WHEELUP ? 0.25 : -0.25;
@@ -1287,7 +1319,7 @@ EX void handle_event(SDL_Event& ev) {
         }
       }
 
-    if(ev.type == SDL_MOUSEMOTION) {
+    if(ev.type == SDL_EVENT_MOUSE_MOTION) {
       mouseoh = mouseh;
       
       int lmousex = mousex, lmousey = mousey;
@@ -1333,7 +1365,7 @@ EX void handle_event(SDL_Event& ev) {
         }
       }
 
-    if(ev.type == SDL_QUIT) {
+    if(ev.type == SDL_EVENT_QUIT) {
       #if CAP_DAILY
       if(daily::on) daily::handleQuit(3);
       else
@@ -1412,7 +1444,7 @@ EX bool interpret_as_direction(int sym, int uni) {
   #ifdef FAKE_SDL
   return false;
   #else
-  return (sym >= SDLK_KP0 && sym <= SDLK_KP9 && !numlock_on);
+  return (sym >= int(SDLK_KP0) && sym <= int(SDLK_KP9) && !numlock_on);
   #endif
   }
 

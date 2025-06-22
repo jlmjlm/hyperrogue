@@ -99,10 +99,7 @@ EX const char* leadernames[NUMLEADER] = {
 #define LB_RACING 81
 #endif
 
-EX void achievement_init();
 EX string myname();
-EX void achievement_close();
-EX void achievement_pump();
 
 /** gain the given achievement.
  * @param s name of the achievement, e.g., DIAMOND1
@@ -245,16 +242,13 @@ EX void achievement_log(const char* s, char flags) {
 #endif
 
 #if !CAP_ACHIEVE
-void achievement_init() {}
 string myname() { return "Rogue"; }
-void achievement_close() {}
 // gain the achievement with the given name.
 // flags: 'e' - for Euclidean, 's' - for Shmup, '7' - for heptagonal
 // Only awarded if special modes are matched exactly.
 void achievement_gain(const char* s, char flags) {
   achievement_log(s, flags);
   }
-void achievement_pump() {}
 EX int get_sync_status() { return 0; }
 EX void set_priority_board(int) { }
 #endif
@@ -988,10 +982,12 @@ EX void achievement_victory(bool hyper) {
 #endif
   }
 
-/** call the achievement callbacks */
-EX void achievement_pump();
+EX hookset<string()> hooks_rich_presence;
 
 EX string get_rich_presence_text() {
+
+  string s = callhandlers(string(""), hooks_rich_presence);
+  if(s != "") return s;
 
   #if CAP_DAILY
   if(daily::on)

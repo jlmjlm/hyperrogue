@@ -754,7 +754,7 @@ void new_piece() {
     state = tsGameover;
     #if RCVOL
     if(cur.pro_game && cur.max_piece == bgeoms[bgeom].default_max_piece)
-      rv_leaderboard(bgeoms[bgeom].name, cur.score);
+      rogueviz::rv_leaderboard(bgeoms[bgeom].name, cur.score, 1, rvlc::num, lalign(0, cur.bricks, " ", cur.cubes, " ", cur.completed));
     #endif
     save();
     }
@@ -826,7 +826,7 @@ void find_lines() {
     cur.completed += points;
     playSound(cwt.at, points == 1 ? "pickup-gold" : "orb-mind");
     #if RVCOL
-    if(points == 4 && cur.pro_game && cur.max_piece == 4 && bgeoms[bgeom].default_max_piece == 4) rv_achievement("BRINGRISFOUR");
+    if(points == 4 && cur.pro_game && cur.max_piece == 4 && bgeoms[bgeom].default_max_piece == 4) rogueviz::rv_achievement("BRINGRISFOUR");
     #endif
     }
   }
@@ -1028,7 +1028,7 @@ void shift_block(int dir, bool camera_only) {
   if(camera_only || !shape_conflict(at1)) {
     // playSound(cwt.at, "hit-crush1");
     #if RVCOL
-    if(check_bshift(at, at1)) rv_achievement("BSHIFT");
+    if(check_bshift(at, at1)) rogueviz::rv_achievement("BSHIFT");
     #endif
     at = at1;
     if(solnil) {
@@ -1506,13 +1506,13 @@ void adjust_animation(ld part) {
 
 bool next_fail = false;
 
-int TEXTURESIZE = 256;
+int BRINGRIS_TEXTURESIZE = 256;
 
 int nxmin, nxmax, nymin, nymax;
 
 void render_next(int xstart) {
   if(!next_buffer && !next_fail) {
-    next_buffer = new renderbuffer(TEXTURESIZE, TEXTURESIZE, true);
+    next_buffer = new renderbuffer(BRINGRIS_TEXTURESIZE, BRINGRIS_TEXTURESIZE, true);
     if(!next_buffer->valid) {
       next_fail = true;
       delete next_buffer;
@@ -1549,8 +1549,8 @@ void render_next(int xstart) {
   if(1) {
     resetbuffer rb;
     next_buffer->enable();
-    dynamicval<int> dx(vid.xres, TEXTURESIZE);
-    dynamicval<int> dy(vid.yres, TEXTURESIZE);
+    dynamicval<int> dx(vid.xres, BRINGRIS_TEXTURESIZE);
+    dynamicval<int> dy(vid.yres, BRINGRIS_TEXTURESIZE);
     dynamicval<ld> dxmi(current_display->xmin, 0);
     dynamicval<ld> dxma(current_display->xmax, 1);
     dynamicval<ld> dymi(current_display->ymin, 0);

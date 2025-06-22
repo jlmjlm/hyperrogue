@@ -1,11 +1,8 @@
-// TO DO
-// * knives in Asteroids sometimes do not hit rocks
-// * in Asteroids use the Relative Hell imagery
-// * visualize the 'Spherical symmetry' slide
-
 namespace hr {
 
 namespace ads_game {
+
+extern purehookset hooks_pre_ads_start;
 
 namespace ads_tour {
 using namespace rogueviz::pres;
@@ -79,6 +76,13 @@ void straight_line_viz(presmode mode) {
     });
   }
 
+void ds_restart_scaled() {
+  check_cgi();
+  cgi.require_basics();
+  cgi.require_shapes();
+  ds_restart();
+  }
+
 void set_spacerocks_ship() {
   auto& cs = getcs();
   tour::slide_backup(cs.charid, 10);
@@ -117,15 +121,18 @@ slide relhell_tour[] = {
     "Such effects can be also observed in this slide, although you still need to wait for a long time or move very fast. They will be more pronounced in Relative Hell, and in the later slides.",
     [] (presmode mode) {
       setCanvas(mode, &ccolor::plain, [] {
+        add_ds_cleanup();
+        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
         ads_game::run_ds_game_std();
         const ld sca = 100;
         tour::slide_backup(ds_simspeed, M_PI / 10 / sca * 5);
         tour::slide_backup(ds_missile_rapidity, 0.1);
-        tour::slide_backup(vid.creature_scale, vid.creature_scale / sca);
+        tour::slide_backup(vid.creature_scale, 1 / sca);
         tour::slide_backup(pconf.scale, sca);
         tour::slide_backup(texture_off, true);
         dynamicval<ld> fs(future_shown, -10);
-        ds_restart();
+        ds_restart_scaled();
+        tour::slide_backup(invincibility_pt, HUGE_VAL);
 
         rockgen.cshift = 0;
 
@@ -139,10 +146,6 @@ slide relhell_tour[] = {
 
         rockgen.cshift = 10;
         });
-      if(mode == pmStart) {
-        add_ds_cleanup();
-        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
-        }
       }
     },
 
@@ -154,16 +157,19 @@ slide relhell_tour[] = {
     "the previous slide.",
     [] (presmode mode) {
       setCanvas(mode, &ccolor::plain, [] {
+        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
+        add_ds_cleanup();
         ads_game::run_ds_game_std();
         const ld sca = 100;
         tour::slide_backup(ds_simspeed, M_PI / 10 / sca * 5);
         tour::slide_backup(ds_missile_rapidity, 0.5);
         tour::slide_backup(ds_accel, ds_accel * 10);
-        tour::slide_backup(vid.creature_scale, vid.creature_scale / sca);
+        tour::slide_backup(vid.creature_scale, 1 / sca);
         tour::slide_backup(pconf.scale, sca);
         tour::slide_backup(texture_off, true);
         dynamicval<ld> fs(future_shown, -10);
-        ds_restart();
+        ds_restart_scaled();
+        tour::slide_backup(invincibility_pt, HUGE_VAL);
 
         rockgen.cshift = 0;
 
@@ -183,10 +189,6 @@ slide relhell_tour[] = {
 
         rockgen.cshift = 10;
         });
-      if(mode == pmStart) {
-        add_ds_cleanup();
-        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
-        }
       }
     },
 
@@ -195,24 +197,25 @@ slide relhell_tour[] = {
     "Try to accelerate, then return to the yellow star. Your clock will be different than the clock of the star.",
     [] (presmode mode) {
       setCanvas(mode, &ccolor::plain, [] {
+        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
+        add_ds_cleanup();
         ads_game::run_ds_game_std();
         const ld sca = 100;
         tour::slide_backup(ds_simspeed, M_PI / 10 / sca * 5);
         tour::slide_backup(ds_missile_rapidity, 0.5);
         tour::slide_backup(ds_accel, ds_accel * 10);
-        tour::slide_backup(vid.creature_scale, vid.creature_scale * 5 / sca);
+        tour::slide_backup(vid.creature_scale, 5 / sca);
         tour::slide_backup(pconf.scale, sca);
         tour::slide_backup(texture_off, true);
         tour::slide_backup(view_proper_times, true);
+        tour::slide_backup(time_scale, 0.15);
+        tour::slide_backup(disable_ds_gen, true);
         dynamicval<ld> fs(future_shown, -10);
-        ds_restart();
+        ds_restart_scaled();
+        tour::slide_backup(invincibility_pt, HUGE_VAL);
 
         rockgen.cshift = 10;
         });
-      if(mode == pmStart) {
-        add_ds_cleanup();
-        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
-        }
       }
     },
 
@@ -305,12 +308,10 @@ slide relhell_tour[] = {
 
     [] (presmode mode) {
       setCanvas(mode, &ccolor::plain, [] {
-        ads_game::run_ds_game_std();
-        });
-      if(mode == pmStart) {
         add_ds_cleanup();
         rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
-        }
+        ads_game::run_ds_game_std();
+        });
       }
     },
 
@@ -373,6 +374,7 @@ slide relhell_tour[] = {
 
     [] (presmode mode) {
       setCanvas(mode, &ccolor::plain, [] {
+        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
         ads_game::run_ads_game_std();
         /* disable everything */
         tour::slide_backup(pconf.alpha, 1);
@@ -421,6 +423,7 @@ slide relhell_tour[] = {
 
     [] (presmode mode) {
       setCanvas(mode, &ccolor::plain, [] {
+        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
         ads_game::run_ads_game_std();
         /* disable everything */
         tour::slide_backup(pconf.alpha, 0);
@@ -450,8 +453,15 @@ slide relhell_tour[] = {
 
     [] (presmode mode) {
       setCanvas(mode, &ccolor::plain, [] {
+        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
         ads_game::run_ads_game_std();
         tour::slide_backup(pconf.alpha, 1);
+        rv_hook(hooks_pre_ads_start, 100, [] {
+          tour::slide_backup(specialland, laHunting);
+          tour::slide_backup(firstland, laHunting);
+          tour::slide_backup(land_structure, lsSingle);
+          });
+        ads_game::ads_restart();
        });
       }
     },
@@ -465,6 +475,7 @@ slide relhell_tour[] = {
 
     [] (presmode mode) {
       setCanvas(mode, &ccolor::plain, [] {
+        rogueviz::on_cleanup_or_next([] { lps_enable(nullptr); });
         ads_game::run_ads_game_std();
        });
       }
@@ -490,7 +501,11 @@ slide relhell_tour[] = {
     },
 
   {"Euclidean geometry", 999, LEGAL::NONE | QUICKGEO | USE_SLIDE_NAME | NOTITLE,
-    "explanation",
+    "OK, so let us think what the Euclidean geometry is.\n\n"
+    "Let us focus on three-dimensional Euclidean geometry. "
+    "We need to define what points are in our space, and how to compute distances between them. "
+    "This, in turns, let us define 'isometries' (rotations, etc.) which are basically transformations of "
+    "the space that keep the distance.\n\nThis template will be also used in other geometries.",
     [] (presmode mode) {
       setCanvas(mode, &ccolor::chessboard, [] { set_geometry(gEuclidSquare); set_variation(eVariation::pure); });
       latex_slide(mode, defs+R"=(
@@ -509,7 +524,14 @@ slide relhell_tour[] = {
       }},
 
   {"Minkowski geometry", 999, LEGAL::NONE | QUICKGEO | USE_SLIDE_NAME | NOTITLE, 
-    "explanation",
+    "The Minkowski geometry is similar to Euclidean geometry, except that in the squared distance formula, "
+    "the square of the time difference has a different sign. Thus, we have different isometries, which "
+    "can turn space to time and vice versa, just like Euclidean rotations turned X to Y and vice versa. "
+    "Because of the different sign, these 'Lorentz transformations' work different -- for example, they are not based on sin and cos, "
+    "but sinh and cosh.\n\n"
+    "Just like Euclidean geometry, Minkowski geometry is maximally symmetric: spacetime directions can be classified as space-like (squared distance > 0), "
+    "light-like (squared distance = 0) and time-like (squared distance < 0), but if we have a point and direction, we have an isometry that "
+    "takes it into any other point and direction of the same type.",
     [] (presmode mode) {
       latex_slide(mode, defs+R"=(
    {\color{remph}Minkowski spacetime with 2 space and 1 time dimension:}
@@ -550,7 +572,12 @@ slide relhell_tour[] = {
       }},
 
   {"spherical geometry", 999, LEGAL::NONE | QUICKGEO | USE_SLIDE_NAME | NOTITLE, 
-    "explanation",
+    "Now, let us discuss how spherical and hyperbolic geometries are obtained. Spherical "
+    "is quite straightforward: we get the spherical geometry by restricting to the set of points "
+    "in distance 1 from the chosen center, and also distances are the arc lengths. Just like "
+    "Euclidean and Minkowski geometry, spherical geometry is maximally symmetric: every point and "
+    "every direction works the same.\n\n"
+    "The next slide gives a similar description of hyperbolic geometry.",
     [] (presmode mode) {
       setCanvas(mode, &ccolor::football, [] { set_geometry(gSphere); });
       if(mode == pmStart) {
@@ -570,7 +597,14 @@ slide relhell_tour[] = {
       }},    
 
   {"hyperbolic geometry", 999, LEGAL::NONE | QUICKGEO | USE_SLIDE_NAME | NOTITLE,
-    "explanation",
+    "To get hyperbolic geometry, we also restrict to the set of points in the same squared distance, "
+    "but now we start with Minkowski geometry, and the 'squared radius' is negative (time-like). "
+    "The obtained maximally symmetric manifold thus loses its time-like dimension and is purely a space.\n\n"
+    "Therefore, in this model, every point in two-dimensional hyperbolic space is described with three "
+    "coordinates. This may look scary, but actually is very similar to how spherical geometry works, "
+    "we just need to use sinh and cosh, not sin and cos. The usual 3D graphics "
+    "also employ an extra coordinate, and it is straightforward to apply 3D engines to work with "
+    "spherical and hyperbolic geometry too, using these models.",
     [] (presmode mode) {
       latex_slide(mode, defs+R"=(
    {\color{remph}2-dimensional hyperbolic space (Minkowski hyperboloid model):}
@@ -592,7 +626,13 @@ slide relhell_tour[] = {
       }},
 
   {"anti-de Sitter spacetime", 999, LEGAL::NONE | QUICKGEO | USE_SLIDE_NAME | NOTITLE,
-    "explanation",
+    "Here is how we add a time coordinate to the hyperbolic plane, in order to get 2+1D anti-de Sitter spacetime. "
+    "As you can see, the construction is quite similar, and again, we get a maximally symmetric spacetime.\n\n"
+    "Press 5 for an animated visualization of this construction. Initially you see the hyperbolic plane at time 0 (u=0, t>0). "
+    "First '5' adds the different time slices to the visualization, and the second '5' unwraps it into the universal cover.\n\n"
+    "Note: the construction is quite similar to that of the Thurston geometry 'universal cover of SL(2,R)' -- in fact, Relative Hell "
+    "uses the RogueViz implementation of that space. However, the angular coordinate becomes time-like, making our spacetime to be "
+    "much more symmetric, and the geodesics work in a much more intuitive way.",
     [] (presmode mode) {
       latex_slide(mode, defs+R"=(
    {\color{remph}anti-de Sitter spacetime:}
@@ -636,12 +676,17 @@ slide relhell_tour[] = {
       }},
 
   {"de Sitter spacetime", 999, LEGAL::NONE | QUICKGEO | USE_SLIDE_NAME | NOTITLE,
-    "explanation",
+    "And here is how we add a time coordinate to 2D spherical geometry, to get 2+1D de Sitter spacetime. "
+    "The construction is actually very similar to three-dimensional hyperbolic plane, but now the "
+    "'squared radius' is space-like. So we get a maximally symmetric spacetime again.\n\n"
+    "Again, you see the slice t=0 -- press '5' to see how the universe expands, and '5' again to see how "
+    "it looks from the point of view of an inhabitant -- the whole 'sphere' does not expand.",
+
     [] (presmode mode) {
       latex_slide(mode, defs+R"=(
    {\color{remph}de Sitter spacetime:}
    \begin{itemize} 
-   \item $\dS{2} = \{(x,y,z,t) \in \bbE^{3,1}: \\ x^2+y^2+z^2-t^2=-1\}$
+   \item $\dS{2} = \{(x,y,z,t) \in \bbE^{3,1}: \\ x^2+y^2+z^2-t^2=1\}$
    \item take $t=0$ -- we get $\bbS^2$
    \item the universe is expanding with $t$ \\ (not if we apply Lorentz transformation)
    \end{itemize}
@@ -719,7 +764,14 @@ int pohooks =
     cb(XLAT("Relative Hell guided tour"), &relhell_tour[0], 'S');
     });
 
-
 }
+
+void start_relhell_tour() {
+  popScreenAll();
+  tour::slides = &ads_tour::relhell_tour[0];
+  tour::start();
+  if(!tour::on) tour::start();
+  }
+
 }
 }
