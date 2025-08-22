@@ -701,8 +701,8 @@ EX void drawMimic(eMonster m, cell *where, const shiftmatrix& V, color_t col, do
     }
   }
 
-EX void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
 
+EX void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
   if(viewdists) return;
   
   string keylist = "";
