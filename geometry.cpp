@@ -167,6 +167,10 @@ enum class ePipeEnd {sharp, ball};
 
 struct embedding_method;
 
+struct length_adjusted_shapes {
+  hpcshape shIBranch;
+  };
+
 /** basic geometry parameters */
 struct geometry_information {
 
@@ -293,7 +297,7 @@ hpcshape
   shFigurine, shTreat, shSmallTreat,
   shElementalShard,
   // shBranch, 
-  shIBranch, shTentacle, shTentacleX, shILeaf[3], 
+  shILeaf[3],
   shMovestar,
   shWolf, shYeti, shDemon, shGDemon, shEagle, shGargoyleWings, shGargoyleBody,
   shFoxTail1, shFoxTail2,
@@ -395,6 +399,9 @@ hpcshape
 
   map<int, hpcshape> shPipe;
 
+  length_adjusted_shapes lash_default;
+  map<int, length_adjusted_shapes> lash;
+
   vector<hpcshape> shPlainWall3D, shWireframe3D, shWall3D, shMiniWall3D;
   vector<hyperpoint> walltester;
   
@@ -483,9 +490,11 @@ hpcshape
   void initPolyForGL();
   void extra_vertices();
   transmatrix ddi(int a, ld x);
-  void drawTentacle(hpcshape &h, ld rad, ld var, ld divby);
+  void drawTentacle(ld rad, ld var, ld divby, ld tlength);
   hyperpoint hpxyzsc(double x, double y, double z);
   hyperpoint turtlevertex(int u, double x, double y, double z);
+
+  length_adjusted_shapes& get_lash(ld len);
   
   void bshape(hpcshape& sh, PPR prio);
   void finishshape();
@@ -632,6 +641,12 @@ void geometry_information::prepare_basics() {
   heptshape = nullptr;
 
   xp_order = 0;
+
+  if(arcm::in()) {
+    auto& ac = arcm::current_or_fake();
+    if(fake::in_ext()) ac = arcm::current;
+    ac.compute_geometry();
+    }
   
   emb = make_embed();
   bool geuclid = euclid;

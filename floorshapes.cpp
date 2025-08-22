@@ -408,6 +408,7 @@ void geometry_information::generate_floorshapes_for(int id, cell *c) {
     auto& c = arb::current;
     siid = c.shapes[id].football_type >= 2;
     sidir = c.shapes[id].football_type == 1;
+    if(!c.is_football_colorable) siid = 1;
     }
   
   else if(geometry == gBinary4) {
@@ -864,16 +865,17 @@ EX namespace gp {
         sidir = 0;
         }
       else {
-        siid = 0;
+        siid = 1;
         sidir = 0;
         }
       };
     if(INVERSE && gp::variation_for(gp::param) == eVariation::goldberg) {
       c1 = gp::get_mapped(c);
       UIU(f());
+      siid = 1; sidir = 0;
       }
     else if(INVERSE) {
-      siid = 0;
+      siid = 1;
       sidir = 0;
       }
     else f();

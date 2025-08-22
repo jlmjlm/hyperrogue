@@ -3569,10 +3569,33 @@ EX void pick_player_shape() {
   charstyle& cs = getcs();
   for(int i=0; i<pshGUARD; i++) {
     dialog::addBoolItem(XLAT(playershapes[i].name), i == (cs.charid>>1), 'a'+i);
+    if((i == pshPrincess && !princess::everSaved) ||
+       (i == pshRatling && hiitemsMax(itCoral) < 25) ||
+       (i == pshSkeleton && hiitemsMax(itPalace) < 25) ||
+       (i == pshHyperbug && hiitemsMax(itRoyalJelly) < 25)
+      ) dialog::lastItem().value = "(locked)";
     dialog::add_action([i, &cs] {
       if(i == pshPrincess) {
         if(!princess::everSaved && !autocheat && !unlock_all) {
           addMessage(XLAT("Save %the1 first!", moPrincess));
+          return;
+          }
+        }
+      if(i == pshRatling) {
+        if(hiitemsMax(itCoral) < 25 && !unlock_all && !autocheat) {
+          addMessage(XLAT("Collect 25 %1 to unlock first!", itCoral));
+          return;
+          }
+        }
+      if(i == pshSkeleton) {
+        if(hiitemsMax(itPalace) < 25 && !unlock_all && !autocheat) {
+          addMessage(XLAT("Collect 25 %1 to unlock first!", itPalace));
+          return;
+          }
+        }
+      if(i == pshHyperbug) {
+        if(hiitemsMax(itRoyalJelly) < 25 && !unlock_all && !autocheat) {
+          addMessage(XLAT("Collect 25 %1 to unlock first!", itRoyalJelly));
           return;
           }
         }
@@ -3584,6 +3607,34 @@ EX void pick_player_shape() {
   dialog::addBack();
   dialog::display();
   }
+
+EX void save_customchar(charstyle& cs, const string& fname) {
+  FILE *f = fopen(fname.c_str(), "wt");
+  if(!f) throw hstream_exception();
+  fprintf(f, "%x\n", VERNUM_HEX);
+  fprintf(f, "%d %d\n%08x %08x %08x %08x %08x %08x %08x %08x %08x\n",
+    cs.charid, cs.lefthanded,
+    cs.skincolor, cs.haircolor, cs.dresscolor, cs.swordcolor, cs.dresscolor2, cs.uicolor, cs.eyecolor, cs.bowcolor, cs.bowcolor2);
+  fprintf(f, "HyperRogue " VER " custom character file\n");
+  fprintf(f, "Colors are: skin, hair, dress, sword, dress2, ui, eye, bow, bow2\n");
+  fclose(f);
+  }
+
+EX void load_customchar(charstyle& cs, const string& fname) {
+  FILE *f = fopen(fname.c_str(), "rt");
+  if(!f) throw hstream_exception();
+  unsigned int vernum;
+  if(!fscanf(f, "%x", &vernum)) throw hstream_exception();
+  int lh;
+  if(!fscanf(f, "%d %d\n%08x %08x %08x %08x %08x %08x %08x %08x %08x\n",
+    &cs.charid, &lh,
+    &cs.skincolor, &cs.haircolor, &cs.dresscolor, &cs.swordcolor, &cs.dresscolor2, &cs.uicolor, &cs.eyecolor, &cs.bowcolor, &cs.bowcolor2))
+    throw hstream_exception();
+  cs.lefthanded = lh;
+  fclose(f);
+  }
+
+EX string charfile = "custom.hch";
 
 EX void showCustomizeChar() {
 
@@ -3610,7 +3661,7 @@ EX void showCustomizeChar() {
   
   if(id != pshRogue) dialog::addColorItem(XLAT("dress color"), cs.dresscolor, 'd');
   else dialog::addBreak(100);
-  if(cs.charid == 3) dialog::addColorItem(XLAT("dress color II"), cs.dresscolor2, 'f');
+  if(cs.charid == 3 || id == pshRatling) dialog::addColorItem(XLAT("dress color II"), cs.dresscolor2, 'f');
   else dialog::addBreak(100);
   
   dialog::addColorItem(XLAT("movement color"), cs.uicolor, 'u');
@@ -3619,9 +3670,19 @@ EX void showCustomizeChar() {
   
   if(numplayers() > 1) dialog::addSelItem(XLAT("player"), its(multi::cpid+1), 'a');
 
-  dialog::addBoolItem(XLAT("left-handed"), cs.lefthanded, 'l');
+  dialog::addBoolItem_action(XLAT("left-handed"), cs.lefthanded, 'l');
   
   dialog::addBreak(50);
+  dialog::addItem("save", 'S');
+  dialog::add_action([&cs] {
+    dialog::openFileDialog(charfile, XLAT("character file to save:"), ".hch",
+      [&cs] { try { save_customchar(cs, charfile); return true; } catch(hstream_exception&) { addMessage("Failed to save!"); return false; } });
+    });
+  dialog::addItem("load", 'L');
+  dialog::add_action([&cs] {
+    dialog::openFileDialog(charfile, XLAT("character file to load:"), ".hch",
+      [&cs] { try { load_customchar(cs, charfile); return true; } catch(hstream_exception&) { addMessage("Failed to load!"); return false; } });
+    });
   dialog::addBack();
   dialog::display();
   
@@ -3653,7 +3714,6 @@ EX void showCustomizeChar() {
     else if(uni == 'f') switchcolor(cs.dresscolor2, dresscolors2);
     else if(uni == 'u') switchcolor(cs.uicolor, eyecolors);
     else if(uni == 'e') switchcolor(cs.eyecolor, eyecolors);
-    else if(uni == 'l') cs.lefthanded = !cs.lefthanded;
     else if(uni == 'b') switchcolor(cs.bowcolor, swordcolors);
     else if(uni == 'c') switchcolor(cs.bowcolor2, eyecolors);
     else if(doexiton(sym, uni)) popScreen();

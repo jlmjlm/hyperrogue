@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "13.1"
-#define VERNUM_HEX 0xAA20
+#define VER "13.1c"
+#define VERNUM_HEX 0xAA23
 
 #include "sysconfig.h"
 
@@ -177,7 +177,7 @@ void addMessage(string s, char spamtype = 0);
 // Dry Forest burning, heat transfer, etc. are performed on the whole universe
 #define doall (closed_or_bounded)
 
-#define sphere_narcm (sphere && !arcm::in())
+#define sphere_narcm (sphere && !arcm::in() && !arb::in())
 
 #define a4 (S3 == 4)
 #define a45 (S3 == 4 && S7 == 5)
