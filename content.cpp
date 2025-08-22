@@ -569,7 +569,7 @@ ITEM( 'o', 0x6060FF, "Orb of Time", itOrbTime, IC_ORB, ZERO, RESERVED, osPowerUt
     "attacked), and Orbs of Time have a bigger cap inside their native Caribbean than "
     "outside."
     )
-ITEM( 'o', 0x40C0C0, "Orb of Space", itOrbSpace, IC_ORB, ZERO | IF_RANGED, RESERVED, osRanged, 
+ITEM( 'o', 0xC00060, "Orb of Space", itOrbSpace, IC_ORB, ZERO | IF_RANGED, RESERVED, osRanged, 
     "This Orb is able to bring faraway items to your location, even if there are "
     "monsters or barriers on the way. The cost of "
     "bringing an item (in charges) equals the square of its distance to you. Contrary "

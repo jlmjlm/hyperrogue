@@ -152,8 +152,9 @@ EX void movepckeydir(int d) {
   if(protect_memory()) return;
   
   movedir md = vectodir(move_destination_vec(d));
+  //md.subdir = keybd_subdir ? 1 : -1;
   if(keybd_subdir_enabled) md.subdir = keybd_subdir;
-    
+
   if(!canmove) movepcto(md), remission(); else movepcto(md);
   }
 
@@ -635,6 +636,7 @@ EX void handleKeyNormal(int sym, int uni) {
     }
 
   if(sym == SDLK_TAB) {
+    //keybd_subdir = !keybd_subdir;
     keybd_subdir_enabled = !anyshiftclick;
     keybd_subdir *= -1;
     }

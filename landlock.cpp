@@ -1371,7 +1371,7 @@ EX land_validity_t& land_validity(eLand l) {
   // this pattern does not work on elliptic and small spheres
   if((l == laBlizzard || l == laVolcano) && elliptic && S7 < 5 && !arcm::in())
     return not_enough_space;
-  
+
   // ... and it works in gp only partially
   if((l == laBlizzard || l == laVolcano) && GOLDBERG && (old_daily_id < 33 || !sphere))
     return partially_implemented;
@@ -1382,7 +1382,7 @@ EX land_validity_t& land_validity(eLand l) {
   if(l == laKraken && (S7&1) && !has_nice_dual()) {
     return dont_work_but_ingame;
     }
-  
+
   // works in most spheres, Zebra quotient, and stdeucx
   if(l == laWhirlwind) {
     if(geometry == gZebraQuotient)

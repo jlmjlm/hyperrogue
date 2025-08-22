@@ -119,11 +119,25 @@ void eclectic_red(color_t& col) {
   if (!higher_contrast) {
     part(col, 0) = part(col, 2) * 3 / 4;
     } else {
+      switch (col) {
+        case 0x630037: col = 0xB0FFB0; return;
+        case 0xC03E3E: col = 0x60C060; return;
+        case 0xD85507: col = 0x00FF00; return;
+        default: col = 0xFFFFFF; return;
+      }
+    //col >>= 8;
+    /* auto v = part(col, 0) + part(col, 1) + part(col, 2);
+    swap(part(col, 2), part(col, 1));
+    part(col, 0) += v/3 + 16;
+    part(col, 1) += v/2 + 32;
+    part(col, 2) += v/3 + 16; */
+/*
     auto v = part(col, 0) + part(col, 1) + part(col, 2);
     auto t = part(col, 0);
-    part(col, 0) = part(col, 1);
+    part(col, 0) = part(col, 1) + 16;
     part(col, 1) = part(col, 2);
-    part(col, 2) = t + v/3;
+    part(col, 2) = t + 16;
+*/
     }
   }
 
@@ -1274,7 +1288,9 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
       break;
 
     case laBull:
-      set_floor(cgi.shButterflyFloor);
+    case laHauntedWall: case laHaunted: case laHauntedBorder:
+      //set_floor(cgi.shButterflyFloor);
+      set_floor(cgi.shFloor);
       break;
     
     case laCaribbean: case laOcean: case laOceanWall: case laWhirlpool:
@@ -1294,7 +1310,7 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
       set_floor(cgi.shDragonFloor);
       break;
     
-    case laOvergrown: case laClearing: case laHauntedWall: case laHaunted: case laHauntedBorder:
+    case laOvergrown: case laClearing:
       set_floor(cgi.shOverFloor);
       break;
 
@@ -2865,6 +2881,8 @@ void celldrawer::draw() {
 
   cells_drawn++;
 
+  checkTide(c);
+
 #if CAP_TEXTURE
   if(texture::saving) {
     texture::config.apply(c, V, 0xFFFFFFFF);
@@ -3122,6 +3140,7 @@ void celldrawer::set_maywarp_floor() {
   }
 
 void celldrawer::set_reptile_floor(const shiftmatrix& V, color_t col, bool nodetails) {
+#define wmescher false
 
   auto si = 
     euc::in(2,6) ? 
@@ -3181,6 +3200,7 @@ void celldrawer::set_reptile_floor(const shiftmatrix& V, color_t col, bool nodet
     queuepoly(V*D, cgi.shReptile[j][2], (ecol << 8) + 0xFF);
     queuepoly(V*D, cgi.shReptile[j][3], (ecol << 8) + 0xFF);
     }
+#undef wmescher
   }
 
 void celldrawer::set_emeraldfloor() {
