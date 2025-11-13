@@ -50,7 +50,7 @@ EX void useupOrb(eItem it, int qty) {
   }
 
 EX void drainOrb(eItem it, int target IS(0)) {
-  if(items[it] > target) useupOrb(it, items[it] - target);
+  if(!cheat_items_enabled && items[it] > target) useupOrb(it, items[it] - target);
   }
 
 EX void empathyMove(const movei& mi) {  
@@ -233,6 +233,14 @@ EX void reduceOrbPowers() {
     else
       items[itCrossbow]--;
     }
+  if(cheat_items_enabled)
+    for(int i=0; i<ittypes; i++) {
+      if(i == itOrbSpeed) {
+        if(items[i] < cheat_items[i]) items[i] = cheat_items[i] + 1; // Orb of Speed always needs to alternate between an odd and even number to work right
+        }
+      else if(itemclass(eItem(i)) == IC_ORB && i != itOrbSafety)
+        items[i] = cheat_items[i];
+      }
   }
 
 eWall orig_wall;
@@ -743,7 +751,7 @@ EX bool jumpTo(orbAction a, cell *dest, eItem byWhat, int bonuskill, jumpdata jd
     movecost(from, dest, 2);
     from = NULL;
     }
-  if(cwt.at->item != itOrbYendor && cwt.at->item != itHolyGrail) {
+  if(cwt.at->item != itOrbYendor && cwt.at->item != itHolyGrail && !cantGetGrimoire(cwt.at, true)) {
     auto c = collectItem(cwt.at, from, true);
     if(c) {
       return true;
@@ -1128,9 +1136,7 @@ void stun_attack(cell *dest) {
   checkmoveO();
   }
 
-void poly_attack(cell *dest) {
-  playSound(dest, "orb-ranged");
-  eMonster orig = dest->monst;
+EX eMonster pick_poly_monster(eMonster orig) {
   auto polymonsters = {
     moYeti, moRunDog, moRanger,
     moMonkey, moCultist,
@@ -1141,11 +1147,18 @@ void poly_attack(cell *dest) {
   int ssf = 0;
   eMonster target = *(polymonsters.begin() + hrand(isize(polymonsters)));
   for(eMonster m: polymonsters)
-    if(kills[m] && m != dest->monst) {
+    if(kills[m] && m != orig) {
       ssf += kills[m];
       if(hrand(ssf) < kills[m])
         target = m;
       }
+  return target;
+  }
+
+void poly_attack(cell *dest) {
+  playSound(dest, "orb-ranged");
+  eMonster orig = dest->monst;
+  eMonster target = pick_poly_monster(orig);
   addMessage(XLAT("You polymorph %the1 into %the2!", dest->monst, target));
   dest->monst = target;
   if(!dest->stuntime) dest->stuntime = 1;
@@ -1549,8 +1562,8 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
     }
   
   if(items[itOrbPhasing] && CHK(c->cpdist == 2, XLAT("Cannot phase that far!"))) {
-    changes.init(isCheck(a));
     if(shmup::on) shmup::pushmonsters();
+    changes.init(isCheck(a));
     int phasestate = check_phase(cwt.at, c, P_ISPLAYER, jdata);
     if(phasestate == 1 && c->monst) {
       orb_error_messages.push_back(XLAT("Cannot phase onto %the1!", c->monst));
@@ -1835,11 +1848,11 @@ EX int orbcharges(eItem it) {
   }
 
 EX bool isShmupLifeOrb(eItem it) {
-  return 
-    it == itOrbLife || it == itOrbFriend ||
-    it == itOrbNature || it == itOrbEmpathy ||
-    it == itOrbUndeath || it == itOrbLove ||
-    it == itOrbDomination || it == itOrbGravity; 
+  return among(it,
+    itOrbLife, itOrbFriend, itOrbNature, itOrbEmpathy,
+    itOrbUndeath, itOrbLove, itOrbDomination, itOrbGravity,
+    itOrbWoods, itOrbChaos, itOrbImpact, itOrbPlague
+    );
   }
 
 EX void makelava(cell *c, int i) {

@@ -1264,6 +1264,8 @@ EX int geosupport_threecolor() {
   if(arcm::in() && BITRUNCATED) return arcm::current.support_threecolor_bitruncated();
   if(arcm::in() && DUAL) return 0; // it sometimes does support threecolor, but it can be obtained in other ways then
   #endif
+  if(euc::in(2, 4) && BITRUNCATED) return 2;
+  if(a46 && BITRUNCATED) return 2;
   if(INVERSE) return 0;
   if(BITRUNCATED && S3 == 3) {
     if(S7 % 2) return 1;
@@ -1369,6 +1371,7 @@ EX int pattern_threecolor(cell *c) {
     }
   if(meuclid) {
     if(a4 && PURE) return eupattern4(c);
+    if(a4 && BITRUNCATED) return eupattern4(c) % 3;
     if(euc::in(2,6) && !BITRUNCATED) return eupattern(c) % 3;
     return c == c->master->c7 ? 0 : (c->c.spin(0)&1) ? 1 : 2;
     }
@@ -2667,7 +2670,7 @@ EX namespace linepatterns {
       )
     );
   
-  linepattern patHepta("Gray Raider moves", 0xC0C0C000, if_pseudohept,
+  EX linepattern patHepta = linepattern("Gray Raider moves", 0xC0C0C000, if_pseudohept,
     ALLCELLS(
       forCellIdEx(c2, i, c) if(way(c,i)) if(pseudohept(c) == pseudohept(c2)) 
         gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);

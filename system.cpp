@@ -176,9 +176,24 @@ EX bool ineligible_starting_land;
 
 EX int easy_specialland;
 
+EX void reset_cheats() {
+  if(autocheat) {
+    cheater = 1;
+    return;
+    }
+  cheater = 0;
+  reptilecheat = false;
+  shadingcheat = false;
+  cheat_items_enabled = false;
+  timerghost = true;
+  gen_wandering = true;
+  }
+
 /** \brief initialize the game */
 EX void initgame() {
-  DEBBI(DF_INIT, ("initGame"));
+  DEBBI(debug_init, ("initGame"));
+  if(!safety) reset_cheats();
+
   callhooks(hooks_initgame);
 
   modecode(1);
@@ -393,7 +408,7 @@ EX void initgame() {
 
   if(!safety) {
     usedSafety = false;
-    timerstart = time(NULL); turncount = 0; rosewave = 0; rosephase = 0;
+    timerstart = time(NULL); turncount = 0; lastexplore = 0; rosewave = 0; rosephase = 0;
     tickstart = ticks;
     noiseuntil = 0;
     sagephase = 0; hardcoreAt = 0;
@@ -402,17 +417,9 @@ EX void initgame() {
     loadcount = 0; current_loadcount = 0; load_branching = 0;
 
     tortoise::last21tort = 0;
-    cheater = 0;
-    if(!autocheat) reptilecheat = false;
-    if(autocheat) cheater = 1;
     if(!wfc::use_eclectic) cheater = 1;
     if(!autocheat && !cheater && geometry == gNormal) patterns::whichShape = 0;
     hauntedWarning = false;
-    if(!autocheat) {
-      shadingcheat = false;
-      timerghost = true;
-      gen_wandering = true;
-      }
     truelotus = 0;
     asteroids_generated = 0;
     asteroid_orbs_generated = 0;
@@ -1088,7 +1095,7 @@ scores::score scorebox;
 EX bool save_cheats;
 
 EX void saveStats(bool emergency IS(false)) {
-  DEBBI(DF_INIT, ("saveStats [", scorefile, "]"));
+  DEBBI(debug_init, ("saveStats [", scorefile, "]"));
 
   if(autocheat && !save_cheats) return;
   if(scorefile == "") return;
@@ -1225,7 +1232,7 @@ EX void saveStats(bool emergency IS(false)) {
   fprintf(f, "\n\n\n");
 
 #if !ISMOBILE
-  DEBB(DF_INIT, ("Game statistics saved to ", scorefile));
+  DEBB(debug_init, ("Game statistics saved to ", scorefile));
   addMessage(XLAT("Game statistics saved to %1", scorefile));
 #endif
   fclose(f);
@@ -1240,7 +1247,7 @@ EX void loadsave() {
 #if CAP_TOUR
   if(tour::on) return;
 #endif
-  DEBBI(DF_INIT, ("loadSave"));
+  DEBBI(debug_init, ("loadSave"));
 
   FILE *f = fopen(scorefile.c_str(), "rt");
   havesave = f;
@@ -1433,7 +1440,7 @@ EX void load_last_save() {
 EX void stop_game() {
   if(!game_active) return;
   if(dual::split(stop_game)) return;
-  DEBBI(DF_INIT, ("stop_game"));
+  DEBBI(debug_init, ("stop_game"));
   achievement_final(true);
   save_if_needed();
   for(int i=0; i<ittypes; i++) items[i] = 0;
@@ -1550,7 +1557,7 @@ EX void set_variation(eVariation target) {
   }
 
 EX void switch_game_mode(char switchWhat) {
-  DEBBI(DF_INIT, ("switch_game_mode ", switchWhat));
+  DEBBI(debug_init, ("switch_game_mode ", switchWhat));
   switch(switchWhat) {
     case rg::peace:
       peace::on = !peace::on;
@@ -1681,7 +1688,7 @@ EX void switch_game_mode(char switchWhat) {
 
 EX void start_game() {
   if(game_active) return;
-  DEBBI(DF_INIT, ("start_game"));
+  DEBBI(debug_init, ("start_game"));
   if(dual::state == 1) dual::assign_landsides();
   if(dual::split(start_game)) return;
   restart:

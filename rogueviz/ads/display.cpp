@@ -1,3 +1,6 @@
+// Relative Hell: display for the AdS game
+// Copyright (C) 2022-2025 Zeno Rogue, see '../../hyper.cpp' for details
+
 namespace hr {
 
 namespace ads_game {
@@ -361,6 +364,7 @@ void view_ads_game() {
       i++;
       auto& cd = dq.top();
       if(i > draw_per_frame && cd.d > lastd + 1e-4) break;
+      if(i > draw_per_frame + draw_per_frame_equal) break;
       lastd = cd.d;
       cds[cd.c] = cd;
       draw_game_cell(cd);

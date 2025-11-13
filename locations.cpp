@@ -413,6 +413,16 @@ struct manual_celllister {
     return true;
     }
 
+  /** \brief remove a cell from the list */
+  bool remove(cell *c) {
+    if(!listed(c)) return false;
+    int i = c->listindex;
+    c->listindex = tmps[i];
+    tmps.erase(tmps.begin() + i);
+    lst.erase(lst.begin() + i);
+    return true;
+    }
+
   ~manual_celllister() {     
     for(int i=0; i<isize(lst); i++) lst[i]->listindex = tmps[i];
     }  
@@ -465,6 +475,23 @@ inline cellwalker operator+ (heptspin hs, cth_t) { return cellwalker(hs.at->c7, 
 #endif
 
 EX bool proper(cell *c, int d) { return d >= 0 && d < c->type; }
+
+/** return b-a, as in, a number x such that a+x == b. */
+EX int cwdiff(cellwalker b, cellwalker a) {
+  return a.mirrored ? a.spin - b.spin : b.spin - a.spin;
+  }
+
+/** like cwdiff but normalize to [0..type-1) */
+EX int cwdiff_fixed(cellwalker b, cellwalker a) {
+  return gmod(cwdiff(b, a), b.at->type);
+  }
+
+/** return c+(b-a) */
+EX cellwalker cw_add_diff(cellwalker c, cellwalker b, cellwalker a) {
+  c += cwdiff(b, a);
+  if(a.mirrored != b.mirrored) c += wmirror;
+  return c;
+  }
 
 #if HDR
 

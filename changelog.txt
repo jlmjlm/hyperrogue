@@ -5501,3 +5501,100 @@ https://zenorogue.blogspot.com/2025/08/hyperrogue-131.html
 - the Hyperstone Quest cheat gives only the relevant treasures (thanks to josephcsible)
 - a shading cheat (thanks to josephcsible)
 - only messages about lands that are in-game are shown (thanks to josephcsible)
+
+2025-08-29 08:44 Update 13.1d:
+- fixed a potential crash when reseting OpenGL (might help people who could not run the game?)
+- fixed new humanoid player shapes not displaying the crossbow, and the missiles for new character shapes
+- fixed a bug when saving colortables, causing a crash when loading them (thanks to josephcsible)
+- drawing tool now actually does enable the cheat mode
+- fix pushing an Animated Die saying "You push the Unhappy Die." (thanks to josephcsible)
+- fixed some menus in VR, and the bugh with the walking mode hotkey; added 'build on walls' to the portal construction menu so it is easier to create portals in the air
+
+2025-09-09 20:35 Update 13.1e:
+- conformal egg model (like in the game Innards)
+- nicer help for number dialogs
+- fixed a bug with some projections not using 3D (when they were able to) or using 3D (when they were not able to)
+- azimuthal equidistant faster now (implemented on GPU)
+- fixed some bugs related to changing the 3D style
+- fixed the disconnect between scrolling speed and movement speed in Euclidean mode
+- fixed onscreen keyboard (in SDL2)
+- fixed some crashes thanks to josephcsible
+- for the expression parser, added some variables related to keyboard/mouse states
+- fixed drawing horocycles using parabolic movement
+- Warn before collecting potentially-dangerous orbs (thanks to josephcsible)
+- fix crash when the Elemental Planes is unlocked with 0 kills (thanks to josephcsible)
+- stop Outlaws from shooting themselves when Orb of Discord is active (thanks to josephcsible)
+- remove incorrect message about saving in Archimedean (thanks to josephcsible)
+- mark Minefield and Zebra as incompatible (thanks to josephcsible)
+- fixed missing sound files in the itchio versions
+- Android version updated
+
+2025-10-11 09:08 Update 13.1f:
+
+New features:
+
+- a new feature to create quotient orbifolds for tessellations loaded from tes files (or converted into that format) (experiment with geometry -> quotient)
+- in screenshots->centering, list all viewpoints
+
+Bug fixes:
+
+- fixed frogging grimoires
+- fixed the 3D models for spaceship, bunny, and player ratling
+- fixed Red Rock graphical bug
+- fixed the three-coloring of bitruncated {4,4}
+- bitruncated {4,4} and {4,6} are now known to be three-colored
+- fixed the bug with the bulls being too enraged about crossbows
+- fixed a rare bug with apeirogonal tes files falsely pretending to be football colorable
+- make the Orb of Earth/Earth Elemental not remove limestone walls in Irradiated Field and the Mercury River subland, and make OoEarth create a trail of mercury in the mercury river subland (thanks to ohlordhebacc)
+
+Shmup fixes:
+
+- the player can now be stunned now (using Orb of Stunning)
+- fixed the bug with Phasing deleting monsters
+- the killer is now stated correctly when killing yourself with Orb of Mind
+- Orb of Winter now correnctly collects ice-encased items
+- fixed the Camelot message (and cape reward) on exit
+- fixed some inconsistencies with Orb of Speed
+- fixed Orb of Energy not improving some orbs
+- Orb of Change should work now
+- orbs that did nothing now add extra lives (Woods, Plague, Chaos, Impact)
+
+Thanks to josephcsible:
+
+- add support for pinning glyphs to a consistent spot in the HUD
+- improve Minefield display when there are more than seven mines
+- make Orb of Magnetism and Curse of Repulsion leave saved tortoises alone
+- (in custom land lists) lower the land unlock requirements if they're mathematically impossibly high
+- stop WFC generation from spilling 1 tile into neighboring lands
+- never generate Cursed Canyon in CR6 if it isn't in-game
+- add a cheat to hold orb powers at their current level
+- add a setting for a gap between orbs and treasures
+- add a setting to disable the warning before killing a friendly monster
+- fix getting rid of Great Walls by killing Ghosts with OotStone
+- reset "last exploration" when starting a new run
+
+2025-11-11 19:10 Update 13.1g:
+
+Added some improvements for the SteamDeck:
+- the RETURN key now moves in the current direction
+- reorganized some setting menus so that there is not too many options on the screen
+- added a "dialog font scale" option to display larger menus
+- added an option to not automatically interpret joystick buttons as movement commands
+- the autojoy option is now off by default
+- fixed a crash in some situations
+- add an option to never/always display keyboard help in dialogs
+- better default settings on the SteamDeck
+
+Other changes:
+- new system for debug logs
+- in shmup, tortoise no longer die after 3 hits
+- fixed shHalfDisk and shDiskSegment shapes in spherical geometry
+- fix the "lastexplore" value getting set to the turn/knives thrown count instead of "shmup::curtime" when enabling the map editor in shmup, and when playing the fifteen+4 puzzle in shmup (thanks to ohlordhebacc)
+- make the "switch ghost timer" cheat display shmup::curtime instead of the turn/knives thrown count in shmup (thanks to ohlordhebacc)
+
+Thanks to josephcsible:
+- add a setting to preserve wparam and landparam when changing walls and lands with the map editor
+- fix edge cases in Hell/CR3 unlock
+- circle the item the Orb of Space is about to collect
+- fix freeze if Ancient Jewelry ends up on a tile with a large landparam
+- fix a crash

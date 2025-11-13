@@ -221,11 +221,17 @@ EX bool landUnlockedRPM(eLand n) {
   }
 
 EX int lands_for_hell() {
-  return casual ? 40 : 9;
+  int desired = casual ? 40 : 9;
+  int available = std::count_if(land_over.begin(), land_over.end(), [] (eLand l) { return !among(l, laHell, laCocytus, laPower) && !isCrossroads(l) && iinf[linf[l].treasure].itemclass == IC_TREASURE && isLandIngame(l); });
+  if(isLandIngame(laMirror) && isLandIngame(laMirrorOld)) --available;
+  return min(desired, available);
   }
 
 EX int lands_for_cr3() {
-  return casual ? 20 : 9;
+  int desired = casual ? 20 : 9;
+  int available = std::count_if(land_over.begin(), land_over.end(), [] (eLand l) { return !isCrossroads(l) && iinf[linf[l].treasure].itemclass == IC_TREASURE && isLandIngame(l); });
+  if(isLandIngame(laMirror) && isLandIngame(laMirrorOld)) --available;
+  return min(desired, available);
   }
 
 EX int variant_unlock_value() {
@@ -400,6 +406,7 @@ EX bool incompatible1(eLand l1, eLand l2) {
   if(l1 == laBull && l2 == laTerracotta) return true;
   if(l1 == laReptile && l2 == laTerracotta) return true;
   if(l1 == laBull && l2 == laDeadCaves) return true;
+  if(l1 == laMinefield && l2 == laZebra) return true;
   if(isElemental(l1) && isElemental(l2)) return true;
   return false;
   }
@@ -416,8 +423,9 @@ EX int elementalKills() {
   }
 
 EX eLand randomElementalLandWeighted() {
-  if(all_unlocked) return pick(laEAir, laEWater, laEEarth, laEFire);
-  int i = hrand(elementalKills());
+  int ek = elementalKills();
+  if(ek == 0 || all_unlocked) return pick(laEAir, laEWater, laEEarth, laEFire);
+  int i = hrand(ek);
   i -= kills[moAirElemental]; if(i<0) return laEAir;
   i -= kills[moWaterElemental]; if(i<0) return laEWater;
   i -= kills[moEarthElemental]; if(i<0) return laEEarth;
@@ -1040,10 +1048,11 @@ EX void customize_land_list() {
 
   if(use_custom_land_list) {
     dialog::addItem("disable/enable all", 'D');
-    dialog::add_action([] {
+    std::vector<eLand> ll(landlist);
+    dialog::add_action([ll] {
       int qty = 0;
-      for(int i=0; i<landtypes; i++) if(custom_land_list[i]) qty++;
-      for(int i=0; i<landtypes; i++) custom_land_list[i] = !qty;
+      for(eLand l: ll) if(custom_land_list[l]) qty++;
+      for(eLand l: ll) custom_land_list[l] = !qty;
       });
     }
   else dialog::addBreak(100);

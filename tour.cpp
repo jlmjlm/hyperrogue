@@ -76,6 +76,10 @@ static constexpr flagtype USE_SLIDE_NAME = 128;
 static constexpr flagtype NOTITLE = 256;
 /** \brief always display the text, even if going back or texts are disabled */
 static constexpr flagtype ALWAYS_TEXT = 256;
+/** \brief add a sidescreen to a normal screen */
+static constexpr flagtype SIDE = 512;
+/** \brief deck controls */
+static constexpr flagtype DECK_CONTROLS = 1024;
 #endif
 
 EX vector<reaction_t> restorers;
@@ -224,11 +228,18 @@ string get_subname(const string& s, const string& folder) {
 EX void slidehelp() {
   if(!slides[currentslide].help[0]) return;
   string slidename = get_slidename(slides[currentslide].name);
-  gotoHelp(
-    help =
-      helptitle(XLAT(slidename), 0xFF8000) +
-      XLAT(slides[currentslide].help)
-    );
+
+  help =
+    helptitle(XLAT(slidename), 0xFF8000) +
+    XLAT(slides[currentslide].help);
+
+  if(dialog::display_keys == 3 && slides[currentslide].flags & DECK_CONTROLS)
+    help += "\n\n" + XLAT(
+      "This tour typically displays keys on the keyboard. "
+      "On the SteamDeck, you can press the Menu button to move to the next slide, "
+      "or the B button to see a menu with other options.");
+
+  gotoHelp(help);
   presentation(pmHelpEx);
   }
 
@@ -237,7 +248,6 @@ void return_geometry() {
   gamestack::pop();
   pconf.scale = 1; pconf.alpha = 1;
   presentation(pmGeometryReset);
-  addMessage(XLAT("Returned to your game."));
   }
 
 EX void return_geometries() {
@@ -257,7 +267,10 @@ EX bool next_slide() {
   popScreenAll();
   if(gamestack::pushed()) {
     return_geometry();
-    if(!(flags & QUICKGEO)) return true;
+    if(!(flags & QUICKGEO)) {
+      addMessage(XLAT("Returned to your game."));
+      return true;
+      }
     }
   if(flags & FINALSLIDE) return true;
   presentation(pmStop);
@@ -268,7 +281,7 @@ EX bool next_slide() {
   return true;
   }
 
-bool handleKeyTour(int sym, int uni) {
+EX bool handleKeyTour(int sym, int uni) {
   if(!tour::on) return false;
   if(!(cmode & sm::DOTOUR)) return false;
   bool inhelp = cmode & sm::HELP;
@@ -479,6 +492,8 @@ EX namespace ss {
     }
   
   EX void slideshow_menu() {
+    cmode = sm::VR_MENU | sm::NOSCR;
+    gamescreen();
     dialog::init(XLAT("slideshows"), forecolor, 150, 100);
     for_all_slideshows([] (string title, slide *sl, char ch) {
       dialog::addBoolItem(title, wts == sl, ch);
@@ -490,6 +505,9 @@ EX namespace ss {
   
   EX void showMenu() {
     if(!wts) wts = slides; 
+
+    cmode = sm::VR_MENU | sm::NOSCR;
+    gamescreen();
 
     dialog::init(XLAT("slides"), forecolor, 150, 100);
     
@@ -627,7 +645,7 @@ EX slide default_slides[] = {
       }
     },
 #endif
-  {"Introduction", 10, LEGAL::NONE | QUICKSKIP,
+  {"Introduction", 10, LEGAL::NONE | QUICKSKIP | DECK_CONTROLS,
     "This tour is mostly aimed to show what is "
     "special about the geometry used by HyperRogue. "
     "It also shows the basics of gameplay, and "

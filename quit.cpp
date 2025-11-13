@@ -10,7 +10,7 @@ namespace hr {
 
 EX bool quitsaves() { 
   if(casual) return false;
-  return (items[itOrbSafety] && CAP_SAVE && !arcm::in()); 
+  return (items[itOrbSafety] && CAP_SAVE);
   }
 
 EX bool needConfirmationEvenIfSaved() {
@@ -619,7 +619,7 @@ EX void handleKeyQuit(int sym, int uni) {
     sym = 0;
 #endif
 
-  if(sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_F10) {
+  if(sym == SDLK_F10) {
     if(needConfirmation()) pushScreen([] { 
       dialog::confirm_dialog(
         XLAT("This will exit HyperRogue without saving your current game. Are you sure?") + "\n\n" +
@@ -661,6 +661,10 @@ EX void handleKeyQuit(int sym, int uni) {
     scores::load();
     }
   #endif
+
+#if CAP_TOUR
+  else if(tour::on && tour::handleKeyTour(sym, uni)) ;
+#endif
   
   else if(doexiton(sym, uni) && !didsomething) {
     popScreen();

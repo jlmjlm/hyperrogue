@@ -426,6 +426,18 @@ cld exp_parser::parse(int prio) {
     else if(number == "last_c") res = anims::last_anim_vars[2];
     else if(number == "last_d") res = anims::last_anim_vars[3];
     else if(number == "illegal_moves") res = illegal_moves;
+    else if(number == "lshift") res = lshiftclick;
+    else if(number == "rshift") res = rshiftclick;
+    else if(number == "lctrl") res = lctrlclick;
+    else if(number == "rctrl") res = rctrlclick;
+#if !ISMOBILE
+    else if(number == "capslock") res = (SDL_GetModState() & KMOD_CAPS) ? 1 : 0;
+    else if(number == "numlock") res = (SDL_GetModState() & KMOD_NUM) ? 1 : 0;
+#if SDLVER >= 2
+    else if(number == "scrolllock") res = (SDL_GetModState() & KMOD_SCROLL) ? 1 : 0;
+#endif
+#endif
+    else if(number == "holdmouse") res = holdmouse ? 1 : 0;
     else if(number == "mousexs") {
       if(!inHighQual) bmousexs = (1. * mousex - current_display->xcenter) / current_display->radius;
       res = bmousexs;
@@ -709,8 +721,17 @@ EX string available_functions() {
   }
 
 EX string available_constants() {
+  return
+    "e, i, pi, tau, phi, deg [degree]";
+  }
+
+EX string available_variables() {
   return 
-    "e, i, pi, s, ms, mousex, mousey, mousez, shot [1 if taking screenshot/animation]";
+    "Keyboard and mouse:\n\n"
+    "mousex, mousey, mousez, lshift, rshift, lctrl, rctrl, capslock, numlock, scrolllock, holdmouse, random, mousexs, mouseys\n\n"
+    "Time:\n\n"
+    "s [seconds], ms [milliseconds], turncount, framecount, gametime\n\n"
+    "Other:\n\nshot [1 if taking screenshot/animation], illegal_moves";
   }
 
 #if HDR
@@ -1009,6 +1030,14 @@ EX string find_file(string s) {
   if(file_exists(s1 = "/usr/share/hyperrogue/" + s)) return s1;
 #endif
   return s;
+  }
+
+EX void file_error(const string& fname) {
+  throw hr_exception("missing file error");
+  }
+
+EX void file_format_error(const string& fname) {
+  throw hr_exception("file format error");
   }
 
 EX void open_url(string s) {

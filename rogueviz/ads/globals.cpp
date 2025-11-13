@@ -1,3 +1,6 @@
+// Relative Hell: globals
+// Copyright (C) 2022-2025 Zeno Rogue, see '../../hyper.cpp' for details
+
 namespace hr {
 
 namespace ads_game {
@@ -111,6 +114,7 @@ cell *starting_point;
 
 int max_gen_per_frame = 3;
 int draw_per_frame = 200;
+int draw_per_frame_equal = 200;
 
 bool simple_ship = false;
 

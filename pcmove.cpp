@@ -9,6 +9,8 @@
 
 namespace hr {
 
+EX debugflag debug_turn = {"turn"};
+
 EX int illegal_moves;
 
 EX bool keepLightning = false;
@@ -366,7 +368,7 @@ bool pcmove::movepcto() {
     flipplayer = false;
     if(multi::players > 1) multi::flipped[multi::cpid] = false;
     }
-  DEBBI(checkonly ? 0 : DF_TURN, ("movepc"));
+  DEBBI(checkonly ? 0 : debug_turn, ("movepc"));
   if(!checkonly) invismove = false;  
   boatmove = false;
   
@@ -486,7 +488,7 @@ bool pcmove::after_move() {
     achievement_gain("SEVENMINE");
     }
 
-  DEBB(DF_TURN, ("done"));
+  DEBB(debug_turn, ("done"));
   return true;
   }
 
@@ -754,6 +756,7 @@ void apply_chaos() {
   }
   
 bool pcmove::actual_move() {
+  eMonster pushedMonster = moNone;
 
   origd = d;
   if(d >= 0) {
@@ -805,6 +808,7 @@ bool pcmove::actual_move() {
     if(mip.proper()) {
       auto tgt = roll_effect(mip, dice::data[c2]);
       if(tgt.happy() > 0) {
+        pushedMonster = c2->monst;
         changes.ccell(c2);
         c2->monst = moNone;
         c2->wall = waRichDie;
@@ -840,7 +844,8 @@ bool pcmove::actual_move() {
       return false;
       }
     nextmovetype = lmMove;
-    addMessage(XLAT("You push %the1.", c2->wall));
+    if(pushedMonster == moNone) addMessage(XLAT("You push %the1.", c2->wall));
+    else addMessage(XLAT("You push %the1.", pushedMonster));
     lastmovetype = lmPush; lastmove = cwt.at;
     pushThumper(mip);
     changes.push_push(mip.t);
@@ -1091,6 +1096,9 @@ bool pcmove::move_if_okay() {
       return false;
     }
 
+  if(getOLR(c2->item, c2->land) == olrDangerous && !checkonly && warningprotection(XLAT("Collecting %the1 in %the2 can be dangerous -- are you sure?", c2->item, c2->land)))
+    return false;
+
   if(switchplace_prevent(cwt.at, c2, *this))
     return false;
   if(!checkonly && warningprotection_hit(do_we_stab_a_friend(mi, moPlayer)))
@@ -1266,6 +1274,20 @@ bool alchMayDuplicate(eWall w) {
   return !isDie(w) && w != waBoat && w != waArrowTrap;
 }
 
+EX bool winter_collect(cell *c2) {
+  int qty = 0;
+  if(items[itOrbWinter])
+    forCellEx(c3, c2) if(c3->wall == waIcewall && c3->item) {
+      changes.ccell(c3);
+      markOrb(itOrbWinter);
+      eItem it = c3->item;
+      if(collectItem(c3, cwt.at)) qty++;
+      if(!c3->item)
+        animate_item_throw(c3, c2, it);
+      }
+  return qty;
+  }
+
 bool pcmove::perform_actual_move() {
   cell*& c2 = mi.t;
   changes.at_commit([&] {
@@ -1321,17 +1343,8 @@ bool pcmove::perform_actual_move() {
     invismove = false;
     cwt.at->wall = waIcewall;
     }
-  
-  if(items[itOrbWinter])
-    forCellEx(c3, c2) if(c3->wall == waIcewall && c3->item) {
-      changes.ccell(c3);
-      markOrb(itOrbWinter);
-      eItem it = c3->item;
-      if(collectItem(c3, cwt.at))
-        return true;
-      if(!c3->item)
-        animate_item_throw(c3, c2, it);
-      }
+
+  if(winter_collect(c2)) return true;
   
   movecost(cwt.at, c2, 2);
 
@@ -1468,7 +1481,10 @@ EX bool warningprotection(const string& s) {
   return true;
   }
 
+EX int warn_before_killing_friends;
+
 EX bool warningprotection_hit(eMonster m) {
+  if(warn_before_killing_friends < (m == moTameBomberbird ? 1 : 2)) return false;
   if(m && warningprotection(XLAT("Are you sure you want to hit %the1?", m)))
     return true;
   return false;

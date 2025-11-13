@@ -945,7 +945,7 @@ EX namespace clearing {
     
     int steps = 0;
     
-    int ds;
+    int ds = 0; /* set to 0 to silence warning */
     
     int stepcount = 0;
     while(true) {
@@ -2721,7 +2721,7 @@ EX namespace dragon {
       c->monst = moNone;
       if(checkOrb(who, itOrbUndeath)) 
         c->monst = moFriendlyGhost;
-      if(checkOrb(who, itOrbStone)) 
+      if(!do_not_touch_this_wall(c) && checkOrb(who, itOrbStone)) 
         c->wparam = m, c->wall = waPetrified;
       else if(c->wall == waFire) {
         if(delay) delay = false;
@@ -2993,13 +2993,13 @@ EX namespace kraken {
     if(checkOrb(who, itOrbUndeath)) c->monst = moFriendlyGhost;
     if(c->land == laKraken && !c->item) c->item = itKraken;
     kills[moKrakenH]++;
-    if(checkOrb(who, itOrbStone)) c->wall = waNone;
+    if(!do_not_touch_this_wall(c) && checkOrb(who, itOrbStone)) c->wall = waNone;
     forCellEx(c1, c) 
       if(c1->monst == moKrakenT) {
         changes.ccell(c1);        
         drawParticles(c, minf[moKrakenT].color, 16);
         c1->monst = moNone;
-        if(checkOrb(who, itOrbStone)) {
+        if(!do_not_touch_this_wall(c1) && checkOrb(who, itOrbStone)) {
           if(isWatery(c1))
             c1->wall = waNone;
           else
@@ -3594,9 +3594,9 @@ auto ccm = addHook(hooks_clearmemory, 0, [] () {
     eliminate_if(heat::offscreen_fire, is_cell_removed);
     eliminate_if(princess::infos, [] (princess::info*& i) { 
       if(is_cell_removed(i->princess) || is_cell_removed(i->prison)) { 
-        DEBB(DF_MEMORY, ("removing a princess"))
+        DEBB(debug_memory, ("removing a princess"))
         if(i->princess && !is_cell_removed(i->princess)) {
-          DEBB(DF_MEMORY, ("faking a princess"))
+          DEBB(debug_memory, ("faking a princess"))
           princess::newFakeInfo(i->princess);
           }
         delete i; 
@@ -3736,7 +3736,7 @@ EX namespace windmap {
       tries++;
       if(tries < maxtries) goto tryagain;
       }
-    println(hlog, "windmap: tries = ", tries, " N = ", N);
+    if(debug_geometry) println(hlog, "windmap: tries = ", tries, " N = ", N);
     if(tries >= maxtries && maxtries >= 20) {
       addMessage("Failed to generate an interesting wind/lava pattern.");
       }

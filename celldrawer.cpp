@@ -893,7 +893,10 @@ EX bool pick_for_grid(cell *c, int t) {
   cell *c1 = c->move(t);
   if(!c1) return false;
   // removed: if(WDIM == 3 && bt::in() && !sn::in()) return !among(t, 5, 6, 8);
-  return c < c1 || isWarped(c->move(t)) || fake::split();
+  if(c == c1 && t <= c->c.spin(t)) return true;
+  bool order = c < c1;
+  if(disksize) order = disk_index(c) < disk_index(c1);
+  return order || isWarped(c->move(t)) || fake::split();
   }
 
 void celldrawer::draw_grid() {
@@ -1448,6 +1451,8 @@ EX void draw_mine_numbers(int mines, const shiftmatrix& V, int ct6) {
   if(mines == 0 && mine_zero_display < (WDIM == 3 ? 1 : 2)) return;
   if(numerical_minefield) {
     string label = its(mines);
+    dynamicval<color_t> dc(poly_outline);
+    if(mines >= isize(minecolors)) poly_outline = darkena(minecolors[mines/isize(minecolors)], 0, 0xFF);
     queuestr(V, (mines >= 10 ? .5 : 1) * mapfontscale / 100, label, darkened(minecolors[mines]), 8);
     }
   else {
@@ -2376,7 +2381,7 @@ void celldrawer::draw_wall_full() {
       auto col = fcol;
       if(patterns::whichShape == '^') poly_outline = darkena(fcol, fd, flooralpha);
       if(sha.top == SIDE::WALL) col = wcol_star;
-      else if(sha.top >= SIDE::RED1) col = wcol;
+      else if(sha.top >= SIDE::RED1 && wmspatial) col = wcol;
 
       auto sf = sha.top; if(!wmspatial) sf = SIDE::FLOOR;
 

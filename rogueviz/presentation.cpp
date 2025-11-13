@@ -121,6 +121,8 @@ void empty_screen(presmode mode, color_t col) {
 void slide_error(presmode mode, string s) {
   empty_screen(mode, 0x400000);
   add_stat(mode, [s] {
+    cmode = sm::VR_MENU | sm::NOSCR;
+    gamescreen();
     dialog::init();
     dialog::addTitle(s, 0xFF0000, 150);
     dialog::display();
@@ -434,7 +436,7 @@ void show_animation(presmode mode, string s, int sx, int sy, int frames, int fps
   }
 
 void choose_presentation() {
-  cmode = sm::NOSCR;
+  cmode = sm::NOSCR | sm::VR_MENU;
   gamescreen();
 
   getcstat = ' ';
@@ -659,7 +661,7 @@ int pres_hooks =
     }) +
   addHook_slideshows(300, [] (tour::ss::slideshow_callback cb) {
     if(rogueviz::pres::rvslides_data.empty()) pres::gen_rvtour_data();
-    cb(XLAT("non-Euclidean geometry in data analysis"), &pres::rvslides_data[0], 'd');
+    cb(XLAT("Non-Euclidean Geometry in Data Analysis"), &pres::rvslides_data[0], 'd');
 
     if(rogueviz::pres::rvslides_mixed.empty()) pres::gen_rvtour_mixed();
 

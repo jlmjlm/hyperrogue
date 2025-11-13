@@ -189,12 +189,12 @@ EX bool petrify(cell *c, eWall walltype, eMonster m) {
   
   if(c->land == laWestWall) return false;
   
+  if(do_not_touch_this_wall(c)) return false;
+  
   if(isWateryOrBoat(c) && c->land == laWhirlpool) {
     c->wall = waSea;
     return false;
     }
-  
-  if(c->wall == waRoundTable) return false;
   
   if(walltype == waGargoyle && cellUnstableOrChasm(c)) 
     walltype = waGargoyleFloor;
@@ -476,7 +476,7 @@ EX bignum ivy_total() {
 
 EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
   eMonster m = c->monst;
-  DEBBI(DF_TURN, ("killmonster ", dnameof(m)));
+  DEBBI(debug_turn, ("killmonster ", dnameof(m)));
   
   if(!m) return;
   
@@ -1195,6 +1195,7 @@ EX vector<cell*> gun_targets(cell *c) {
       if(passable(c2, c1, P_BULLET | P_FLYING | P_MONSTER))
         if(cl.add(c2)) dists.push_back(dists[i] + 1);
     }
+  cl.remove(c);
   return cl.lst;
   }
 

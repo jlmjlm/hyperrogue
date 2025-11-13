@@ -47,6 +47,7 @@ EX int subclass(int i) {
 #define GLYPH_INSQUARE   1024
 #define GLYPH_INLANDSCAPE 2048
 #define GLYPH_ACTIVE 4096
+#define GLYPH_CIRCLE 8192
 
 #if HDR
 enum eGlyphsortorder {
@@ -58,6 +59,9 @@ enum eGlyphsortorder {
 #endif
 
 EX eGlyphsortorder glyphsortorder;
+EX string pinnedglyphs;
+EX vector<int> revglyphpinned;
+EX unsigned glyphpinned[int(ittypes) + int(motypes)];
   
 int zero = 0;
 
@@ -79,6 +83,37 @@ int gfirsttime[glyphs], glasttime[glyphs], gcopy[glyphs], ikland[glyphs];
 int glyphorder[glyphs];
 int glyphphase[glyphs];
 int glyph_lastticks;
+
+EX void updateglyphpinned() {
+  revglyphpinned.clear();
+  for(int i=0; i<glyphs; i++) glyphpinned[i] = 0;
+  if(!pinnedglyphs.empty()) {
+    unsigned n = 0;
+    exp_parser ep;
+    ep.s = pinnedglyphs;
+    do {
+      try {
+        int i = ep.iparse();
+        if(i >= 0 && i < glyphs) {
+          revglyphpinned.push_back(i);
+          glyphpinned[i] = ++n;
+          }
+        }
+      catch(hr_parse_exception&) {
+        continue;
+        }
+      } while(ep.eat(","));
+    }
+  }
+
+EX void updatepinnedglyphs() {
+  std::stringstream ss;
+  for(auto& i: revglyphpinned) {
+    ss << i << ",";
+    }
+  pinnedglyphs = ss.str();
+  if(!pinnedglyphs.empty()) pinnedglyphs.pop_back();
+  }
 
 void updatesort() {
   for(int i=0; i<glyphs; i++) {
@@ -123,6 +158,8 @@ int glyphcorner(int i) {
   }
 
 bool glyphsort(int i, int j) {
+  if(glyphpinned[i] != glyphpinned[j])
+    return glyphpinned[i] - 1 < glyphpinned[j] - 1; // We subtract 1 from both sides to make 0 wrap around, so that it compares greater than any positive value
   if(subclass(i) != subclass(j))
     return subclass(i) < subclass(j);
   if(glyphsortorder == gsoFirstTop)
@@ -167,6 +204,7 @@ int glyphflags(int gid) {
       if(itemclass(i) == IC_ORB && items[i] < 10) f |= GLYPH_RUNOUT;
       }
     if(i == orbToTarget) f |= GLYPH_TARGET;
+    if(orbToTarget == itOrbSpace && mouseover && i == mouseover->item) f |= GLYPH_CIRCLE;
     if(!less_in_portrait) f |= GLYPH_INPORTRAIT;
     if(!less_in_landscape) f |= GLYPH_INLANDSCAPE;
     }
@@ -282,6 +320,8 @@ bool displayglyph(int cx, int cy, int buttonsize, char glyph, color_t color, int
   else
     displaychr(cx + buttonsize/2, cy, 0, glsize, glyph, darkenedby(color, b?0:1));
   
+  if(flags & GLYPH_CIRCLE) drawCircle(cx + buttonsize/2, cy, buttonsize/2, darkena(color, 0, 0xFF));
+
   string fl = "";
   string str = its(qty);
 
@@ -462,7 +502,7 @@ EX void draw_crosshair() {
   return;
   }
 
-EX bool less_in_portrait, less_in_landscape;
+EX bool less_in_portrait, less_in_landscape, orb_treasure_gap;
 
 EX string mode_description() {
   string md;
@@ -561,7 +601,7 @@ EX void drawStats() {
   else if(cornermode) {
     int bycorner[4];
     for(int u=0; u<4; u++) bycorner[u] = 0;
-    for(int i=0; i<glyphs; i++) if(ikappear(i) && (glyphflags(i) & GLYPH_INSQUARE))
+    for(int i=0; i<glyphs; i++) if((ikappear(i) || glyphpinned[i]) && (glyphflags(i) & GLYPH_INSQUARE))
       bycorner[glyphcorner(i)]++;
     updatesort();
     stable_sort(glyphorder, glyphorder+glyphs, glyphsort);
@@ -580,7 +620,7 @@ EX void drawStats() {
           vector<int> glyphstoshow;
           for(int i=0; i<glyphs; i++) {
             int g = glyphorder[i];
-            if(ikappear(g) && (glyphflags(g) & GLYPH_INSQUARE) && glyphcorner(g) == cor)
+            if((ikappear(g) || glyphpinned[g]) && (glyphflags(g) & GLYPH_INSQUARE) && glyphcorner(g) == cor)
               glyphstoshow.push_back(g);
             }
           for(int u=vid.fsize; u<vid.xres/2-s; u += s)
@@ -593,7 +633,8 @@ EX void drawStats() {
               if(cor&1) cx = vid.xres-1-s-cx;
               if(cor&2) cy = vid.yres-1-cy;
     
-              displayglyph2(cx, cy, s, glyphstoshow[next++]);
+              int g = glyphstoshow[next++];
+              if(ikappear(g)) displayglyph2(cx, cy, s, g);
               }
           break;
           }
@@ -617,7 +658,7 @@ EX void drawStats() {
 
     flagtype flag = portrait ? GLYPH_INPORTRAIT : GLYPH_INLANDSCAPE;
 
-    for(int i=0; i<glyphs; i++) if(ikappear(i))
+    for(int i=0; i<glyphs; i++) if(ikappear(i) || glyphpinned[i])
       if(glyphflags(i) & flag)
         maxbyclass[glyphclass(i)]++;
     int buttonsize;
@@ -630,6 +671,7 @@ EX void drawStats() {
       rows = rowspace / buttonsize; if(!rows) return;
       int coltaken = 0;
       for(int z=0; z<4; z++) {
+        if(z == 1 && orb_treasure_gap) coltaken++;
         if(z == 2 && !portrait) {
           if(coltaken > columns) { vid.killreduction++; continue; }
           coltaken = 0;
@@ -652,7 +694,7 @@ EX void drawStats() {
     
     for(int i0=0; i0<glyphs; i0++) {
       int i = glyphorder[i0];
-      if(!ikappear(i)) continue;
+      if(!ikappear(i) && !glyphpinned[i]) continue;
       int z = glyphclass(i);
       int imp = glyphflags(i);
       if(!(imp & flag)) continue;
@@ -668,7 +710,7 @@ EX void drawStats() {
   
       rowid[z]++; if(rowid[z] >= rows) rowid[z] = 0, colid[z]++;
       
-      displayglyph2(cx, cy, buttonsize, i);    
+      if(ikappear(i)) displayglyph2(cx, cy, buttonsize, i);
       }
     }
   }

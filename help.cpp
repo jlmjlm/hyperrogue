@@ -89,7 +89,7 @@ EX hookset<bool()> hooks_build_help;
 
 EX void buildHelpText() {
   if(callhandlers(0, hooks_build_help)) return;
-  DEBBI(DF_GRAPH, ("buildHelpText"));
+  DEBBI(debug_graph, ("buildHelpText"));
 
   help = XLAT("Welcome to HyperRogue");
 #if ISANDROID  
@@ -169,6 +169,14 @@ EX void buildHelpText() {
     "numbers displayed to get their meanings.\n"
     );
 #else
+  if(DEFAULTCONTROL && dialog::display_keys == 3)
+    help += XLAT(
+      "To move, aim with the left joystick then press A. Press B for menu, X for keyboard, Y to center. R1 to highlight important things on the map.\n\n"
+      "For ranged attacks, use the DPad to aim, then push the left joystick to target an orb or the right joystick to target a ranged weapon. "
+      "Alternatively, you can also use the right trackpad.\n\n"
+      "Press L5 to drop a dead orb. R4/R5 to rotate the screen.\n\n"
+      );
+  else
   if(DEFAULTCONTROL && !game_keys_scroll)
     help += XLAT(
       "Move with mouse, num pad, qweadzxc, or hjklyubn. Wait by pressing 's' or '.'. Spin the world with arrows, PageUp/Down, and Space. "
@@ -912,7 +920,7 @@ template<class T> void set_help_to(T t) {
   }
 
 EX void describeMouseover() {
-  DEBBI(DF_GRAPH, ("describeMouseover"));
+  DEBBI(debug_graph, ("describeMouseover"));
 
   if(callhandlers(0, hooks_global_mouseover)) return;
 
@@ -1085,7 +1093,7 @@ EX void describeMouseover() {
     if(c->item && !itemHiddenFromSight(c)) {
       out += ", "; 
       out += XLAT1(iinf[c->item].name); 
-      if(c->item == itBarrow) out += " (x" + its(c->landparam) + ")";
+      if(c->item == itBarrow) out += " (x" + its(barrowCount(c)) + ")";
       #if CAP_COMPLEX2
       if(c->land == laHunting) {      
         int i = ambush::size(c, c->item);
@@ -1142,8 +1150,13 @@ EX void describeMouseover() {
   if(tour::on && !tour::texts) {
     if(tour::slides[tour::currentslide].flags & tour::NOTITLE)
       mouseovers = "";
-    else
+    else {
       mouseovers = XLAT(tour::slides[tour::currentslide].name);
+      auto posf = mouseovers.find("//");
+      if(posf != string::npos) mouseovers = mouseovers.substr(0, posf);
+      posf = mouseovers.rfind("/");
+      if(posf != string::npos) mouseovers = mouseovers.substr(posf+1);
+      }
     }
   #endif
   }

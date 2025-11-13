@@ -1,3 +1,9 @@
+// Nil Rider
+// Copyright (C) 2022-2025 Zeno Rogue, see '../../hyper.cpp' for details
+
+// compile with: ./mymake -O3 -rv rogueviz/nilrider/nilrider.cpp and then launch with -nilrider
+// add -DNILRIDER for standalone Nil Rider
+
 #if NILRIDER
 #define CUSTOM_CAPTION "Nil Rider 2.0"
 #define MAXMDIM 4
@@ -162,6 +168,9 @@ bool turn(int delta) {
     for(int i=0; i<delta * simulation_speed; i++) {
       curlev->history.push_back(curlev->current);
       curlev->current.be_consistent();
+      #if RVCOL
+      auto goals = curlev->current.goals;
+      #endif
       bool b = curlev->current.tick(curlev);
       running = b;
       if(!b) {
@@ -170,7 +179,6 @@ bool turn(int delta) {
         break;
         }
       #if RVCOL
-      auto goals = curlev->current.goals;
       if(b) {
         goals = curlev->current.goals &~goals;
         int gid = 0;
@@ -226,9 +234,10 @@ void toggle_replay() {
 
 void run() {
   cmode = sm::PANNING | sm::NORMAL;
+  emptyscreen();
   clearMessages();
   dialog::init();
-  if(view_replay && !paused) {
+  if(view_replay && !paused && !isize(curlev->history)) {
     int ttick = gmod(ticks - simulation_start_tick, isize(curlev->history));
     curlev->current = curlev->history[ttick];  
     curlev->current.centerview(curlev);
@@ -277,6 +286,7 @@ void run() {
   show_button(PSEUDOKEY_MENU, "menu");
 
   dialog::add_key_action(PSEUDOKEY_MENU, [] {
+    if(tour::on) { tour::next_slide(); return; }
     if(curlev->current.timer) paused = true;
     game_keys_scroll = true;
     pushScreen(main_menu);
@@ -333,6 +343,7 @@ string fname = "horizontal.nrl";
 ld total_stars = 0;
 
 void pick_level() {
+  cmode = sm::VR_MENU | sm::NOSCR; gamescreen();
   dialog::init(XLAT("select the track"), 0xC0C0FFFF, 150, 100);
   ld cur_stars = 0;
   for(auto l: all_levels) {
@@ -349,7 +360,7 @@ void pick_level() {
       }
     cur_stars += score_here;
 
-    if(l->stars_needed > total_stars) {
+    if(l->stars_needed > total_stars && !unlock_all) {
       dialog::addSelItem(l->name, "stars needed: " + its(l->stars_needed), l->hotkey);
       }
     else {
@@ -385,6 +396,7 @@ void pick_level() {
 
 void layer_selection_screen() {
   poly_outline = 0xFF;
+  cmode = sm::VR_MENU | sm::NOSCR; gamescreen();
   dialog::init(XLAT("layer selection"), 0xC0C0FFFF, 150, 100);
   dialog::addBreak(50);
   auto layers = curlev->gen_layer_list();
@@ -399,6 +411,7 @@ void layer_selection_screen() {
 
 void pick_game() {
   clearMessages();
+  cmode = sm::VR_MENU | sm::NOSCR; gamescreen();
   dialog::init();
   poly_outline = 0xFF;
   dialog::addBigItem(curlev->name, 't');
@@ -449,6 +462,7 @@ void nil_set_perspective() {
   }
 
 void nil_projection() {
+  cmode = sm::VR_MENU | sm::NOSCR; gamescreen();
   dialog::init(XLAT("projection of Nil"), 0xC0C0FFFF, 150, 100);
   dialog::addBoolItem("geodesics", pmodel == mdGeodesic, 'g');
   dialog::add_action([] { popScreen(); nil_set_geodesic(); });
@@ -463,6 +477,7 @@ void nil_projection() {
   }
 
 void settings() {
+  cmode = sm::VR_MENU | sm::NOSCR; gamescreen();
   dialog::init(XLAT("settings"), 0xC0C0FFFF, 150, 100);
   add_edit(aimspeed_key_x);
   add_edit(aimspeed_key_y);
@@ -519,6 +534,7 @@ template<class T, class U, class V> void replays_of_type(vector<T>& v, const U& 
     dialog::addItem(r.name, 'a');
     dialog::add_action([&v, i, loader, ghost_loader] {
       pushScreen([&v, i, loader, ghost_loader] {
+        cmode = sm::VR_MENU | sm::NOSCR; gamescreen();
         dialog::init(XLAT(planning_mode ? "saved plan" : "replay"), 0xC0C0FFFF, 150, 100);
         dialog::addInfo(v[i].name);
 
@@ -554,6 +570,7 @@ template<class T, class U, class V> void replays_of_type(vector<T>& v, const U& 
 #if CAP_SAVE
 
 void replays() {
+  cmode = sm::VR_MENU | sm::NOSCR; gamescreen();
   dialog::init(XLAT(planning_mode ? "saved plans" : "replays"), 0xC0C0FFFF, 150, 100);
   if(!planning_mode) replays_of_type(curlev->manual_replays, [] (manual_replay& r) {
     view_replay = false;
@@ -652,6 +669,7 @@ void help_instruments() {
 void main_menu() {
   clearMessages();
   poly_outline = 0xFF;
+  cmode = sm::VR_MENU | sm::NOSCR; gamescreen();
   dialog::init(XLAT("Nil Rider"), 0xC0C0FFFF, 150, 100);
 
   dialog::addItem("continue", 'c');
@@ -727,12 +745,7 @@ bool on;
 local_parameter_set lps_nilrider("nilrider:");
 
 void nilrider_keys() {
-  #if CAP_SDL2
-  multi::change_default_key(lps_nilrider, SDL_SCANCODE_LCTRL, 16 + nrFineControl);
-  #else
-  multi::change_default_key(lps_nilrider, SDLK_LCTRL, 16 + nrFineControl);
-  #endif
-
+  multi::change_default_key(lps_nilrider, SDL12(SDLK_LCTRL, SDL_SCANCODE_LCTRL), 16 + nrFineControl);
   multi::change_default_key(lps_nilrider, SDL12('p', SDL_SCANCODE_P), 16 + nrPause);
   multi::change_default_key(lps_nilrider, SDL12('b', SDL_SCANCODE_B), 16 + nrReverseTime);
   multi::change_default_key(lps_nilrider, SDL12('r', SDL_SCANCODE_R), 16 + nrViewSimulation);
@@ -842,6 +855,20 @@ void initialize_all() {
   poly_outline = 0xFF;
   pushScreen(pick_game);
   start_game();
+  }
+
+void initialize_for_slide(tour::presmode mode) {
+  setWhiteCanvas(mode, [] { set_geometry(gNil); set_variation(eVariation::pure); });
+  if(mode == tour::pmStart) {
+    tour::slide_backup(pmodel, mdGeodesic);
+    tour::slide_backup(nisot::geodesic_movement, true);
+    lps_enable(&lps_nilrider);
+    tour::slide_backup(poly_outline, 0xFF);
+    stop_game();
+    initialize();
+    start_game();
+    }
+  if(mode == tour::pmStop) lps_enable(nullptr);
   }
 
 auto celldemo = arg::add3("-unilcycle", initialize) + arg::add3("-unilplan", [] { planning_mode = true; }) + arg::add3("-viewsim", [] { view_replay = true; })

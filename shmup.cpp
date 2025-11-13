@@ -868,6 +868,8 @@ void movePlayer(monster *m, int delta) {
     }
   #endif
   
+  bool stunned = m->stunoff > curtime;
+
   playerturn[cpid] = mturn * delta / 150.0;
   
   godir[cpid] = 0;
@@ -986,6 +988,8 @@ void movePlayer(monster *m, int delta) {
   
   if(playergo[cpid] && markOrb(itOrbDash)) playergo[cpid] *= 1.5;
   if(playergo[cpid] && markOrb(itCurseFatigue)) playergo[cpid] *= 0.75;
+
+  if(playergo[cpid] && stunned) playergo[cpid] *= -0.5;
 
   bool go = false; 
   
@@ -1247,8 +1251,11 @@ void movePlayer(monster *m, int delta) {
       cwt.at = c2; afterplayermoved();
       if(c2->item && c2->land == laAlchemist) c2->wall = m->base->wall;
       #if CAP_COMPLEX2
-      if(m->base->wall == waRoundTable)
+      if(m->base->wall == waRoundTable) {
+        cwt.at = m->base;
         camelot::roundTableMessage(c2);
+        cwt.at = c2;
+        }
       #endif
       if(c2->wall == waCloud || c2->wall == waMirror) {
         visibleFor(500);
@@ -1291,6 +1298,7 @@ void movePlayer(monster *m, int delta) {
         firetraplist.emplace(ticks + 800, c2);
         }
   
+      winter_collect(c2);
       if(c2->item == itOrbYendor && !peace::on) yendor::check(c2);
       collectItem(c2, m->base);
       movecost(m->base, c2, 2);
@@ -1398,7 +1406,7 @@ void movePlayer(monster *m, int delta) {
     }
   #endif
   
-  if(shotkey && canmove && curtime >= m->nextshot) {
+  if(shotkey && canmove && curtime >= m->nextshot && !stunned) {
 
     visibleFor(500);
     if(items[itOrbFlash]) {
@@ -1420,7 +1428,7 @@ void movePlayer(monster *m, int delta) {
       }
     
     playerfire[cpid] = true;
-    m->nextshot = curtime + (250 + 250 * players) * (bow::crossbow_mode() ? 4 : 1);
+    m->nextshot = curtime + (250 + 250 * players) * (bow::crossbow_mode() ? 4 : 1) / (items[itOrbSpeed] ? 2 : 1);
     
     turncount++;    
     shootBullet(m);
@@ -1614,20 +1622,34 @@ EX eItem targetRangedOrb(orbAction a) {
   if(items[itOrbPsi] && shmup::mousetarget && sqdist(mouseh, shmup::mousetarget->pat*C0) < SCALE2 * .1) {
     if(a == roCheck) return itOrbPsi;
     addMessage(XLAT("You kill %the1 with a mental blast!", mousetarget->type));
-    killMonster(mousetarget, moNone);
-    items[itOrbPsi] -= 30;
-    if(items[itOrbPsi]<0) items[itOrbPsi] = 0;
+    killMonster(mousetarget, moPlayer);
+    useupOrb(itOrbPsi, 30);
     return itOrbPsi;
     }
   
   if(items[itOrbStunning] && shmup::mousetarget && sqdist(mouseh, shmup::mousetarget->pat*C0) < SCALE2 * .1) {
     if(a == roCheck) return itOrbStunning;
     mousetarget->stunoff = curtime + 1000;
-    items[itOrbStunning] -= 10;
-    if(items[itOrbStunning]<0) items[itOrbStunning] = 0;
+    useupOrb(itOrbStunning, 10);
     return itOrbStunning;
     }
   
+  if(items[itOrbMorph] && shmup::mousetarget && sqdist(mouseh, shmup::mousetarget->pat*C0) < SCALE2 * .1) {
+    if(a == roCheck) return itOrbMorph;
+
+    auto orig = mousetarget->type;
+    auto target = pick_poly_monster(orig);
+    addMessage(XLAT("You polymorph %the1 into %the2!", orig, target));
+    mousetarget->type = target;
+    mousetarget->parent = nullptr; /* if we morph a missile */
+    useupOrb(itOrbMorph, 3);
+    if(orig == moPlayer) {
+      achievement_final(true);
+      showMissionScreen();
+      }
+    return itOrbMorph;
+    }
+
   if(on && items[itOrbDragon]) {
     if(a == roCheck) return itOrbDragon;
     shoot(itOrbDragon, wpc);
@@ -1860,7 +1882,7 @@ void moveBullet(monster *m, int delta) {
         m2->type == moVizier || isMetalBeast(m2->type) || m2->type == moTortoise || m2->type == moBrownBug || 
         m2->type == moReptile || m2->type == moSalamander || m2->type == moTerraWarrior) && m2->hitpoints > 1 && !slayer) {
         m2->rebasePat(spin_towards(m2->pat, m->ori, nat0 * C0, 0, 1), m2->base);
-        if(m2->type != moSkeleton && !isMetalBeast(m2->type) && m2->type != moReptile && m2->type != moSalamander && m2->type != moBrownBug) {
+        if(!among(m2->type, moSkeleton, moReptile, moSalamander, moBrownBug, moTortoise) && !isMetalBeast(m2->type)) {
           if(!(bow::crossbow_mode() && m2->stunoff > curtime))
             m2->hitpoints--;
           }
@@ -2592,6 +2614,8 @@ EX int pvp_delay = 2000;
 EX int count_pauses;
 EX bool in_pause;
 
+EX int speed_saving;
+
 EX void turn(int delta) {
 
   if(split_screen && subscreens::split( [delta] () { turn(delta); })) return;
@@ -2645,6 +2669,11 @@ EX void turn(int delta) {
   collisions.clear();
 
   curtime += delta;
+  if(items[itOrbSpeed]) {
+    curtime += speed_saving / 2;
+    speed_saving += delta;
+    curtime -= speed_saving / 2;
+    }
 
   handleInput(delta);
   
@@ -2755,7 +2784,7 @@ EX void turn(int delta) {
       if(items[itOrbBull]) for(int p=0; p<players; p++) 
         if(bulltime[p] < curtime - 600) orbbull::gainBullPowers();
         
-      if(!((items[itOrbSpeed]/players) & 1)) {
+      if(true) {
         if(havewhat&HF_KRAKEN) kraken::attacks(), groupmove(moKrakenH, 0);     
         moveworms();
         moveivy();
@@ -2944,6 +2973,7 @@ EX void clearMemory() {
   clearMonsters();
   while(!traplist.empty()) traplist.pop();
   curtime = 0;
+  speed_saving = 0;
   nextmove = 0;
   nextdragon = 0;
   visibleAt = 0;
@@ -3129,6 +3159,8 @@ bool celldrawer::draw_shmup_monster() {
           if(mapeditor::drawplayer) {
             if(m->fragoff > curtime)
               drawShield(view, itWarning);
+            if(m->stunoff > curtime)
+              drawStunStars(view, 1 + (m->stunoff - curtime-1)/300);
             drawMonsterType(moPlayer, c, view, 0xFFFFFFC0, m->footphase, 0xFFFFFFC0);
             }
           }
@@ -3163,13 +3195,17 @@ bool celldrawer::draw_shmup_monster() {
           col = (mirrorcolor(det(view.T) < 0) << 8) | 0xFF;
         else
           col = (minf[m->get_parenttype()].color << 8) | 0xFF;
-        if(getcs().charid >= 10) {
-          queuepoly(at_missile_level(view), cgi.shMissile, col);
-          ShadowV(view, cgi.shMissile);
-          }
-        else if(getcs().charid >= 4) {
+
+        int id = ePlayershape(getcs().charid >> 1);
+
+        if(playershapes[id].is_animal) {
           queuepoly(at_missile_level(view), cgi.shPHead, col);
           ShadowV(view, cgi.shPHead);
+          }
+        else if(!playershapes[id].is_humanoid) {
+           // this means it is a spaceship
+          queuepoly(at_missile_level(view), cgi.shMissile, col);
+          ShadowV(view, cgi.shMissile);
           }
         else if(peace::on) {
           queuepolyat(at_missile_level(view), cgi.shDisk, col, PPR::MISSILE);

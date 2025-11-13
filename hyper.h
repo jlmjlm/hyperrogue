@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "13.1c"
-#define VERNUM_HEX 0xAA23
+#define VER "13.1g"
+#define VERNUM_HEX 0xAA27
 
 #include "sysconfig.h"
 
@@ -787,6 +787,10 @@ template<class T, class V, class... U> V callhandlers(V zero, const hookset<T>& 
 
 void popScreen();
 
+extern vector< function<void()> > screens;
+
+template<class T> void pushScreen(const T& x) { screens.push_back(x); }
+
 template<class T, class U> void hook_in_subscreen(hookset<T>& m, int prio, U&& hook) {
   int v = m.add(prio, static_cast<U&&>(hook));
   pushScreen([&m, v] {
@@ -945,6 +949,24 @@ static inline void set_flag(flagtype& f, flagtype which, bool b) {
   if(b) f |= which;
   else f &= ~which;
   }
+
+void add_debugflag(const string& s, struct debugflag *d);
+
+/** Flags to enable debugging.
+ *  A debugflag can be defined with e.g.: debugflag memory_cell("memory_cell")
+ *  and used as in: if(memory_cell) { ... output debugging info ... }
+ *  Then a commandline parameter '-debug memory' will enable all flags with 'memory' in its name
+ */
+
+struct debugflag {
+  bool enabled;
+  debugflag(string s, bool initial = false) {
+    add_debugflag(s, this);
+    enabled = initial;
+    }
+  operator bool() { return enabled; }
+  void flip() { enabled = !enabled; }
+  };
 
 }
 

@@ -143,13 +143,14 @@ EX transmatrix at_smart_lof(const transmatrix& V, ld lev) {
 EX shiftmatrix at_smart_lof(const shiftmatrix& V, ld lev) { return shiftless(at_smart_lof(V.T, lev), V.shift); }
 
 EX color_t kind_outline(eItem it) {
-  int k = itemclass(it);
-  if(k == IC_TREASURE)
-    return OUTLINE_TREASURE;
-  else if(k == IC_ORB)
-    return OUTLINE_ORB;
-  else
-    return OUTLINE_OTHER;
+  switch(itemclass(it)) {
+    case IC_TREASURE:
+      return OUTLINE_TREASURE;
+    case IC_ORB:
+      return OUTLINE_ORB;
+    default:
+      return OUTLINE_OTHER;
+    }
   }
 
 /** should objects fly slightly up and down in product/twisted product geometries */
@@ -195,15 +196,8 @@ EX int cellcolor(cell *c) {
   
   if(c->wall == waMirror) return c->land == laMirror ? OUTLINE_TREASURE : OUTLINE_ORB;
 
-  if(c->item && !itemHiddenFromSight(c)) {
-    int k = itemclass(c->item);
-    if(k == IC_TREASURE)
-      return OUTLINE_TREASURE;
-    else if(k == IC_ORB)
-      return OUTLINE_ORB;
-    else
-      return OUTLINE_OTHER;
-    }
+  if(c->item && !itemHiddenFromSight(c))
+    return kind_outline(c->item);
 
   return OUTLINE_NONE;
   } 
@@ -289,8 +283,12 @@ void sumaura(int v) {
 vector<glhr::colored_vertex> auravertices;
 #endif
 
+EX debugflag debug_graph = {"graph"};
+
+EX debugflag debug_aura = {"graph_aura"};
+
 EX void drawaura() {
-  DEBBI(DF_GRAPH, ("draw aura"));
+  indenter_finish(debug_aura, "drawaura");
   if(!haveaura()) return;
   if(vid.stereo_mode) return;
   double rad = current_display->radius;
@@ -1359,11 +1357,13 @@ EX void center_multiplayer_map(const vector<hyperpoint>& hs) {
     }
   }
 
+EX debugflag debug_map = {"graph_map"};
+
 EX void drawthemap() {
+  indenter_finish(debug_map, "drawthemap");
+
   check_cgi();
   cgi.require_shapes();
-
-  DEBBI(DF_GRAPH, ("draw the map"));
   
   last_firelimit = firelimit;
   firelimit = 0;
@@ -1399,6 +1399,8 @@ EX void drawthemap() {
   
   mmhigh = vid.highlightmode >= 1;
   if(hiliteclick) mmhigh = !mmhigh;
+
+  current_display->set_all(0, 0); /* so that non_spatial_model works correctly */
   
   spatial_graphics = wmspatial || mmspatial;
   spatial_graphics = spatial_graphics && GDIM == 2;
@@ -1544,9 +1546,11 @@ EX ld get_stereo_param() {
   return 0;
   }
 
+EX debugflag debug_calcparam = {"graph_param"};
+
 EX void calcparam() {
 
-  DEBBI(DF_GRAPH, ("calc param"));
+  indenter_finish(debug_calcparam, "calcparam");
   auto cd = current_display;
   
   cd->xtop = vid.xres * cd->xmin;
@@ -1578,7 +1582,7 @@ EX void calcparam() {
     if(tour::on && (tour::slides[tour::currentslide].flags & tour::SIDESCREEN) && ok)
       current_display->sidescreen = true;
 #endif
-    if((cmode & sm::DIALOG_OFFMAP) && !centered_menus && vid.xres > vid.yres * 11/10)
+    if((cmode & sm::DIALOG_OFFMAP) && vid.xres > vid.yres * 11/10)
       current_display->sidescreen = true;
 
     if(current_display->sidescreen) cd->xcenter = vid.yres/2;
@@ -1621,9 +1625,8 @@ EX function<void()> wrap_drawfullmap = drawfullmap;
 bool force_sphere_outline = false;
 
 EX void drawfullmap() {
+  indenter_finish(debug_map, "drawfullmap");
 
-  DEBBI(DF_GRAPH, ("draw full map"));
-    
   check_cgi();
   cgi.require_shapes();
 
@@ -1841,6 +1844,7 @@ EX void normalscreen() {
   if(GDIM == 3 || !outofmap(mouseh.h)) getcstat = '-';
   cmode = sm::NORMAL | sm::DOTOUR | sm::CENTER;
   if(viewdists && show_distance_lists) cmode |= sm::SIDE | sm::MAYDARK;
+  if(tour::on && (tour::slides[tour::currentslide].flags & tour::SIDE)) cmode |= sm::SIDE;
   gamescreen(); drawStats();
 
   show_menu_button();
@@ -1859,7 +1863,6 @@ EX void normalscreen() {
 EX vector< function<void()> > screens = { normalscreen };
 
 #if HDR
-template<class T> void pushScreen(const T& x) { screens.push_back(x); } 
 inline void popScreen() { if(isize(screens)>1) screens.pop_back(); }
 inline void popScreenAll() { while(isize(screens)>1) popScreen(); }
 typedef void (*cfunction)();
@@ -1873,39 +1876,40 @@ EX cfunction current_screen_cfunction() {
 
 #if HDR
 namespace sm {
-  static constexpr int NORMAL = 1;
-  static constexpr int MISSION = 2;
-  static constexpr int HELP = 4;
-  static constexpr int MAP = 8;
-  static constexpr int DRAW = 16;
-  static constexpr int NUMBER = 32;
-  static constexpr int SHMUPCONFIG = 64;
-  static constexpr int OVERVIEW = 128;
-  static constexpr int SIDE = 256;
-  static constexpr int DOTOUR = 512;
-  static constexpr int CENTER = 1024;
-  static constexpr int ZOOMABLE = 4096;
-  static constexpr int TORUSCONFIG = 8192;
-  static constexpr int MAYDARK = 16384; // use together with SIDE; if the screen is not wide or centered_menus is set, it will disable SIDE and instead darken the screen
-  static constexpr int DIALOG_STRICT_X = 32768; // do not interpret dialog clicks outside of the X region
-  static constexpr int EXPANSION = (1<<16);
-  static constexpr int HEXEDIT = (1<<17);
-  static constexpr int VR_MENU = (1<<18); // always show the menu in VR
-  static constexpr int SHOWCURSOR = (1<<19); // despite MAP/DRAW always show the cursor, no panning
-  static constexpr int PANNING = (1<<20); // smooth scrolling works
-  static constexpr int DARKEN = (1<<21); // darken the game background
-  static constexpr int NOSCR = (1<<22); // do not show the game background
-  static constexpr int AUTO_VALUES = (1<<23); // automatic place for values
-  static constexpr int NARROW_LINES = (1<<24); // do make the lines narrower if we needed to reduce width
-  static constexpr int EDIT_BEFORE_WALLS = (1<<25); // mouseover targets before walls
-  static constexpr int EDIT_INSIDE_WALLS = (1<<26); // mouseover targets inside walls
-  static constexpr int DIALOG_WIDE = (1<<27); // make dialogs wide
-  static constexpr int MOUSEAIM = (1<<28); // mouse aiming active here
-  static constexpr int DIALOG_OFFMAP = (1<<29); // try hard to keep dialogs off the map
+  static constexpr flagtype NORMAL = 1;
+  static constexpr flagtype MISSION = 2;
+  static constexpr flagtype HELP = 4;
+  static constexpr flagtype MAP = 8;
+  static constexpr flagtype DRAW = 16;
+  static constexpr flagtype NUMBER = 32;
+  static constexpr flagtype SHMUPCONFIG = 64;
+  static constexpr flagtype OVERVIEW = 128;
+  static constexpr flagtype SIDE = 256;
+  static constexpr flagtype DOTOUR = 512;
+  static constexpr flagtype CENTER = 1024;
+  static constexpr flagtype ZOOMABLE = 4096;
+  static constexpr flagtype TORUSCONFIG = 8192;
+  static constexpr flagtype MAYDARK = 16384; // use together with SIDE; if the screen is not wide or centered_menus is set, it will disable SIDE and instead darken the screen
+  static constexpr flagtype DIALOG_STRICT_X = 32768; // do not interpret dialog clicks outside of the X region
+  static constexpr flagtype EXPANSION = Flag(16);
+  static constexpr flagtype HEXEDIT = Flag(17);
+  static constexpr flagtype VR_MENU = Flag(18); // always show the menu in VR
+  static constexpr flagtype SHOWCURSOR = Flag(19); // despite MAP/DRAW always show the cursor, no panning
+  static constexpr flagtype PANNING = Flag(20); // smooth scrolling works
+  static constexpr flagtype DARKEN = Flag(21); // darken the game background
+  static constexpr flagtype NOSCR = Flag(22); // do not show the game background
+  static constexpr flagtype AUTO_VALUES = Flag(23); // automatic place for values
+  static constexpr flagtype NARROW_LINES = Flag(24); // do make the lines narrower if we needed to reduce width
+  static constexpr flagtype EDIT_BEFORE_WALLS = Flag(25); // mouseover targets before walls
+  static constexpr flagtype EDIT_INSIDE_WALLS = Flag(26); // mouseover targets inside walls
+  static constexpr flagtype DIALOG_WIDE = Flag(27); // make dialogs wide
+  static constexpr flagtype MOUSEAIM = Flag(28); // mouse aiming active here
+  static constexpr flagtype DIALOG_OFFMAP = Flag(29); // try hard to keep dialogs off the map
+  static constexpr flagtype NO_EXIT = Flag(30); // do not allow to exit the current dialog
   }
 #endif
 
-EX int cmode;
+EX flagtype cmode;
 
 EX bool dont_display_minecount = false;
 
@@ -1913,7 +1917,7 @@ EX color_t titlecolor;
 
 EX void drawscreen() {
 
-  DEBBI(DF_GRAPH, ("drawscreen"));
+  indenter_finish(debug_map, "drawscreen");
   #if CAP_GL
   GLWRAP;
   #endif
@@ -1983,7 +1987,7 @@ EX void drawscreen() {
       its(hive::bugcount[k]), minf[moBug0+k].color, 8);
     
   bool minefieldNearby = false;
-  int mines[MAXPLAYER], tmines=0;
+  unsigned mines[MAXPLAYER], tmines=0;
   for(int p=0; p<numplayers(); p++) {
     mines[p] = 0;
     cell *c = playerpos(p);
@@ -2009,7 +2013,7 @@ EX void drawscreen() {
       displayfr(vid.xres * (p+.5) / numplayers(),
         current_display->ycenter - current_display->radius * 3/4, 2,
         vid.fsize, 
-        mines[p] > 7 ? its(mines[p]) : XLAT(minetexts[mines[p]]), minecolors[mines[p]], 8);
+        mines[p] >= sizeof(minetexts) / sizeof(minetexts[0]) ? its(mines[p]) : XLAT(minetexts[mines[p]]), minecolors[mines[p]], 8);
 
     if(minefieldNearby && !shmup::on && cwt.at->land != laMinefield && cwt.peek()->land != laMinefield && !dont_display_minecount) {
       displayfr(vid.xres/2, current_display->ycenter - current_display->radius * 3/4 - vid.fsize*3/2, 2,
@@ -2022,7 +2026,7 @@ EX void drawscreen() {
   // SDL_UnlockSurface(s);
 
   glflush();
-  DEBB(DF_GRAPH, ("swapbuffers"));
+  if(debug_map) println(hlog, "swapbuffers");
 
   #if CAP_VR
   vrhr::submit();
@@ -2039,15 +2043,19 @@ EX void drawscreen() {
 //printf("\ec");
   }
 
+EX debugflag debug_init_graph = {"init_graph"};
+
 EX void restartGraph() {
-  DEBBI(DF_INIT, ("restartGraph"));
+  indenter_finish di(debug_init_graph, "restartGraph");
   
   if(!autocheat) linepatterns::clearAll();
   if(currentmap) resetview();
   }
 
+EX debugflag debug_graph_memory = {"graph_memory"};
+
 auto graphcm = addHook(hooks_clearmemory, 0, [] () {
-  DEBBI(DF_MEMORY, ("clear graph memory"));
+  indenter_finish di(debug_graph_memory, "graph_memory");
   mouseover = centerover = lmouseover = NULL;  
   gmatrix.clear(); gmatrix0.clear(); current_display->all_drawn_copies.clear();
   clearAnimations();

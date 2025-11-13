@@ -1,6 +1,7 @@
 /* Main file of Relative Hell. */
 /* Compile with mymake -O3 -rv rogueviz/ads/ads-game */
 /* Best run with -ads-menu; more detailed options are available too */
+/* You can also add -DRELHELL for standalone Relative Hell */
 
 #define VER_RH "1.1"
 
@@ -78,6 +79,8 @@ void ads_sub_restart() {
 
   ci_at.clear();
   displayed.clear();
+  history.clear();
+  in_replay = false;
 
   gen_terrain(vctr, ci_at[vctr], -2);
   forCellEx(c1, vctr) ci_at[c1].type = wtNone;
@@ -339,6 +342,8 @@ auto shot_hooks =
     -> editable(0, 100, 1, "tiles to generate per frame", "reduce if the framerate is low", 'G');
     param_i(draw_per_frame, "ads_draw_per_frame")
     -> editable(0, 3000, 0.1, "tiles to draw per frame", "reduce if the framerate is low", 'D');
+    param_i(draw_per_frame, "ads_draw_per_frame_equal")
+    -> editable(0, 3000, 0.1, "tiles to draw per frame -- extra tiles to draw when distances are equal", "reduce if the framerate is low", 'D');
 
     param_f(time_scale, "rh_time_scale")
     -> editable(0, 1, 0.1, "Relative Hell time label scale", "scaling factor for the time labels", 'T');

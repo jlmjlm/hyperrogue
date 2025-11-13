@@ -95,7 +95,7 @@ struct parameter : public std::enable_shared_from_this<parameter> {
   bool menu_item_name_modified;
   string help_text;
   reaction_t pre_reaction, reaction;
-  char default_key;
+  key_type default_key;
   bool is_editable;
   bool needs_confirm;
   virtual bool available() { if(restrict) return restrict(); return true; }
@@ -117,6 +117,7 @@ struct parameter : public std::enable_shared_from_this<parameter> {
   parameter *set_sets(const reaction_t& s) { sets = s; return this; }
   parameter *set_extra(const reaction_t& r);
   parameter *set_reaction(const reaction_t& r);
+  parameter *set_pre_reaction(const reaction_t& r);
   virtual ~parameter() = default;
   virtual bool load_from_animation(const string& s) {
     load(s); return false;
@@ -130,6 +131,7 @@ struct parameter : public std::enable_shared_from_this<parameter> {
   virtual void set_cld_raw(cld x) { throw param_exception("parameter has no complex value", this); }
   virtual void set_cld(cld value) {
     auto bak = get_cld();
+    if(value != bak && pre_reaction) pre_reaction();
     set_cld_raw(value);
     if(value != bak && reaction) reaction();
     }
@@ -165,13 +167,15 @@ parameter *parameter::set_reaction(const reaction_t& r) {
   reaction = r; return this;
   }
 
+parameter *parameter::set_pre_reaction(const reaction_t& r) {
+  pre_reaction = r; return this;
+  }
+
 #if HDR
 using paramlist = map<string, std::shared_ptr<parameter>>;
 #endif
 
 EX paramlist params;
-
-EX void show_edit_option_enum(char* value, const string& name, const vector<pair<string, string>>& options, char key, parameter *s);
 
 #if HDR
 struct list_parameter : parameter {
@@ -180,7 +184,7 @@ struct list_parameter : parameter {
   virtual void set_value(int i) = 0;
   vector<pair<string, string> > options;
   reaction_t extras;
-  list_parameter* editable(const vector<pair<string, string> >& o, string menu_item_name, char key) {
+  list_parameter* editable(const vector<pair<string, string> >& o, string menu_item_name, key_type key) {
     is_editable = true;
     options = o;
     this->menu_item_name = menu_item_name;
@@ -240,7 +244,7 @@ template<class T> struct enum_parameter : list_parameter {
     anims::animate_parameter(this, s);
     }
 
-  enum_parameter<T>* editable(const vector<pair<string, string> >& o, string menu_item_name, char key) {
+  enum_parameter<T>* editable(const vector<pair<string, string> >& o, string menu_item_name, key_type key) {
     list_parameter::editable(o, menu_item_name, key);
     return this;
     }
@@ -302,7 +306,7 @@ template<class T> struct val_parameter : public parameter {
 struct float_parameter : public val_parameter<ld> {
   ld min_value, max_value, step;
   string unit;
-  float_parameter *editable(ld min_value, ld max_value, ld step, string menu_item_name, string help_text, char key) {
+  float_parameter *editable(ld min_value, ld max_value, ld step, string menu_item_name, string help_text, key_type key) {
     is_editable = true;
     this->min_value = min_value;
     this->max_value = max_value;
@@ -335,7 +339,7 @@ struct int_parameter : public val_parameter<int> {
   function<void(int_parameter*)> modify_me;
   int_parameter *modif(const function<void(int_parameter*)>& r) { modify_me = r; return this; }
   void show_edit_option(key_type key) override;
-  int_parameter *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, char key) {
+  int_parameter *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, key_type key) {
     this->is_editable = true;
     this->min_value = min_value;
     this->max_value = max_value;
@@ -370,7 +374,7 @@ struct string_parameter: public val_parameter<string> {
   void show_edit_option(key_type key) override;
   string_parameter* set_standard_editor(bool direct);
   string_parameter* set_file_editor(string ext);
-  string_parameter* editable(string cap, string help, char key ) {
+  string_parameter* editable(string cap, string help, key_type key ) {
     is_editable = true;
     menu_item_name = cap;
     default_key = key;
@@ -392,7 +396,7 @@ struct char_parameter : public val_parameter<char> {
 struct bool_parameter : public val_parameter<bool> {
   string save() override { return (*value) ? "yes" : "no"; }
   reaction_t switcher;
-  bool_parameter* editable(string cap, char key ) {
+  bool_parameter* editable(string cap, key_type key ) {
     is_editable = true;
     menu_item_name = cap; default_key = key;
     menu_item_name_modified = true;
@@ -417,7 +421,7 @@ struct bool_parameter : public val_parameter<bool> {
 struct color_parameter : public val_parameter<color_t> {
   bool has_alpha;
   void show_edit_option(key_type key) override;
-  color_parameter *editable(string menu_item_name, string help_text, char key) {
+  color_parameter *editable(string menu_item_name, string help_text, key_type key) {
     this->is_editable = true;
     this->menu_item_name = menu_item_name;
     menu_item_name_modified = true;
@@ -456,7 +460,7 @@ struct matrix_parameter : public val_parameter<matrix_eq> {
 
   int dim;
   void show_edit_option(key_type key) override;
-  matrix_parameter *editable(string menu_item_name, string help_text, char key) {
+  matrix_parameter *editable(string menu_item_name, string help_text, key_type key) {
     this->is_editable = true;
     this->menu_item_name = menu_item_name;
     menu_item_name_modified = true;
@@ -846,7 +850,7 @@ shared_ptr<parameter> float_parameter::clone(struct local_parameter_set& lps, vo
 
 #if HDR
 template<class T>
-shared_ptr<custom_parameter> param_custom_int(T& val, const parameter_names& n, function<void(key_type)> menuitem, char key) {
+shared_ptr<custom_parameter> param_custom_int(T& val, const parameter_names& n, function<void(key_type)> menuitem, key_type key) {
   shared_ptr<custom_parameter> u ( new custom_parameter );
   u->setup(n);
   int dft = (int) val;
@@ -865,7 +869,7 @@ shared_ptr<custom_parameter> param_custom_int(T& val, const parameter_names& n, 
   }
 #endif
 
-EX shared_ptr<custom_parameter> param_custom_ld(ld& val, const parameter_names& n, function<void(key_type)> menuitem, char key) {
+EX shared_ptr<custom_parameter> param_custom_ld(ld& val, const parameter_names& n, function<void(key_type)> menuitem, key_type key) {
   shared_ptr<custom_parameter> u ( new custom_parameter );
   u->setup(n);
   ld dft = val;
@@ -890,7 +894,7 @@ EX shared_ptr<custom_parameter> param_colortable(colortable& val, const paramete
   u->setup(n);
   colortable dft = val;
   u->last_value = -1;
-  u->custom_viewer = [] (char key) {};
+  u->custom_viewer = [] (key_type key) {};
   u->custom_value = [] () { return -1; };
   u->custom_affect = [&val] (void *v) { return &val == v; };
   u->custom_load = [&val] (const string& s) {
@@ -899,7 +903,7 @@ EX shared_ptr<custom_parameter> param_colortable(colortable& val, const paramete
   u->custom_save = [&val] {
     bool first = true;
     string str;
-    for(auto v: val) { if(first) first = false; else str += ","; str += itsh(v); }
+    for(auto v: val) { if(first) first = false; else str += ","; str += itsh6(v); }
     return str;
     };
   u->custom_do_save = [dft, &val] { return val != dft; };
@@ -1021,7 +1025,9 @@ EX int lang() {
   return default_language;
   }
 
-EX bool autojoy = true;
+EX bool autojoy = false;
+
+EX bool defaultjoy = true;
 
 EX void paramset(charstyle& cs, string s) {
   param_i(cs.charid, s + ".charid");
@@ -1078,6 +1084,27 @@ EX void font_reaction() {
 
 EX void initConfig() {
   
+  DEBBI(debug_init_config, ("initconfig"));
+
+  #if ISLINUX
+  if(1) {
+    fhstream f("/sys/devices/virtual/dmi/id/board_name", "rt");
+    if(f.f) {
+      string s = scanline_noblank(f);
+      println(hlog, "got '", s, "'");
+      bool deck = s.find("Jupiter") != string::npos;
+      if(deck) {
+        centered_menus = true;
+        lands_per_page = 18;
+        defaultjoy = false;
+        dialog::onscreen_keyboard = true;
+        dialog::dialog_font_scale = 3;
+        dialog::display_keys = 3;
+        }
+      }
+    }
+  #endif
+
   // basic config
   param_i(vid.flashtime, "flashtime", 8);
 
@@ -1195,6 +1222,9 @@ EX void initConfig() {
   ->set_sets(sets_sfx_volume);
   #endif
 
+  param_enum(dialog::display_keys, "dialog_display_keys")
+    ->editable({{"never", ""}, {"when using keyboard", ""}, {"always", ""}, {"SteamDeck controls", ""}}, "display keys in dialogs", 'K');
+
   param_enum(vid.faraway_highlight, parameter_names("faraway_highlight", "highlight faraway monsters"), tlNoThreat)
     ->editable({{"off", ""}, {"spam", ""}, {"normal monsters", ""}, {"high-threat monsters only", ""}}, "highlight faraway monsters", 'h');
 
@@ -1202,6 +1232,14 @@ EX void initConfig() {
   -> editable(0, 100, 10, "faraway highlight color", "0 = monster color, 100 = red-light oscillation", 'c');
 
   param_b(keybd_subdir_enabled, "keybd_subdir_enabled", 0)->editable("control the pushing direction with TAB", 'P')->help("If set, you control the off-heptagon pushing direction with TAB. Otherwise, you control it by rotating the screen.");
+
+  param_str(pinnedglyphs, "pinned_glyphs", "")
+  ->set_standard_editor(true)
+  ->editable("pinned glyphs",
+     "A list of glyphs to always sort at the front, "
+     "and reserve space for even when they're not being displayed.",
+     'p')
+  ->set_reaction(updateglyphpinned);
 
   param_enum(glyphsortorder, parameter_names("glyph_sort", "glyph sort order"), glyphsortorder)
     ->editable({
@@ -1219,6 +1257,11 @@ EX void initConfig() {
       {"types", ""},
       {"icons", ""},
       }, "orb display mode", 'o');
+
+  param_b(orb_treasure_gap, "orb_treasure_gap", false)
+  ->editable("gap between orbs and treasures", 'G')
+  -> help("If set, a gap row will be left between orbs and treasures in the HUD")
+  -> set_reaction([] { vid.killreduction = 0; });
 
   param_b(less_in_landscape, "less_in_landscape", false)
   ->editable("less items/kills in landscape", 'L')
@@ -1269,8 +1312,16 @@ EX void initConfig() {
   param_i(menu_darkening, "menu_darkening", 2)
   -> editable(0, 8, 1, "menu map darkening", "A larger number means darker game map in the background. Set to 8 to disable the background.", 'd')
   -> set_sets([] { dialog::bound_low(0); dialog::bound_up(8); dialog::get_di().dialogflags |= sm::DARKEN; });
-  param_b(centered_menus, "centered_menus", false)
+  param_b(centered_menus, "centered_menus")
   -> editable("centered menus in widescreen", 'c');
+  param_f(dialog::dialog_font_scale, "dialog_font_scale")
+  -> editable(1, 5, 0.25, "dialog font scale",
+    "allow larger font in dialogs",
+    'D');
+  param_i(lands_per_page, "lands_per_page")
+  -> editable(10, 60, 5, "lands per page",
+    "lands per page shown in the World Overview",
+    'L');
 
   param_b(startanims::enabled, "startanim", true)
   -> editable("start animations", 's');
@@ -1411,10 +1462,13 @@ EX void initConfig() {
   -> editable("flat, not equidistant", 'F')
   -> set_reaction(geom3::apply_settings_full);
 
-  param_enum(geom3::spatial_embedding, "spatial_embedding", geom3::seDefault)
-  ->editable(geom3::spatial_embedding_options, "3D embedding method", 'E')
-  ->set_reaction(geom3::apply_settings_full);
-  
+  param_custom_int(geom3::want_spatial_embedding, "spatial_embedding", menuitem_spatial_embedding, 'E')
+  ->set_reaction([] {
+    if(geom3::want_spatial_embedding != shown_spatial_embedding())
+      invoke_embed(geom3::want_spatial_embedding);
+    })
+  ->help_text = "3D embedding method|3D style";
+
   param_b(memory_saving_mode, "memory_saving_mode", (ISMOBILE || ISPANDORA || ISWEB) ? 1 : 0);
   param_i(reserve_limit, "memory_reserve", 128);
   param_b(show_memory_warning, "show_memory_warning");
@@ -1438,7 +1492,11 @@ EX void initConfig() {
   param_i(vid.joysmooth, "vid.joysmooth", 200);
   param_i(vid.joypanthreshold, "vid.joypanthreshold", 2500);
   param_f(vid.joypanspeed, "vid.joypanspeed", ISPANDORA ? 0.0001 : 0);
-  param_b(autojoy, "autojoy");
+  param_b(autojoy, "autojoy")
+  -> editable("joystick moves automatically", 'J');
+  param_b(defaultjoy, "defaultjoy")
+  -> editable("apply joystick movements", 'H')
+  -> help("Disable this on Steam controllers, which also send key events, to avoid duplicated input. Press key ` (or assign it to the controller button in Steam) to move or accept menu options.");
   #endif
     
   vid.killreduction = 0;
@@ -1627,7 +1685,7 @@ EX void initConfig() {
   ld emul = 1;
   
   param_b(dialog::onscreen_keyboard, "onscreen_keyboard")
-  ->editable("onscreen keyboard", 'k');
+  ->editable("onscreen keyboard", SDLK_F6);
   
   param_b(context_fog, "coolfog");
 
@@ -1919,8 +1977,11 @@ EX void resetConfig() {
 #endif
 
 #if CAP_CONFIG
+
+EX debugflag debug_init_config = {"init_config", true};
+
 EX void saveConfig() {
-  DEBB(DF_INIT, ("save config\n"));
+  indenter_finish(debug_init_config, "saveConfig");
   FILE *f = fopen(conffile, "wt");
   if(!f) {
     addMessage(s0 + "Could not open the config file: " + conffile);
@@ -1992,7 +2053,7 @@ EX void loadNewConfig(FILE *f) {
 
 EX void loadConfig() {
  
-  DEBB(DF_INIT, ("load config"));
+  indenter_finish(debug_init_config, "loadConfig");
   vid.xres = 9999; vid.yres = 9999; vid.framelimit = 999;
   FILE *f = fopen(conffile, "rt");
   if(f) {
@@ -2009,7 +2070,8 @@ EX void loadConfig() {
       }
   
     fclose(f);
-    DEBB(DF_INIT, ("Loaded configuration: %s\n", conffile));
+    if(debug_init_config)
+      println(hlog, "Loaded configuration: ", conffile);
     }
 
   geom3::apply_always3();
@@ -2063,7 +2125,7 @@ EX void menuitem_sightrange_bonus(key_type c) {
     });
   }
 
-EX void edit_sightrange_3d(char key, bool fog) {
+EX void edit_sightrange_3d(key_type key, bool fog) {
   dialog::addSelItem(fog ? XLAT("3D sight range for the fog effect") : ("3D sight range"), fts(sightranges[geometry]), key);
   dialog::add_action([] {
     dialog::editNumber(sightranges[geometry], 0, TAU, 0.5, M_PI, XLAT("3D sight range"),
@@ -2160,6 +2222,8 @@ EX void menuitem_sightrange_style(key_type c IS('c')) {
     c
     );
   dialog::add_action_push([] {
+    cmode = sm::VR_MENU | sm::NOSCR;
+    gamescreen();
     dialog::init(XLAT("draw range based on"));
     dialog::addBoolItem(XLAT("draw range based on distance"), vid.use_smart_range == 0, 'd');
     dialog::add_action([] () { vid.use_smart_range = 0; popScreen(); edit_sightrange(); });
@@ -2295,6 +2359,54 @@ EX void show_vector_settings() {
   dialog::display();
   }
 
+void show_animation_speed_settings() {
+  cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
+  gamescreen();
+
+  dialog::init(XLAT("animation speed"));
+
+  dialog::addSelItem(XLAT("scrolling speed"), fts(vid.sspeed), 'a');
+  dialog::add_action([] {
+    dialog::editNumber(vid.sspeed, -5, 5, 1, 0,
+      XLAT("scrolling speed"),
+      XLAT("+5 = center instantly, -5 = do not center the map")
+      + "\n\n" +
+      XLAT("press Space or Home to center on the PC"));
+    });
+
+  dialog::addSelItem(XLAT("camera movement speed"), fts(camera_speed), 'c');
+  dialog::add_action([] {
+    dialog::editNumber(camera_speed, -10, 10, 0.1, 1, XLAT("camera movement speed"),
+      "This affects:\n\nin 2D: scrolling with arrow keys and Wheel Up\n\nin 3D: camera movement with Home/End."
+      );
+    });
+  dialog::addSelItem(XLAT("camera rotation speed"), fts(camera_rot_speed), 'r');
+  dialog::add_action([] {
+    dialog::editNumber(camera_rot_speed, -10, 10, 0.1, 1, XLAT("camera rotation speed"),
+      "This affects view rotation with Page Up/Down, and in 3D, camera rotation with arrow keys or mouse."
+      );
+    });
+
+  dialog::addSelItem(XLAT("movement animation speed"), fts(vid.mspeed), 'm');
+  dialog::add_action([] {
+    dialog::editNumber(vid.mspeed, -5, 5, 1, 0,
+      XLAT("movement animation speed"),
+      XLAT("+5 = move instantly"));
+    });
+
+  dialog::addSelItem(XLAT("idle animation speed"), fts(vid.ispeed), 'i');
+  dialog::add_action([] {
+    dialog::editNumber(vid.ispeed, 0, 4, 0.1, 1,
+      XLAT("idle animation speed"),
+      "0 = disable\n\nThis affects non-movement animations such as orb effects, item rotation, and more."
+      );
+    });
+
+  dialog::addBreak(50);
+  dialog::addBack();
+  dialog::display();
+  }
+
 EX void showGraphConfig() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
   gamescreen();
@@ -2372,11 +2484,6 @@ EX void showGraphConfig() {
   else
     dialog::addBreak(200);  
 
-  add_edit(vid.relative_font);
-  if(vid.relative_font) 
-    add_edit(vid.fontscale);
-  else
-    add_edit(vid.abs_fsize);
   add_edit(mapfontscale);
 
   dialog::addSelItem(XLAT("vector settings"), XLAT("width") + " " + fts(vid.linewidth), 'w');
@@ -2388,30 +2495,8 @@ EX void showGraphConfig() {
     mouseovers = XLAT("Reduce the framerate limit to conserve CPU energy");
   #endif
   
-  dialog::addSelItem(XLAT("scrolling speed"), fts(vid.sspeed), 'a');
-
-  dialog::addSelItem(XLAT("camera movement speed"), fts(camera_speed), 'c');
-  dialog::add_action([] { 
-    dialog::editNumber(camera_speed, -10, 10, 0.1, 1, XLAT("camera movement speed"), 
-      "This affects:\n\nin 2D: scrolling with arrow keys and Wheel Up\n\nin 3D: camera movement with Home/End."
-      );
-    });
-  dialog::addSelItem(XLAT("camera rotation speed"), fts(camera_rot_speed), 'r');
-  dialog::add_action([] { 
-    dialog::editNumber(camera_rot_speed, -10, 10, 0.1, 1, XLAT("camera rotation speed"), 
-      "This affects view rotation with Page Up/Down, and in 3D, camera rotation with arrow keys or mouse."
-      );
-    });
-    
-  dialog::addSelItem(XLAT("movement animation speed"), fts(vid.mspeed), 'm');
-  
-  dialog::addSelItem(XLAT("idle animation speed"), fts(vid.ispeed), 'i');
-  dialog::add_action([] {
-    dialog::editNumber(vid.ispeed, 0, 4, 0.1, 1, 
-      XLAT("idle animation speed"),
-      "0 = disable\n\nThis affects non-movement animations such as orb effects, item rotation, and more."
-      );
-    });
+  dialog::addItem(XLAT("animation speed settings"), 'a');
+  dialog::add_action_push(show_animation_speed_settings);
 
   add_edit(vid.flasheffects);
 
@@ -2430,16 +2515,6 @@ EX void showGraphConfig() {
     
     if(xuni == 'u') pushScreen(showSpecialEffects);
 
-    else if(xuni == 'a') dialog::editNumber(vid.sspeed, -5, 5, 1, 0, 
-      XLAT("scrolling speed"),
-      XLAT("+5 = center instantly, -5 = do not center the map")
-      + "\n\n" +
-      XLAT("press Space or Home to center on the PC"));
-  
-    else if(xuni == 'm') dialog::editNumber(vid.mspeed, -5, 5, 1, 0, 
-      XLAT("movement animation speed"),
-      XLAT("+5 = move instantly"));
-  
   #if CAP_FRAMELIMIT    
     else if(xuni == 'l') {
       dialog::editNumber(vid.framelimit, 5, 300, 10, 300, XLAT("framerate limit"), "");
@@ -2516,6 +2591,66 @@ EX void configureOther() {
   dialog::display();
   }
 
+EX void configure_dialogs() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("dialogs"));
+
+  add_edit(menu_darkening);
+  add_edit(centered_menus);
+  add_edit(dialog::dialog_font_scale);
+  add_edit(lands_per_page);
+  add_edit(use_bool_dialog);
+  add_edit(dialog::display_keys);
+
+  dialog::addBreak(50);
+  dialog::addBack();
+  
+  dialog::display();
+  }
+
+EX void configure_hud() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+
+  dialog::init(XLAT("HUD settings"));
+
+  dialog::addSelItem(XLAT("message flash time"), its(vid.flashtime), 't');
+  dialog::add_action([] {
+    dialog::editNumber(vid.flashtime, 0, 64, 1, 8, XLAT("message flash time"),
+      XLAT("How long should the messages stay on the screen."));
+    dialog::bound_low(0);
+    });
+
+  dialog::addSelItem(XLAT("limit messages shown"), its(vid.msglimit), 'z');
+  dialog::add_action([] {
+    dialog::editNumber(vid.msglimit, 0, 64, 1, 5, XLAT("limit messages shown"),
+      XLAT("Maximum number of messages on screen."));
+    dialog::bound_low(0);
+    });
+
+  add_edit(nohelp);
+  add_edit(menu_format);
+  
+  add_edit(vid.msgleft);
+  
+  if(hr_hud_enabled) {
+    add_edit(glyphsortorder);
+    add_edit(vid.graphglyph);
+    add_edit(orb_treasure_gap);
+    add_edit(less_in_landscape);
+    add_edit(less_in_portrait);
+    add_edit(display_yasc_codes);
+    if(casual) add_edit(display_semicasual);
+    add_edit(vid.orbmode);
+    }
+
+  dialog::addBreak(50);
+  dialog::addBack();
+  
+  dialog::display();
+  }
+
 EX void configureInterface() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
@@ -2533,34 +2668,6 @@ EX void configureInterface() {
   dialog::addSelItem(XLAT("player character"), numplayers() > 1 ? "" : csname(vid.cs), 'g');
   dialog::add_action_push(showCustomizeChar);
   if(getcstat == 'g') mouseovers = XLAT("Affects looks and grammar");
-
-  dialog::addSelItem(XLAT("message flash time"), its(vid.flashtime), 't');
-  dialog::add_action([] {
-    dialog::editNumber(vid.flashtime, 0, 64, 1, 8, XLAT("message flash time"),
-      XLAT("How long should the messages stay on the screen."));
-    dialog::bound_low(0);
-    });
-
-  dialog::addSelItem(XLAT("limit messages shown"), its(vid.msglimit), 'z');
-  dialog::add_action([] {
-    dialog::editNumber(vid.msglimit, 0, 64, 1, 5, XLAT("limit messages shown"),
-      XLAT("Maximum number of messages on screen."));
-    dialog::bound_low(0);
-    });
-
-  add_edit(nohelp);
-  
-  add_edit(vid.msgleft);
-  
-  if(hr_hud_enabled) {
-    add_edit(glyphsortorder);
-    add_edit(vid.graphglyph);
-    add_edit(less_in_landscape);
-    add_edit(less_in_portrait);
-    add_edit(display_yasc_codes);
-    if(casual) add_edit(display_semicasual);
-    add_edit(vid.orbmode);
-    }
 
   add_edit(zh_ascii);
 
@@ -2581,11 +2688,19 @@ EX void configureInterface() {
       };
     });
 
-  add_edit(menu_format);
-  add_edit(menu_darkening);
-  add_edit(centered_menus);
   add_edit(startanims::enabled);
-  add_edit(use_bool_dialog);
+
+  add_edit(vid.relative_font);
+  if(vid.relative_font)
+    add_edit(vid.fontscale);
+  else
+    add_edit(vid.abs_fsize);
+
+  dialog::addItem("configure dialogs", 'd');
+  dialog::add_action_push(configure_dialogs);
+
+  dialog::addItem("configure HUD", 'h');
+  dialog::add_action_push(configure_hud);
    
   dialog::addBreak(50);
   dialog::addBack();
@@ -2616,6 +2731,7 @@ EX void showJoyConfig() {
   dialog::addSelItem(XLAT("second joystick: pan threshold"), its(vid.joypanthreshold), 'c');
   dialog::addSelItem(XLAT("second joystick: panning speed"), fts(vid.joypanspeed * 1000), 'd');
   dialog::addSelItem(XLAT("smoothen"), its(vid.joysmooth) + " ms", 'e');
+  add_edit(defaultjoy);
 
   dialog::addBreak(50);
   dialog::addBack();
@@ -2721,7 +2837,7 @@ EX void edit_fov_screen() {
     };
   }
 
-EX void add_edit_fov(char key IS('f')) {
+EX void add_edit_fov(key_type key IS('f')) {
 
   string sfov = fts(vid.fov) + "°";
   if(get_stereo_param()) {
@@ -2858,7 +2974,7 @@ EX void edit_levellines(char c) {
     });
   }
 
-geom3::eSpatialEmbedding shown_spatial_embedding() {
+EX geom3::eSpatialEmbedding shown_spatial_embedding() {
   if(GDIM == 2) return geom3::seNone;
   return geom3::spatial_embedding;
 }
@@ -2994,6 +3110,11 @@ EX void show_spatial_embedding() {
   dialog::display();
   }
 
+EX void menuitem_spatial_embedding(key_type key) {
+  dialog::addSelItem(XLAT("3D style"), XLAT(geom3::spatial_embedding_options[shown_spatial_embedding()].first), key);
+  dialog::add_action_push(show_spatial_embedding);
+  }
+
 EX void show3D_height_details() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
@@ -3056,8 +3177,7 @@ EX void show3D() {
 
 #if MAXMDIM >=4
   if(WDIM == 2) {
-    dialog::addSelItem(XLAT("3D style"), XLAT(geom3::spatial_embedding_options[shown_spatial_embedding()].first), 'E');
-    dialog::add_action_push(show_spatial_embedding);
+    add_edit(geom3::want_spatial_embedding);
 
     display_embedded_errors();
     dialog::addBreak(50);
@@ -3191,6 +3311,8 @@ EX void show3D() {
     }
   #endif
 
+  current_display->set_all(0, 0);
+
   if(0);
   #if CAP_RUG
   else if(rug::rugged && !rug::spatial_rug)
@@ -3224,7 +3346,7 @@ namespace ccolor { struct data; }
 EX shared_ptr<custom_parameter> param_ccolor(ccolor::data*& val, const parameter_names& n) {
   shared_ptr<custom_parameter> u ( new custom_parameter );
   u->setup(n);
-  u->custom_viewer = [] (char key) {};
+  u->custom_viewer = [] (key_type key) {};
   u->custom_value = [&val] { for(int i=0; i<isize(ccolor::all); i++) if(ccolor::all[i] == val) return i; return -1; };
   u->last_value = u->custom_value();
   u->custom_affect = [&val] (void *v) { return &val == v; };
@@ -3506,6 +3628,9 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     "Then, we find a cell of the bitruncated cubic honeycomb at these cordinates, and this cell determines which land it is. The bigger the value, the larger the lands.", 'R')
   ->set_sets([] { dialog::bound_low(1); })
   ->set_reaction([] { if(game_active) { stop_game(); start_game(); } });
+
+  param_enum(warn_before_killing_friends, "warn_before_killing_friends", 2)
+  ->editable({{"OFF", "never warn"}, {"TAME_BOMBERBIRDS", "warn only for Tame Bomberbirds"}, {"ON", "always warn"}}, "warn before killing friendly monsters", 'W');
 
   param_i(curse_percentage, "curse_percentage")->editable(0, 100, 1,
     "curse percentage",
@@ -3885,7 +4010,11 @@ EX void show_color_dialog() {
   }
 
 #if CAP_CONFIG
+EX bool allow_reset_config = true;
+
 EX void resetConfigMenu() {
+  cmode = sm::VR_MENU | sm::NOSCR;
+  gamescreen();
   dialog::init(XLAT("reset all configuration"));
   dialog::addInfo("Are you sure?");
   dialog::addItem("yes, and delete the config file", 'd');
@@ -4051,7 +4180,7 @@ EX void add_edit_ptr(void *val) {
   if(found != 1) println(hlog, "found = ", found);
   }
 
-EX void add_edit_ptr(void *val, char key) {
+EX void add_edit_ptr(void *val, key_type key) {
   int found = 0;
   for(auto& fs: params) {
     fs.second->check_change();
@@ -4066,7 +4195,7 @@ template<class T> void add_edit(T& val) {
   add_edit_ptr(&val);
   }
 
-template<class T> void add_edit(T& val, char key) {
+template<class T> void add_edit(T& val, key_type key) {
   add_edit_ptr(&val, key);
   }
 #endif
@@ -4213,8 +4342,10 @@ EX void showSettings() {
   dialog::addItem(XLAT("save the current config"), 's');
   dialog::add_action(saveConfig);
 
-  dialog::addItem(XLAT("reset all configuration"), 'R');
-  dialog::add_action_push(resetConfigMenu);
+  if(allow_reset_config) {
+    dialog::addItem(XLAT("reset all configuration"), 'R');
+    dialog::add_action_push(resetConfigMenu);
+    }
 #endif  
   
   if(getcstat == 's') mouseovers = XLAT("Config file: %1", conffile);
