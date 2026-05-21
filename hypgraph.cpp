@@ -2874,15 +2874,17 @@ void queuestraight(hyperpoint X, int style, color_t lc, color_t fc, PPR p) {
     } */
   }
 
+#if HDR
 /** ball is written as cspin(0, 1, alpha) * cspin(2, 1, beta) * cspin(0, 2, gamma) */
 struct ball_deconstruct {
   ld alpha, beta, gamma;
   transmatrix talpha, tbeta, tgamma, igamma;
   ld cos_beta, sin_beta;
   };
+#endif
 
 /** create a ball_deconstruct object */
-ball_deconstruct deconstruct_ball() {
+EX ball_deconstruct deconstruct_ball() {
   // (0,1,0) -> (0, cos beta, sin beta) -> (sin alpha, cos beta * cos alpha, sin beta)
   hyperpoint h = pconf.ball() * point3(0, 1, 0);
   ball_deconstruct d;
@@ -2901,7 +2903,11 @@ ball_deconstruct deconstruct_ball() {
   return d;
   }
 
+EX hookset<bool(int)> hooks_draw_boundary;
+
 EX void draw_boundary(int w) {
+
+  if(callhandlers(false, hooks_draw_boundary, w)) return;
 
   if((nonisotropic || gproduct) && pmodel == mdDisk) {
     queuecircle(current_display->xcenter, current_display->ycenter, current_display->radius, ringcolor, PPR::OUTCIRCLE, modelcolor);
