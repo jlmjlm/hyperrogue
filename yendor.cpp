@@ -730,6 +730,7 @@ EX namespace tactic {
   EX int id;
   
   map<modecode_t, array<int, landtypes>> recordsum;
+  map<modecode_t, array<int, landtypes>> recordrun;
   map<modecode_t, array<array<int, MAXTAC>, landtypes> > lsc;
   
   eLand lasttactic;
@@ -783,6 +784,7 @@ EX namespace tactic {
     int csum = 0;
     for(int i=0; i<t; i++) if(lsc[xc][land][i] > 0) csum += lsc[xc][land][i];
     if(csum > recordsum[xc][land]) recordsum[xc][land] = csum;
+    if(score > recordrun[xc][land]) recordrun[xc][land] = score;
     }
 
   EX void record() {
@@ -828,6 +830,8 @@ EX namespace tactic {
     uploadScoreCode(4, LB_PURE_TACTICS_COOP);
     }
   
+  EX bool minimal_mode = false;
+
   EX void showMenu() {
 
     flagtype xc = modecode();
@@ -877,7 +881,30 @@ EX namespace tactic {
     
     map<int, int> land_for;
 
-    for(int i=0; i<nl; i++) {
+    if(minimal_mode) for(int i=0; i<isize(landlist); i++) {
+      eLand l = landlist[i];
+      int y0 = 2 * vid.fsize + (i % nl+1) * vf;
+      int x0 = vid.xres * (i / nl) / numpages;
+
+      color_t col;
+
+      bool unlocked = tacticUnlocked(l);
+      col = linf[l].color;
+
+      int keyhere = 1000 + i;
+      land_for[keyhere] = i;
+
+      if(displayfrZH(x0 + xr, y0, 1, vf - 4, XLAT1(linf[l].name), col, 0) && unlocked)
+        getcstat = keyhere;
+
+      string sco = its(recordrun[xc][l]);
+      if(!unlocked) sco = "L";
+
+      if(displayfrZH(x0 + (vid.xres / numpages) - xr, y0, 1, vf - 4, sco, col, 16) && unlocked) getcstat = keyhere;
+      if(recordrun[xc][l] >= 50) displayfrZH(x0 + (vid.xres / numpages) - xr, y0, 1, vf - 4, "*", 0xFFD500, 0);
+      }
+
+    else for(int i=0; i<nl; i++) {
       int i1 = i + ofs;
       eLand l = landlist[i1];
 
@@ -922,7 +949,7 @@ EX namespace tactic {
         }
       }
     
-    dialog::display_bottom_buttons(numpages, dialog::DB_BACK | dialog::DB_HELP | dialog::DB_EXIT);
+    dialog::display_bottom_buttons(numpages, dialog::DB_BACK | dialog::DB_HELP | dialog::DB_EXIT | (minimal_mode ? dialog::DB_MINIMAL_OFF : dialog::DB_MINIMAL));
 
     uploadScore();
     if(on) unrecord(specialland);
@@ -952,6 +979,7 @@ EX namespace tactic {
         if(tactic::on) restart_game(rg::tactic);
         else popScreen();
         }
+      else if(uni == '4') minimal_mode = !minimal_mode;
 
       else if(sym == SDLK_F1) gotoHelp(
         "In the pure tactics mode, you concentrate on a specific land. "

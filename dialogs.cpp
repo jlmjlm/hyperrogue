@@ -1693,6 +1693,8 @@ EX namespace dialog {
   constexpr flagtype DB_PLAIN = 8;
   constexpr flagtype DB_ACTIVATE = 16;
   constexpr flagtype DB_EXPLAIN = 32;
+  constexpr flagtype DB_MINIMAL = 64;
+  constexpr flagtype DB_MINIMAL_OFF = 128;
   #endif
 
   EX void display_bottom_buttons(int numpages, flagtype flags) {
@@ -1729,6 +1731,8 @@ EX namespace dialog {
       if(flags & DB_ACTIVATE) add_button('2', XLAT("touch to activate"), dialogcolor);
       if(flags & DB_EXPLAIN) add_button('2', XLAT("touch to explain"), dialogcolor);
       }
+    if(flags & DB_MINIMAL) add_button('4', XLAT("minimal OFF"), dialogcolor);
+    if(flags & DB_MINIMAL_OFF) add_button('4', XLAT("minimal ON"), dialogcolor);
     if(flags & DB_BACK) add_button(SDLK_ESCAPE, XLAT("go back"), dialogcolor);
     if(flags & DB_HELP) add_button(SDLK_F1, XLAT("help"), dialogcolor);
     if(flags & DB_EXIT) add_button('0', XLAT("exit mode"), dialogcolor);
