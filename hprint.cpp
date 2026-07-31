@@ -605,10 +605,10 @@ struct progressbar {
   progressbar(int t, string n) : name(n) { total = t; (*this)++; tstart = SDL_GetTicks(); }
   };
 
+#endif
+
 logger actual_hlog;
 
 logger *hlog_ptr = &actual_hlog;
-
-#endif
 
 }
