@@ -2868,17 +2868,17 @@ EX void turn(int delta) {
   for(monster *m: additional) m->add_to_list(active);
   additional.clear();
   
-  if(delayed_safety) { 
-    activateSafety(delayed_safety_land);
-    delayed_safety = false;
-    }
-
   while(active) {
     auto *m = (monster*) active;
     if(m->dead && m->type != moPlayer)
       m->unlist_and_unref();
     else
       m->store();
+    }
+
+  if(delayed_safety) {
+    activateSafety(delayed_safety_land);
+    delayed_safety = false;
     }
   }
 
