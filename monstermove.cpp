@@ -534,7 +534,7 @@ EX int moveval(cell *c1, cell *c2, int d, flagtype mf) {
   int bonus = 0;
   if(m == moBrownBug && snakelevel(c2) < snakelevel(c1)) bonus = -10;
 
-  if(hunt && (mf & MF_PATHDIST) && c2->pathdist < c1->pathdist && !peace::on) return 1500 + bonus; // good move
+  if(hunt && (mf & MF_PATHDIST) && c2->pathdist < c1->pathdist && !peace::on) return 1500 + bonus + (c1->pathdist - c2->pathdist); // good move
   
   // prefer straight direction when wandering
   int dd = angledist(c1, c1->mondir, d);
