@@ -460,6 +460,9 @@ EX int ceiling_category(cell *c) {
     case laCrossroads3:
     case laCrossroads4:
     case laCrossroads5:
+    case laCrossroads6:
+    case laMasterCrossroads:
+    case laCursed:
     case laJungle:    
     case laGraveyard:
     case laMotion:
@@ -485,6 +488,7 @@ EX int ceiling_category(cell *c) {
     
     case laPower:
     case laWineyard:
+    case laDice:
     case laDesert:
     case laAlchemist:
     case laDryForest:
