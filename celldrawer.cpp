@@ -779,9 +779,22 @@ void celldrawer::draw_wall() {
     int hdir = 0;
     for(int i=0; i<c->type; i++) if(c->move(i) && c->move(i)->wall == waClosedGate)
       hdir = i;
-    shiftmatrix V2 = orthogonal_move_fol(V, wmspatial?cgi.WALL:1) * ddspin180(c, hdir); // to test
+    shiftmatrix V1 = V * ddspin180(c, hdir);
+
+    if(wmspatial) {
+      queuepolyat(V1, cgi.shPalaceGate, darkena(wcol, 0, 0xFF), wmspatial?PPR::WALL_DECO:PPR::WALL);
+      const int layers = 2 << detaillevel;
+      for(int z=1; z<layers; z++) {
+        double zg = zgrad0(0, geom3::actual_wall_height(), z, layers);
+        queuepolyat(xyzscale(V1, zg, zg), cgi.shPalaceGate, darkena(wcol, 0, 0xFF), wmspatial?PPR::WALL_DECO:PPR::WALL);
+        }
+      }
+
+    shiftmatrix V2 = orthogonal_move_fol(V1, wmspatial?cgi.WALL:1);
+
     queuepolyat(V2, cgi.shPalaceGate, darkena(wcol, 0, 0xFF), wmspatial?PPR::WALL_DECO:PPR::WALL);
     starcol = 0;
+    return;
     }
   
   hpcshape& shThisWall = isGrave(c->wall) ? cgi.shCross : cgi.shWall[ct6];
