@@ -873,7 +873,7 @@ EX namespace tactic {
 
     int vf = nlm ? min((vid.yres-4*vid.fsize) / (nlm+1), vid.xres/40) : vid.xres/40;
     
-    int xr = vid.xres / 64;
+    int xr = min(vid.xres / 64, vf);
     
     if(on) record(specialland, items[treasureType(specialland)]);
     

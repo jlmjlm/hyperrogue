@@ -98,7 +98,7 @@ EX void showOverview() {
   
   for(int i=0; i<nl; i++) {
     eLand l = displayed_landlist[lstart + i];
-    int xr = vid.xres / 64;
+    int xr = min(vid.xres / 64, vf);
     int i0 = 56 + vid.fsize + i * vf;
     color_t col;
     if(landUnlocked(l)) col = linf[l].color; else col = 0x404040;
