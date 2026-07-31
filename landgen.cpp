@@ -2928,7 +2928,9 @@ EX void setland_randomwalk(cell *c) {
   }
 
 EX eLand random_land() {
-  return hrand_elt(isize(cheatdest_list) ? cheatdest_list : currentlands);
+  eLand l = hrand_elt(isize(cheatdest_list) ? cheatdest_list : currentlands);
+  if(l == laElementalWall) l = randomElementalLandWeighted();
+  return l;
   }
 
 EX void share_land(cell *c, cell *c2) {
