@@ -61,6 +61,9 @@ int modediff(score *S) {
   if(S->box[196] != (int) land_structure) diff += 32;
   if(S->box[119] != shmup::on) diff += 64;
   if(pureHardcore() && !isHardcore(S)) diff += 128;
+  if((S->box[422] < PURELOS_LEVEL) != (lineofsightAt < PURELOS_LEVEL)) diff += 8;
+  else if(S->box[421] != int(lineofsight)) diff += 8;
+
   if(g != gNormal && S->box[120] != specialland) 
     diff += 256;
   if(g != geometry) {
@@ -84,6 +87,9 @@ string modedesc(score *S) {
   if(S->box[197] > 1) s += "/P" + its(S->box[197]);
   if(S->box[306]) s += "/i";
   if(isHardcore(S)) s += "/h";
+  if(S->box[421] == 1 && S->box[422] < PURELOS_LEVEL) s += "/l1";
+  if(S->box[421] == 2 && S->box[422] < PURELOS_LEVEL) s += "/l2";
+  if(S->box[422] >= PURELOS_LEVEL) s += "/l?";
   return s;
   }
 

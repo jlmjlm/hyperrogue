@@ -1672,6 +1672,14 @@ EX void initConfig() {
     }, "stereo/high-FOV mode", 'm')
   ->set_reaction(reset_all_shaders);
 
+  param_enum(lineofsight, "mode-lineofsight", los::none)
+   ->editable({
+     {"OFF", "You see everything in range, but also everything in range sees you!"},
+     {"geodesic", "Graph geodesic: any sequence of tiles is OK for line-of-sight as long as there are no shortcuts"},
+     {"geometric", "Approximations of geometric straight lines."}},
+     "line-of-sight mode", 'v')
+   ->set_reaction(switchLOS_quiet);
+
   param_f(vid.plevel_factor, "plevel_factor", 0.7);
 
   param_b(nohud, "no-hud", false);

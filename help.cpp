@@ -939,6 +939,10 @@ EX void describeMouseover() {
   cell *c = mousing ? mouseover : playermoved ? NULL : centerover;
   string& out = mouseovers;
   if(!c || instat || getcstat != '-') { }
+  else if(!in_line_of_sight_for_player(c)) {
+    out = XLAT("you cannot see this place");
+    help = XLAT("You cannot currently see this tile.\n\nThis also means that your enemies (except ghosts) will not try to reach you through this tile.");
+    }
   else if(c->wall != waInvisibleFloor) {
     out = XLAT1(linf[c->land].name);
     set_help_to(c->land);
@@ -1136,13 +1140,16 @@ EX void describeMouseover() {
     if(isWarped(c) && !isWarpedType(c->land))
       out += ", warped";
 
+    if(!in_line_of_sight(c))
+      out += " (magical vision)";
+
     if(isWarped(c)) {
       appendHelp(string("\n\n") + XLAT(warpdesc));
 
       if(S7 != 7 || !BITRUNCATED) if(c->item != itOrb37)
         appendHelp("\n\n" + other_geometry() + forbidden_unmarked());
       }
-    
+
     if(isElectricLand(c) || isElectricLand(cwt.at->land)) {
       using namespace elec;
       eCharge ch = getCharge(c);

@@ -2904,8 +2904,10 @@ void celldrawer::draw() {
   
   checkTide(c);
   
-  if(1) {
-  
+  int seen = in_line_of_sight_for_player(c);
+
+  if(seen) {
+
     if(inmirror(c)) {
       if(inmirrorcount >= 10) return;
       cellwalker cw(c);
@@ -3045,23 +3047,24 @@ void celldrawer::draw() {
         queuestrn(V, mapfontscale / 100, s, darkenedby(asciicol, darken), 2);
       }
     
-    draw_grid();
-
     if(onradar && WDIM == 2 && GDIM == 3) addradar(V, asciichar, darkenedby(asciicol, darken), 0);
     
-    if(WDIM == 2 && GDIM == 3) radar_grid();
     #endif
-    
-    check_rotations();
-
-    #if CAP_EDIT
-    if(!inHighQual) mapeditor::drawGhosts(c, V, c->type);
-    #endif
-    
-#if CAP_MODEL
-    netgen::buildVertexInfo(c, unshift(V));
-#endif
     }
+
+  draw_grid();
+
+  if(WDIM == 2 && GDIM == 3) radar_grid();
+
+  check_rotations();
+
+  #if CAP_EDIT
+  if(!inHighQual) mapeditor::drawGhosts(c, V, c->type);
+  #endif
+    
+  #if CAP_MODEL
+  netgen::buildVertexInfo(c, unshift(V));
+  #endif
   }
 
 void celldrawer::set_towerfloor(const cellfunction& cf) {

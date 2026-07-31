@@ -1215,6 +1215,8 @@ EX void groupmove(eMonster movtype, flagtype mf) {
   
   for(int i=0; i<isize(gendfs); i++) {
     cell *c = gendfs[i];
+    if(!in_line_of_sight(c)) continue;
+
     vector<int> dirtable;
     
     forCellIdAll(c2,t,c) dirtable.push_back(t);

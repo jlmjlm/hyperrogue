@@ -500,7 +500,11 @@ EX color_t stdgridcolor = 0x202020FF;
 EX int gridcolor(cell *c1, cell *c2) {
   if(cmode & sm::DRAW && !mapeditor::drawing_tool) return Dark(forecolor);
   if(!c2)
-    return 0x202020 >> darken;
+    return Dark(0x202020);
+
+  if(!in_line_of_sight(c1) || !in_line_of_sight(c2))
+    return Dark(0x808080);
+
   int rd1 = rosedist(c1), rd2 = rosedist(c2);
   if(rd1 != rd2) {
     int r = rd1+rd2;

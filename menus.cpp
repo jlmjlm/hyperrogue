@@ -302,6 +302,10 @@ EX void switchHardcore_quiet() {
   else { hardcore = true; canmove = true; hardcoreAt = turncount; }
   }
 
+EX void switchLOS_quiet() {
+  lineofsightAt = turncount;
+  }
+
 EX void switchHardcore() {
   switchHardcore_quiet();
   if(hardcore)
@@ -841,7 +845,9 @@ EX void showChangeMode() {
 #if CAP_RACING
   dialog::addBoolItem(XLAT("racing mode"), racing::on, 'R');
   dialog::add_action(racing::configure_race);
-#endif  
+#endif
+
+  add_edit(lineofsight);
 
   show_achievement_eligibility();
 

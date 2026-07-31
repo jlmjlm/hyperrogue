@@ -1402,6 +1402,11 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
         addMessage(XLAT("You cannot target that far away!"));
       return itNone;
       }
+    if(!in_line_of_sight_for_player(c)) {
+      if(!isWeakCheck(a))
+        addMessage(XLAT("You cannot target what you cannot see!"));
+      return itNone;
+      }
     }
   
   vector<string> orb_error_messages;

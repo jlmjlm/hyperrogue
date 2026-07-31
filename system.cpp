@@ -419,7 +419,7 @@ EX void initgame() {
     timerstart = time(NULL); turncount = 0; lastexplore = 0; rosewave = 0; rosephase = 0;
     tickstart = ticks;
     noiseuntil = 0;
-    sagephase = 0; hardcoreAt = 0;
+    sagephase = 0; hardcoreAt = 0; lineofsightAt = 0;
     timerstopped = false;
     savecount = 0; savetime = 0;
     loadcount = 0; current_loadcount = 0; load_branching = 0;
@@ -485,7 +485,7 @@ EX namespace scores {
 /** \brief the amount of boxes reserved for each hr::score item */
 #define MAXBOX 500
 /** \brief currently used boxes in hr::score */
-#define POSSCORE 421
+#define POSSCORE 423
 /** \brief a struct to keep local score from an earlier game */
 struct score {
   /** \brief version used */
@@ -1061,6 +1061,11 @@ EX void applyBoxes() {
   applyBoxNum(load_branching, "load branching");
   setprio(bpWeirdStat);
   applyBoxNum(current_loadcount, "current load count");
+
+  setprio(bpMode);
+  applyBoxEnum(lineofsight, "lineofsight");
+  setprio(bpMode);
+  applyBoxNum(lineofsightAt, "@lineofsightAt");
 
   if(POSSCORE != boxid) printf("ERROR: %d boxes\n", boxid);
   if(isize(invorb)) { println(hlog, "ERROR: Orbs not taken into account"); exit(1); }
