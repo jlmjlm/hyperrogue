@@ -974,7 +974,6 @@ EX bool in_line_of_sight_for_player(cell *c) {
 
 EX void create_los() {
   current_fov.clear();
-  if(lineofsight == los::none) lineofsight = los::geometric;
   if(lineofsight == los::geodesic) {
     for(auto c: dcal) {
       if(c->cpdist == 0) current_fov[c] |= 3;
