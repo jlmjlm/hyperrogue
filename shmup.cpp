@@ -1411,22 +1411,26 @@ void movePlayer(monster *m, int delta) {
   
   if(shotkey && canmove && curtime >= m->nextshot && !stunned) {
 
+    bool newshotkey = act[pcFire].pressed() || act[pcFaceFire].pressed();
+
     visibleFor(500);
-    if(items[itOrbFlash]) {
+    if(items[itOrbFlash] && newshotkey) {
       pushmonsters();
       killMonster(m->base, moNone);
       cwt.at = m->base;
       activateFlash();
       popmonsters();
+      m->nextshot = curtime + 100;
       return;
       }
     
-    if(items[itOrbLightning]) {
+    if(items[itOrbLightning] && newshotkey) {
       pushmonsters();
       killMonster(m->base, moLightningBolt);
       cwt.at = m->base;
       activateLightning();
       popmonsters();
+      m->nextshot = curtime + 100;
       return;
       }
     
