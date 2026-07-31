@@ -394,6 +394,8 @@ hpcshape
 
   hpcshape shBunnyBody, shBunnyHead, shBunnyEar, shBunnyTail;
 
+  hpcshape shDonkeyHead, shDonkeyEar, shDonkeyEye, shDonkeyNose, shDonkeyNose1;
+
   hpcshape shReserved[16];
   
   int orb_inner_ring; //< for shDisk* shapes, the number of vertices in the inner ring

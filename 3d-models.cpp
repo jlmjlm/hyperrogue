@@ -1018,7 +1018,14 @@ void geometry_information::make_3d_models() {
   // make_ahead_3d(shBullHorn);
   make_revolution_cut(shBullBody, 180, +g);
   make_revolution_cut(shBullHead, 60, AHEAD - ABODY +g);
+  make_revolution_cut(shDonkeyHead, 60, AHEAD - ABODY +g);
+  make_revolution(shDonkeyNose, 180, AHEAD - ABODY +g);
   shift_shape(shBullHorn, -g-(AHEAD - ABODY));
+  shift_shape(shDonkeyEar, -g-(AHEAD - ABODY));
+  adjust_eye(shDonkeyEye, shDonkeyHead, AHEAD, AHEAD, 1);
+  adjust_eye(shDonkeyNose1, shDonkeyNose, AHEAD, AHEAD, 1);
+  for(int i=shDonkeyNose1.s; i<shDonkeyNose1.e; i++) hpc[i] = xpush(-scalefactor * 0.02) * hpc[i];
+
   // make_revolution_cut(shBullHorn, 180, AHEAD - ABODY);
   
   make_paw_3d(shFrogFrontFoot, shFrogFrontLeg);

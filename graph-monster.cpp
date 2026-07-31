@@ -1311,6 +1311,23 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
       queuepoly(V, cgi.shAsteroid[1], darkena(col, 0, 0xFF));
       return true;
       }
+
+    case moDonkey: {
+      ShadowV(V, cgi.shBullBody);
+      int hoofcol = darkena(gradient(0, col, 0, .65, 1), 0, 0xFF);
+      if(mmspatial || footphase)
+        animallegs(VALEGS, moRagingBull, hoofcol, footphase);
+      queuepoly(VABODY, cgi.shBullBody, darkena(gradient(0, col, 0, .60, 1), 0, 0xFF));
+      queuepoly(VAHEAD, cgi.shDonkeyHead, darkena(col, 0, 0xFF));
+      queuepoly(VAHEAD, cgi.shDonkeyEar, darkena(0xFFFFFF, 0, 0xFF));
+      queuepoly(VAHEAD * lmirror(), cgi.shDonkeyEar, darkena(0xFFFFFF, 0, 0xFF));
+      queuepoly(VAHEAD, cgi.shDonkeyEye, darkena(0, 0, 0xFF));
+      queuepoly(VAHEAD * lmirror(), cgi.shDonkeyEye, darkena(0, 0, 0xFF));
+      queuepoly(VAHEAD, cgi.shDonkeyNose, darkena(0xFFFFFF, 0, 0xFF));
+      queuepoly(VAHEAD, cgi.shDonkeyNose1, darkena(0, 0, 0xFF));
+      queuepoly(VAHEAD * lmirror(), cgi.shDonkeyNose1, darkena(0, 0, 0xFF));
+      return true;
+      }
     
     #if CAP_COMPLEX2
     case moAnimatedDie: case moAngryDie: {

@@ -632,6 +632,9 @@ EX int pickMoveDirection(cell *c, flagtype mf) {
     if(val == bestval) global_posdir.push_back(d);
     }
   
+  if(c->monst == moDonkey && isize(global_posdir) > 1)
+    return -1;
+
   if(c->monst == moRagingBull) 
     determinizeBull(c, global_posdir);
     
