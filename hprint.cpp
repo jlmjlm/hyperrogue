@@ -263,7 +263,9 @@ struct logger : hstream {
   void flush() override { fflush(stdout); }
   };
 
-extern logger hlog;
+extern logger *hlog_ptr;
+#define hlog (*hlog_ptr)
+
 template<class... T> void println_log(T... t) { println(hlog, t...); }
 template<class... T> void print_log(T... t) { print(hlog, t...); }
 
@@ -405,8 +407,6 @@ EX string itsh(unsigned long long i) {
   if(i1) return itsh(i1) + itsh8(i0);
   else return itsh(i0);
   }
-
-EX logger hlog;
 
 // kz: utility for printing
 // if it is close to 0, assume it is floating errors
@@ -604,6 +604,11 @@ struct progressbar {
 
   progressbar(int t, string n) : name(n) { total = t; (*this)++; tstart = SDL_GetTicks(); }
   };
+
+logger actual_hlog;
+
+logger *hlog_ptr = &actual_hlog;
+
 #endif
 
 }
