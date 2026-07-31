@@ -82,6 +82,8 @@ EX void showOverview() {
     lstart += dialog::handlePage(nl, nlm, lands_per_page, numpages);
     }
   else nlm = nl;
+
+  if(nlm <= 0) nlm = 1;
   
   int vf = min((vid.yres-64-vid.fsize*2) / nlm + (not_in_game ? 1 : 0), vid.xres/40);
 
