@@ -1171,7 +1171,7 @@ void poly_attack(cell *dest) {
   dest->monst = target;
   if(!dest->stuntime) dest->stuntime = 1;
 
-  if(orig == moPair) {
+  if(among(orig, moPair, moSouthPole, moNorthPole)) {
     cell *dest2 = dest->move(dest->mondir);
     if(dest2->monst == moPair) {
       dest2->monst = dest->monst;
