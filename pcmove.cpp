@@ -464,6 +464,7 @@ bool pcmove::movepcto() {
       if(checkonly) { nextmovetype = lmInstant; return true; }
       if(warning_shown || orbProtection(itOrbFlash)) return true;
       activateFlash();
+      create_los();
       checkmove(false);
       return true;
       }
@@ -472,6 +473,7 @@ bool pcmove::movepcto() {
       if(checkonly) { nextmovetype = lmInstant; return true; }
       if(warning_shown || orbProtection(itOrbLightning)) return true;
       activateLightning();
+      create_los();
       checkmove(false);
       return true;
       }
