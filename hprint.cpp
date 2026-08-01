@@ -266,8 +266,8 @@ struct logger : hstream {
 extern logger *hlog_ptr;
 #define hlog (*hlog_ptr)
 
-template<class... T> void println_log(T... t) { println(hlog, t...); }
-template<class... T> void print_log(T... t) { print(hlog, t...); }
+template<class... T> void hprintln(T... t) { println(hlog, t...); }
+template<class... T> void hprint(T... t) { print(hlog, t...); }
 
 #ifdef __GNUC__
 __attribute__((__format__ (__printf__, 1, 2)))
@@ -525,9 +525,9 @@ EX string as_nice_cstring(string o) {
 #define DEBB0(r,x)
 #define DEBBI(r,x)
 #else
-#define DEBB(r,x) { if(r) { println_log x; } }
-#define DEBB0(r,x) { if(r) { print_log x; } }
-#define DEBBI(r,x) { if(r) { println_log x; } } indenter_finish _debbi(r);
+#define DEBB(r,x) { if(r) { hprintln x; } }
+#define DEBB0(r,x) { if(r) { hprint x; } }
+#define DEBBI(r,x) { if(r) { hprintln x; } } indenter_finish _debbi(r);
 #endif
 #endif
 
