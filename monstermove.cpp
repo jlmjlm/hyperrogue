@@ -534,7 +534,7 @@ EX int moveval(cell *c1, cell *c2, int d, flagtype mf) {
   int bonus = 0;
   if(m == moBrownBug && snakelevel(c2) < snakelevel(c1)) bonus = -10;
 
-  if(hunt && (mf & MF_PATHDIST) && c2->pathdist < c1->pathdist && !peace::on) return 1500 + bonus; // good move
+  if(hunt && (mf & MF_PATHDIST) && c2->pathdist < c1->pathdist && !peace::on) return 1500 + bonus + (c1->pathdist - c2->pathdist); // good move
   
   // prefer straight direction when wandering
   int dd = angledist(c1, c1->mondir, d);
@@ -632,6 +632,9 @@ EX int pickMoveDirection(cell *c, flagtype mf) {
     if(val == bestval) global_posdir.push_back(d);
     }
   
+  if(c->monst == moDonkey && isize(global_posdir) > 1)
+    return -1;
+
   if(c->monst == moRagingBull) 
     determinizeBull(c, global_posdir);
     
@@ -913,6 +916,7 @@ EX void moveWorm(cell *c) {
     c->monst = eMonster(moWormtail + id);
     goal->mondir = mi.rev_dir_or(NODIR);
     goal->monmirror = c->monmirror ^ c->c.mirror(dir);
+    goal->stuntime = 0;
     setdist(goal, 6, nullptr);
   
     mountmove(mi, true);
@@ -1040,7 +1044,7 @@ EX void moveivy() {
             }
           continue;
           }
-        if(c2 && c2->pathdist < pd && passable(c2, c, 0) && !strictlyAgainstGravity(c2, c, false, MF_IVY))
+        if(c2 && c2->pathdist < pd && ivy_passable(c2, c))
           mi = movei(c, j), pd = c2->pathdist;
         }
       c = c->move(c->mondir);
@@ -1050,7 +1054,7 @@ EX void moveivy() {
 
     if(mto && mto->cpdist) {
       animateMovement(mi, LAYER_BIG);
-      mto->monst = moIvyWait, mto->mondir = mi.rev_dir_or(NODIR);
+      mto->monst = moIvyWait, mto->mondir = mi.rev_dir_or(NODIR), mto->stuntime = 0;
       mto->monmirror = mi.s->monmirror ^ mi.mirror();
       moveEffect(mi, moIvyWait);
       // if this is the only branch, we want to move the head immediately to mto instead
@@ -1214,6 +1218,8 @@ EX void groupmove(eMonster movtype, flagtype mf) {
   
   for(int i=0; i<isize(gendfs); i++) {
     cell *c = gendfs[i];
+    if(!in_line_of_sight(c)) continue;
+
     vector<int> dirtable;
     
     forCellIdAll(c2,t,c) dirtable.push_back(t);
@@ -1257,6 +1263,7 @@ EX void moveHexSnake(const movei& mi, bool mounted) {
   if(from->wall == waBoat) from->wall = waSea;
   moveEffect(mi, c->monst);
   from->monst = c->monst; from->mondir = mi.rev_dir_or(NODIR); from->hitpoints = c->hitpoints;
+  from->stuntime = 0;
   c->monst = moHexSnakeTail;
   preventbarriers(from);
   
@@ -1435,7 +1442,7 @@ EX void movemutant() {
       
       if(isPlayerOn(c2)) continue;
 
-      if((c2->land == laOvergrown || !pseudohept(c2)) && passable(c2, c, 0)) {
+      if((c2->land == laOvergrown || !pseudohept(c2)) && ivy_passable(c2, c)) {
         if(c2->land == laClearing && !closed_or_bounded && c2->mpdist > 7) continue;
         c2->monst = moMutant;
         c2->mondir = c->c.spin(j);
@@ -1696,11 +1703,11 @@ EX void movegolems(flagtype flags) {
 
       auto recorduse = orbused;
 
-      DEBB(DF_TURN, ("stayval"));
+      DEBB(debug_turn, ("stayval"));
       int bestv = stayvalue(m, c);
       vector<int> bdirs;
 
-      DEBB(DF_TURN, ("moveval"));
+      DEBB(debug_turn, ("moveval"));
       for(int k=0; k<c->type; k++) if(c->move(k)) {
         int val = movevalue(m, c, k, flags);
 
@@ -1750,7 +1757,7 @@ EX void movegolems(flagtype flags) {
         }
       else {
         passable_for(m, c2, c, P_DEADLY);
-        DEBB(DF_TURN, ("move"));
+        DEBB(debug_turn, ("move"));
         moveMonster(mi);
         if(m != moTameBomberbird && m != moFriendlyGhost) 
           moveBoatIfUsingOne(mi);
@@ -1767,7 +1774,7 @@ EX void movegolems(flagtype flags) {
 
         empathyMove(mi);
         }
-      DEBB(DF_TURN, ("other"));
+      DEBB(debug_turn, ("other"));
       }
     }
   achievement_count("GOLEM", qg, 0);
@@ -1901,7 +1908,7 @@ EX void specialMoves() {
       c->stuntime = 1;
       }
     
-    else if(m == moPyroCultist && !peace::on) {
+    else if(m == moPyroCultist && !peace::on && in_line_of_sight(c)) {
       bool shot = false;
       bool dont_approach = false;
       // smaller range on the sphere
@@ -1923,7 +1930,7 @@ EX void specialMoves() {
       if(shot || dont_approach) c->stuntime = 1;
       }
 
-    else if(m == moHexer && c->item && (classflag(c->item) & IF_CURSE) && !peace::on) {
+    else if(m == moHexer && c->item && (classflag(c->item) & IF_CURSE) && !peace::on && in_line_of_sight(c)) {
       // bool dont_approach = false;
       // smaller range on the sphere
       int firerange = (sphere || getDistLimit() < 5) ? 2 : 4;
@@ -2046,7 +2053,7 @@ EX void movemonsters() {
   ambush::distance = 0;
   #endif
 
-  DEBB(DF_TURN, ("lava1"));
+  DEBB(debug_turn, ("lava1"));
   orboflava(1);
   
   #if CAP_COMPLEX2
@@ -2058,80 +2065,80 @@ EX void movemonsters() {
 
   specialMoves();
 
-  DEBB(DF_TURN, ("jumpers"));
+  DEBB(debug_turn, ("jumpers"));
   if(havewhat & HF_JUMP) {
     groupmove(moFrog, 0);
     groupmove(moVaulter, 0);
     groupmove(moPhaser, 0);
     }
 
-  DEBB(DF_TURN, ("ghosts"));
+  DEBB(debug_turn, ("ghosts"));
   moveghosts();
     
-  DEBB(DF_TURN, ("butterflies"));
+  DEBB(debug_turn, ("butterflies"));
   moveButterflies();
 
-  DEBB(DF_TURN, ("normal"));
+  DEBB(debug_turn, ("normal"));
   moveNormals(moYeti);
 
-  DEBB(DF_TURN, ("slow"));
+  DEBB(debug_turn, ("slow"));
   if(havewhat & HF_SLOW) moveNormals(moTortoise);
   
   if(sagefresh) sagephase = 0;
   
-  DEBB(DF_TURN, ("ivy"));
+  DEBB(debug_turn, ("ivy"));
   moveivy();
-  DEBB(DF_TURN, ("slimes"));
+  DEBB(debug_turn, ("slimes"));
   groupmove(moSlime, 0);
-  DEBB(DF_TURN, ("sharks"));
+  DEBB(debug_turn, ("sharks"));
   if(havewhat & HF_SHARK) groupmove(moShark, 0);
-  DEBB(DF_TURN, ("eagles"));
+  DEBB(debug_turn, ("eagles"));
   if(havewhat & HF_BIRD) groupmove(moEagle, 0);
   if(havewhat & HF_EAGLES) groupmove(moEagle, MF_NOATTACKS | MF_ONLYEAGLE);
-  DEBB(DF_TURN, ("eagles"));
+  DEBB(debug_turn, ("eagles"));
   if(havewhat & HF_REPTILE) groupmove(moReptile, 0);
-  DEBB(DF_TURN, ("air"));
+  DEBB(debug_turn, ("air"));
   if(havewhat & HF_AIR) {
     airmap.clear();
     groupmove(moAirElemental, 0); 
     buildAirmap();
     }
-  DEBB(DF_TURN, ("earth"));
+  DEBB(debug_turn, ("earth"));
   if(havewhat & HF_EARTH) groupmove(moEarthElemental, 0);
-  DEBB(DF_TURN, ("water"));
+  DEBB(debug_turn, ("water"));
   if(havewhat & HF_WATER) groupmove(moWaterElemental, 0);
-  DEBB(DF_TURN, ("void"));
+  DEBB(debug_turn, ("void"));
   if(havewhat & HF_VOID) groupmove(moVoidBeast, 0);
-  DEBB(DF_TURN, ("leader"));
+  DEBB(debug_turn, ("leader"));
   if(havewhat & HF_LEADER) groupmove(moPirate, 0);
-  DEBB(DF_TURN, ("mutant"));
+  DEBB(debug_turn, ("mutant"));
   if((havewhat & HF_MUTANT) || (closed_or_bounded && among(specialland, laOvergrown, laClearing))) movemutant();
-  DEBB(DF_TURN, ("bugs"));
+  DEBB(debug_turn, ("bugs"));
   if(havewhat & HF_BUG) hive::movebugs();
-  DEBB(DF_TURN, ("whirlpool"));
+  DEBB(debug_turn, ("whirlpool"));
   if(havewhat & HF_WHIRLPOOL) whirlpool::move();
-  DEBB(DF_TURN, ("whirlwind"));
+  DEBB(debug_turn, ("whirlwind"));
   if(havewhat & HF_WHIRLWIND) whirlwind::move();
   #if CAP_COMPLEX2
-  DEBB(DF_TURN, ("westwall"));
+  DEBB(debug_turn, ("westwall"));
   if(havewhat & HF_WESTWALL) westwall::move();
   #endif
   for(cell *pc: player_positions())
     if(pc->item == itOrbSafety) 
       return;
-  DEBB(DF_TURN, ("river"));
+  DEBB(debug_turn, ("river"));
   if(havewhat & HF_RIVER) prairie::move();
-  /* DEBB(DF_TURN, ("magnet"));
+  /* DEBB(debug_turn, ("magnet"));
   if(havewhat & HF_MAGNET) 
     groupmove(moSouthPole, 0),
     groupmove(moNorthPole, 0); */
-  DEBB(DF_TURN, ("bugs"));
+  DEBB(debug_turn, ("bugs"));
   if(havewhat & HF_HEXD) groupmove(moHexDemon, 0);
   if(havewhat & HF_DICE) groupmove(moAnimatedDie, 0);    
   if(havewhat & HF_ALT) groupmove(moAltDemon, 0);
   if(havewhat & HF_MONK) groupmove(moMonk, 0);
 
-  DEBB(DF_TURN, ("worm"));
+  DEBB(debug_turn, ("worm"));
   cell *savepos[MAXPLAYER];
   
   for(int i=0; i<numplayers(); i++)
@@ -2145,22 +2152,22 @@ EX void movemonsters() {
   if(havewhat & HF_DRAGON) groupmove(moDragonHead, MF_NOFRIEND);
   if(haveMount()) groupmove(moDragonHead, MF_MOUNT);
 
-  DEBB(DF_TURN, ("golems"));
+  DEBB(debug_turn, ("golems"));
   movegolems(0);
   
-  DEBB(DF_TURN, ("fresh"));
+  DEBB(debug_turn, ("fresh"));
   moverefresh();
   
-  DEBB(DF_TURN, ("lava2"));
+  DEBB(debug_turn, ("lava2"));
   orboflava(2);
 
-  DEBB(DF_TURN, ("shadow"));
+  DEBB(debug_turn, ("shadow"));
   moveshadow();
   
-  DEBB(DF_TURN, ("wandering"));
+  DEBB(debug_turn, ("wandering"));
   wandering();
   
-  DEBB(DF_TURN, ("rosemap"));
+  DEBB(debug_turn, ("rosemap"));
   if(havewhat & HF_ROSE) buildRosemap();
 
   for(int i=0; i<numplayers(); i++)

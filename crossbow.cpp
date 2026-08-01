@@ -448,6 +448,7 @@ EX void shoot() {
 
     if(!canAttack(cf, who, c, m, attackflags)) {
       if(among(m, moSleepBull, moHerdBull)) {
+        changes.ccell(c);
         addMessage(XLAT("%The1 is enraged!", m));
         c->monst = moRagingBull;
         hit_anything = true;
@@ -516,7 +517,10 @@ EX void shoot() {
   gen_bowpath_map();
   }
 
-EX bool have_bow_target() {
+EX cell *have_bow_target() {
+  if(!bow::crossbow_mode()) return nullptr;
+  if(items[itCrossbow]) return nullptr;
+
   dynamicval<decltype(bowpath)> bp(bowpath);
   dynamicval<decltype(bowpath_map)> bpm(bowpath_map);
 
@@ -535,9 +539,9 @@ EX bool have_bow_target() {
     bool b = pcm.try_shooting(false);
     changes.rollback();
 
-    if(b) return true;
+    if(b) return c;
     }
-  return false;
+  return nullptr;
   }
 
 EX void showMenu() {

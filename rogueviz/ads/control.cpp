@@ -1,3 +1,6 @@
+// Relative Hell: control for the anti-de Sitter game
+// Copyright (C) 2022-2025 Zeno Rogue, see '../../hyper.cpp' for details
+
 namespace hr {
 
 namespace ads_game {
@@ -24,6 +27,7 @@ void fire() {
   r->shape = &shape_missile;
   r->life_start = 0;
   r->life_end = M_PI;
+  r->shot_at = ship_pt;
 
   ads_matrix Scell(Id, 0);    
   cell *lcell = hybrid::get_at(vctr, 0);
@@ -87,7 +91,7 @@ void fire() {
 bool handleKey(int sym, int uni) {
   if(cmode & sm::NORMAL) {
     int* t = multi::scfg_default.keyaction;
-    if(t[sym] >= 16 && t[sym] < 32) return true;
+    if(sym >= 0 && sym < multi::SCANCODES && t[sym] >= 16 && t[sym] < 32) return true;
     if(sym == 'v') pushScreen(game_menu);
     if(sym == SDLK_ESCAPE) pushScreen(game_menu);
     if(sym == SDLK_F1) {
@@ -108,7 +112,7 @@ ld read_movement() {
   auto& axes = multi::axes_for(0);
 
   ld mdx = axes[0]/30000.;
-  ld mdy = axes[1]/30000.;
+  ld mdy = -axes[1]/30000.;
   #if CAP_VR
   if(vrhr::active()) {
     mdy -= vrhr::vrgo_y;
@@ -163,7 +167,7 @@ bool ads_turn(int idelta) {
 
   auto& act = multi::action_states[1];
 
-  if(act[multi::pcFire].pressed() && !paused) fire();
+  if(act[multi::pcFire].pressed() && !paused && !game_over) fire();
   if(act[pcPause].pressed()) switch_pause();
   if(act[pcDisplayTimes].pressed()) view_proper_times = !view_proper_times;
   if(act[pcSwitchSpin].pressed()) auto_rotate = !auto_rotate;
@@ -216,7 +220,7 @@ bool ads_turn(int idelta) {
     
     if(auto_rotate)
       current.T = cspin(1, 0, tc) * current.T;
-    else if(!paused)
+    else if(!paused && !keep_ship_angle)
       ang += tc / degree;
 
     if(!paused) {

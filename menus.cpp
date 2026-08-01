@@ -21,9 +21,11 @@ int PREC(ld x) {
   return int(shiftmul * x);
   }
 
+EX int lands_per_page = 24;
+
 EX void showOverview() {
-  cmode = sm::ZOOMABLE | sm::OVERVIEW;  
-  DEBBI(DF_GRAPH, ("show overview"));
+  cmode = sm::ZOOMABLE | sm::OVERVIEW;
+  indenter_finish dif(debug_graph, "show overview");
 
   if(dialog::infix != "")
     mouseovers = dialog::infix;
@@ -40,8 +42,6 @@ EX void showOverview() {
     else
       mouseovers += XLAT(" Hell: %1/%2", its(orbsUnlocked()), its(lands_for_hell()));
     }
-  
-  bool pages = false;
   
   {
   dynamicval<int> ds(dual::state, dual::state ? 2 : 0);
@@ -75,12 +75,15 @@ EX void showOverview() {
   int nl = isize(displayed_landlist), nlm;
   
   int lstart = 0;
-  
-  if(nl > 30) {
-    pages = true;
-    lstart += dialog::handlePage(nl, nlm, (nl+1)/2);
+
+  int numpages = (nl-1) / lands_per_page + 1;
+
+  if(numpages > 1) {
+    lstart += dialog::handlePage(nl, nlm, lands_per_page, numpages);
     }
   else nlm = nl;
+
+  if(nlm <= 0) nlm = 1;
   
   int vf = min((vid.yres-64-vid.fsize*2) / nlm + (not_in_game ? 1 : 0), vid.xres/40);
 
@@ -95,7 +98,7 @@ EX void showOverview() {
   
   for(int i=0; i<nl; i++) {
     eLand l = displayed_landlist[lstart + i];
-    int xr = vid.xres / 64;
+    int xr = min(vid.xres / 64, vf);
     int i0 = 56 + vid.fsize + i * vf;
     color_t col;
     if(landUnlocked(l)) col = linf[l].color; else col = 0x404040;
@@ -103,24 +106,26 @@ EX void showOverview() {
       displayfrZ(1, i0, 1, vf-4, "*", forecolor, 0);
     if(displayfrZH(xr*1, i0, 1, vf-4, XLAT1(linf[l].name), col, 0))
       getcstat = 1000 + l;
+    int c8 = (vf+2)/3;
     eItem it = treasureType(l);
     int lv = items[it] * landMultiplier(l);
-    if(lv >= 25) col = 0xFFD500;
-    else if(lv && it == itSavedPrincess) col = 0xFFD500;
-    else if(lv >= 10) col = 0x00D500;
-    else if(items[it]) col = 0xC0C0C0;
-    else col = BLACKISH;
-    int c8 = (vf+2)/3;
-    if(displayfrZH(xr*24-c8*6, i0, 1, vf-4, (required_for_hyperstones(it) ? "" : "*") + its(items[it]), col, 16))
-      getcstat = 2000+it;
-    if(!cheater)
-    if(displayfrZH(xr*24, i0, 1, vf-4, its(hiitems[modecode()][it]), col, 16))
-      getcstat = 2000+it;
-    if(items[it]) col = iinf[it].color; else col = BLACKISH;
-    if(displayfrZH(xr*24+c8*4, i0, 1, vf-4, s0 + iinf[it].glyph, col, 16))
-      getcstat = 2000+it;
-    if(displayfrZH(xr*24+c8*5, i0, 1, vf-4, XLAT1(iinf[it].name), col, 0))
-      getcstat = 2000+it;
+    if(it) {
+      if(lv >= 25) col = 0xFFD500;
+      else if(lv && it == itSavedPrincess) col = 0xFFD500;
+      else if(lv >= 10) col = 0x00D500;
+      else if(items[it]) col = 0xC0C0C0;
+      else col = BLACKISH;
+      if(displayfrZH(xr*24-c8*6, i0, 1, vf-4, (required_for_hyperstones(it) ? "" : "*") + its(items[it]), col, 16))
+        getcstat = 2000+it;
+      if(!cheater)
+      if(displayfrZH(xr*24, i0, 1, vf-4, its(hiitems[modecode()][it]), col, 16))
+        getcstat = 2000+it;
+      if(items[it]) col = iinf[it].color; else col = BLACKISH;
+      if(displayfrZH(xr*24+c8*4, i0, 1, vf-4, s0 + iinf[it].glyph, col, 16))
+        getcstat = 2000+it;
+      if(displayfrZH(xr*24+c8*5, i0, 1, vf-4, XLAT1(iinf[it].name), col, 0))
+        getcstat = 2000+it;
+      }
     eItem io = nativeOrbType(l);
     if(io == itShard) {
       if(items[it] >= 10) col = winf[waMirror].color; else col = BLACKISH;
@@ -149,9 +154,9 @@ EX void showOverview() {
       }
     }
 
-  dialog::displayPageButtons(3, pages);
+  dialog::display_bottom_buttons(numpages, dialog::DB_BACK | dialog::DB_HELP);
   
-  keyhandler = [] (int sym, int uni) {
+  keyhandler = [numpages] (int sym, int uni) {
     int umod = uni % 1000;
     int udiv = uni / 1000;
     if(udiv == 1 && umod < landtypes) {
@@ -181,11 +186,23 @@ EX void showOverview() {
       }
     else if(udiv == 2 && umod < ittypes) {
       gotoHelp(generateHelpForItem(eItem(umod)));
+      help_extensions.push_back(help_extension{'p', glyphpinned[umod] ? XLAT("unpin from HUD") : XLAT("pin to HUD"), [umod] () {
+        if(glyphpinned[umod]) {
+          revglyphpinned.erase(std::remove_if(revglyphpinned.begin(), revglyphpinned.end(), [umod] (int x) { return x == umod; }), revglyphpinned.end());
+          glyphpinned[umod] = 0;
+          }
+        else {
+          revglyphpinned.push_back(umod);
+          glyphpinned[umod] = revglyphpinned.size();
+          }
+        updatepinnedglyphs();
+        popScreen();
+        }});
       if(cheater) {
         dialog::helpToEdit(items[umod], 0, 200, 10, 10);
         dialog::get_ne().reaction = [] () {
           if(hardcore) canmove = true;
-          else checkmove();
+          else checkmove(false);
           cheater++;
           };
         dialog::bound_low(0);
@@ -203,8 +220,8 @@ EX void showOverview() {
       "Cheaters can click to move between lands, and use the "
       "mousewheel to gain or lose treasures and orbs quickly (Ctrl = precise, Shift = reverse)."
       );
-    else if(dialog::handlePageButtons(uni)) ;
-    else if(dialog::editInfix(uni)) dialog::list_skip = 0;
+    else if(dialog::handlePageButtons(sym, uni, true, numpages)) ;
+    else if(dialog::editInfix(sym, uni)) dialog::list_skip = 0;
     else if(doexiton(sym, uni)) popScreen();
     };
   }
@@ -287,6 +304,10 @@ EX void switchHardcore_quiet() {
   else { hardcore = true; canmove = true; hardcoreAt = turncount; }
   }
 
+EX void switchLOS_quiet() {
+  lineofsightAt = turncount;
+  }
+
 EX void switchHardcore() {
   switchHardcore_quiet();
   if(hardcore)
@@ -324,7 +345,7 @@ EX void showCreative() {
     dialog::cheat_if_confirmed([] {
       cheater++;
       pushScreen(mapeditor::showMapEditor);
-      lastexplore = turncount;
+      update_lastexplore();
       addMessage(XLAT("You activate your terraforming powers!"));
       });
     });
@@ -344,10 +365,12 @@ EX void showCreative() {
   dialog::addItem(XLAT("drawing tool"), 'd');
   dialog::add_action([] {
     dialog::cheat_if_confirmed([] {
+      cheater++;
       mapeditor::drawing_tool = true;
       mapeditor::intexture = false;
       pushScreen(mapeditor::showDrawEditor);
       mapeditor::initdraw(cwt.at);
+      addMessage(XLAT("You activate your imagination powers!"));
       });
     });
 #endif
@@ -549,6 +572,7 @@ EX void show_custom() {
   dialog::display();
   }
 
+#ifndef RVCOL
 EX void mode_higlights() {
   cmode = sm::NOSCR;
   gamescreen();
@@ -714,7 +738,8 @@ EX void mode_higlights() {
   dialog::addBreak(100);
   dialog::addBack();
   dialog::display();
-  }  
+  }
+#endif
 
 EX eLandStructure default_land_structure() {
   if(closed_or_bounded) return lsSingle;
@@ -816,18 +841,23 @@ EX void showChangeMode() {
     clearMessages();
     if(yendor::everwon || autocheat || unlock_all)
       pushScreen(yendor::showMenu);
+    else if(yendor::on) restart_game(rg::yendor);
     else gotoHelp(yendor::chelp);
     });
 #if CAP_RACING
   dialog::addBoolItem(XLAT("racing mode"), racing::on, 'R');
   dialog::add_action(racing::configure_race);
-#endif  
+#endif
+
+  add_edit(lineofsight);
 
   show_achievement_eligibility();
 
   dialog::addBreak(50);
+  #ifndef RVCOL
   dialog::addItem(XLAT("highlights & achievements"), 'h');
   dialog::add_action_push(mode_higlights);
+  #endif
   dialog::addItem(XLAT("custom mode manager"), 'm');
   dialog::add_action(prepare_custom);
   dialog::addBack();
@@ -859,17 +889,17 @@ int daily_mode;
 
 void announce_random() {
   dialog::addBreak(100);
-  dialog::addTitle("(random option)", 0x808080, 50);
+  dialog::addTitle("(random option)", 0x808080, 100);
   }
 
 void announce_nothing() {
   dialog::addBreak(100);
-  dialog::addTitle("", 0x808080, 50);
+  dialog::addTitle("", 0x808080, 100);
   }
 
 void announce_seasonal() {
   dialog::addBreak(100);
-  dialog::addTitle("(seasonal option)", 0x808080, 50);
+  dialog::addTitle("(seasonal option)", 0x808080, 100);
   }
 
 EX void showStartMenu() {
@@ -1193,7 +1223,8 @@ EX named_functionality get_o_key() {
   if(isize(res) == 1) return res[0];
   
   return named_dialog(res[0].first + "/...", [res] {
-    emptyscreen();
+    cmode = sm::VR_MENU | sm::NOSCR;
+    gamescreen();
     dialog::init();
     char id = 'o';
     for(auto& r: res) {
@@ -1233,7 +1264,7 @@ EX string gettimestamp(msginfo& m) {
   }
   
 EX void showMessageLog() {
-  DEBBI(DF_GRAPH, ("show message log"));
+  indenter_finish dif(debug_graph, "showMessageLog");
 
   int lines = vid.yres / vid.fsize - 2;
   int maxpos = isize(gamelog) - lines;

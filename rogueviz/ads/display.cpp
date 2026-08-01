@@ -1,3 +1,6 @@
+// Relative Hell: display for the AdS game
+// Copyright (C) 2022-2025 Zeno Rogue, see '../../hyper.cpp' for details
+
 namespace hr {
 
 namespace ads_game {
@@ -22,6 +25,14 @@ void apply_duality(shiftmatrix& S) {
 
 vector<ads_object*> under_mouse;
 hyperpoint mousetester;
+
+void view_time(const shiftmatrix& S, ld t, color_t col) {
+  if(!view_proper_times) return;
+  auto S1 = S;
+  if(time_shift) S1.T = rgpushxto0(S1.T * C0) * ypush(time_shift);
+  string str = hr::format(tformat, t / (main_rock ? ds_time_unit : ads_time_unit));
+  queuestr(S1, time_scale, str, col, 8);
+  }
 
 void draw_game_cell(const cell_to_draw& cd) {
   bool hv = mtwisted;
@@ -49,6 +60,8 @@ void draw_game_cell(const cell_to_draw& cd) {
     });
 
   auto& t = ci.type;
+
+  color_t col = 0;
 
   if(hv) ;
   else if(t == wtGate) {
@@ -87,9 +100,11 @@ void draw_game_cell(const cell_to_draw& cd) {
     for(int v=floor(minv); v<maxv+1; v++) {
       draw_slice(v, v+1, (v & 3) ? 0x080828FF : 0xA04020FF);
       }
+
+    col = 1;
     }
   else {
-    color_t col = 
+    col = 
       t == wtSolid ? 0x603000FF :
       t == wtDestructible ? 0x301800FF :
       t == wtBarrier ? 0xC0C0C0FF :
@@ -98,16 +113,14 @@ void draw_game_cell(const cell_to_draw& cd) {
     color_t out = t == wtNone ? empty_outline(c) : 0xFF;
 
     for(auto h: hlist) curvepoint(h.h);
-    addaura(shiftless(cd.center.h), col >> 8, 0);
+    if(col >> 8)
+      addaura(shiftless(cd.center.h), col >> 8, 0);
     queuecurve(shiftless(Id), out, col, PPR::WALL);
     }
 
   ld ads_scale = get_scale();
 
-  if(view_proper_times) {
-    string str = hr::format(tformat, cd.center.shift / ads_time_unit);
-    queuestr(shiftless(rgpushxto0(cd.center.h)), time_scale, str, 0xFF4040, 8);
-    }
+  if(col >> 8) view_time(shiftless(rgpushxto0(cd.center.h)), cd.center.shift, 0xFF4040);
 
   // need i-loop because new rocks can be created in handle_turret
 
@@ -177,13 +190,14 @@ void draw_game_cell(const cell_to_draw& cd) {
         0x000000FF, rock.col, obj_prio[rock.type]);
       }
 
-    if(view_proper_times && rock.type != oParticle) {
-      string str = hr::format(tformat, rock.pt_main.shift / ads_time_unit);
-      queuestr(shiftless(rgpushxto0(rock.pt_main.h)), time_scale, str, 0xFFFFFF, 8);
-      }
+    if(rock.type != oParticle) view_time(shiftless(rgpushxto0(rock.pt_main.h)), rock.pt_main.shift, 0xFFFFFF);
     }
 
+  ld last_shown = -HUGE_VAL;
   if(paused || which_cross) if(hv) for(auto& rock: ci.shipstates) {
+
+    if(rock.start < last_shown + ship_history_period) continue;
+    last_shown = rock.start;
 
     render_ship_parts([&] (const hpcshape& sh, color_t col, int sym) {
       int dx = sym ? -1 : 1;
@@ -240,10 +254,7 @@ void draw_game_cell(const cell_to_draw& cd) {
       queuecurve(shiftless(Id), 0xFF, col, PPR::MONSTER_FOOT);
       });
 
-    if(ok && view_proper_times) {
-      string str = hr::format(tformat, (cr.shift + rock.start) / ads_time_unit);
-      queuestr(shiftless(rgpushxto0(cr.h)), time_scale, str, 0xC0C0C0, 8);
-      }
+    if(ok) view_time(shiftless(rgpushxto0(cr.h)), cr.shift + rock.start, 0xC0C0C0);
     }
 
   if(paused && c == vctr_ship && !game_over && !in_replay && !hv) {
@@ -353,6 +364,7 @@ void view_ads_game() {
       i++;
       auto& cd = dq.top();
       if(i > draw_per_frame && cd.d > lastd + 1e-4) break;
+      if(i > draw_per_frame + draw_per_frame_equal) break;
       lastd = cd.d;
       cds[cd.c] = cd;
       draw_game_cell(cd);
@@ -389,10 +401,7 @@ void view_ads_game() {
         });
       poly_outline = 0xFF;
 
-      if(view_proper_times) {
-        string str = hr::format(tformat, ship_pt / ads_time_unit);
-        queuestr(shiftless(Id), time_scale, str, 0xFFFFFF, 8);
-        }
+      view_time(shiftless(Id), ship_pt, 0xFFFFFF);
       }    
     }
 

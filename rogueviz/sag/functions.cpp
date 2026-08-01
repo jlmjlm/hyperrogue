@@ -3,7 +3,7 @@
 
 #include "../rogueviz.h"
 
-#include "../dhrg/dhrg.h"
+#include "../embeddings/embeddings.h"
 #include "../statistics.cpp"
 
 namespace rogueviz {
@@ -20,13 +20,15 @@ int method_count = 3;
 ld match_a = 1, match_b = 0;
 
 /* parameters for smLogistic */
-dhrg::logistic lgsag(1, 1), lgsag_pre(1, 1);
+embeddings::logistic lgsag(1, 1), lgsag_pre(1, 1);
+
+ld yes_for(ld d) { return lgsag.yes(d); }
 
 vector<ld> loglik_tab_y, loglik_tab_n;
 
-dhrg::logistic best;
+embeddings::logistic best;
 
-bool opt_debug = false;
+debugflag debug_opt("sag_opt");
 
 bool should_good = false;
 
@@ -121,22 +123,21 @@ void optimize_sag_loglik_logistic() {
 
   int N = isize(sagid);
   for(int i=0; i<N; i++)
-  for(int j=0; j<i; j++) {
+  for(int j=0; j<i; j++) if(take(i, j)) {
     int d = sagdist[sagid[i]][sagid[j]];
     indist[d]++;
     }
   
   vector<int> pedge(max_sag_dist, 0);
     
-  for(int i=0; i<isize(sagedges); i++) {
-    edgeinfo& ei = sagedges[i];
+  for(auto& e: edgeinfos) {
     // if(int(sagdist[sagid[ei.i]][sagid[ei.j]] * mul) == 136) printf("E %d,%d\n", ei.i, ei.j);
-    if(ei.i != ei.j)
-    if(ei.weight >= sag_edge->visible_from)
-      pedge[sagdist[sagid[ei.i]][sagid[ei.j]] * mul]++;
+    if(take(e->i, e->j))
+    if(e->weight >= sag_edge->visible_from)
+      pedge[sagdist[sagid[e->i]][sagid[e->j]] * mul]++;
     }
   
-  if(opt_debug) for(int d=0; d<max_sag_dist; d++) 
+  if(debug_opt) for(int d=0; d<max_sag_dist; d++)
     if(indist[d])
       printf("%2d: %7d/%7d %7.3lf\n", 
         d, pedge[d], indist[d], double(pedge[d] * 100. / indist[d]));
@@ -147,13 +148,13 @@ void optimize_sag_loglik_logistic() {
     int q = pq - p;
     if(p && q) {
       loglik += p * log(p) + q * log(q) - pq * log(pq);
-      if(opt_debug) println(hlog, tie(d, p, q), loglik);
+      if(debug_opt) println(hlog, tie(d, p, q), loglik);
       }
     }
   
-  if(opt_debug) println(hlog, "loglikelihood best = ", fts(loglik));
+  if(debug_opt) println(hlog, "loglikelihood best = ", fts(loglik));
   
-  auto logisticf = [&] (dhrg::logistic&  l) {
+  auto logisticf = [&] (embeddings::logistic&  l) {
     ld loglik = 0;
     for(int d=0; d<max_sag_dist; d++) {
       int p = pedge[d], pq = indist[d];
@@ -163,16 +164,16 @@ void optimize_sag_loglik_logistic() {
     return loglik;
     };
 
-  if(opt_debug) println(hlog, "cost = ", cost, " logisticf = ", logisticf(lgsag), " R= ", lgsag.R, " T= ", lgsag.T);
+  if(debug_opt) println(hlog, "cost = ", cost, " logisticf = ", logisticf(lgsag), " R= ", lgsag.R, " T= ", lgsag.T);
   if(should_good && abs(cost + logisticf(lgsag)) > 0.1) throw hr_exception("computation error");
   
-  dhrg::fast_loglik_cont(lgsag, logisticf, nullptr, 1, 1e-5);
-  if(opt_debug) println(hlog, "loglikelihood logistic = ", logisticf(lgsag), " R= ", lgsag.R, " T= ", lgsag.T);    
+  embeddings::fast_loglik_cont(lgsag, logisticf, nullptr, 1, 1e-5);
+  if(debug_opt) println(hlog, "loglikelihood logistic = ", logisticf(lgsag), " R= ", lgsag.R, " T= ", lgsag.T);
   
   if(method == smLogistic) {
     compute_loglik_tab();
     compute_cost();
-    if(opt_debug) println(hlog, "cost = ", cost);
+    if(debug_opt) println(hlog, "cost = ", cost);
     }
   }
 
@@ -180,9 +181,9 @@ void optimize_sag_loglik_match() {
   if(state &~ SS_WEIGHTED) return;
   stats::leastsquare_solver<2> lsqs;
 
-  for(auto& ei: sagedges) {
-    ld y = sagdist[sagid[ei.i]][sagid[ei.j]];
-    ld x = 1. / ei.weight;
+  for(auto& e: edgeinfos) {
+    ld y = sagdist[sagid[e->i]][sagid[e->j]];
+    ld x = 1. / e->weight;
     lsqs.add_data({{x, 1}}, y);
     }
 
@@ -190,7 +191,7 @@ void optimize_sag_loglik_match() {
   match_a = solution[0];
   match_b = solution[1];
 
-  println(hlog, "got a = ", match_a, " b = ", match_b);
+  if(debug_opt) println(hlog, "got a = ", match_a, " b = ", match_b);
   if(method == smMatch)
     prepare_graph();
   }
@@ -209,7 +210,7 @@ pair<ld, ld> compute_mAP() {
 
   for(int i=0; i<DN; i++) {
     vector<int> alldist(max_sag_dist, 0);
-    for(int j=0; j<DN; j++) if(i != j) alldist[sagdist[sagid[i]][sagid[j]]]++;
+    for(int j=0; j<DN; j++) if(take(i, j)) alldist[sagdist[sagid[i]][sagid[j]]]++;
     vector<int> edgedist(max_sag_dist, 0);
     for(auto j: edges_yes[i]) edgedist[sagdist[sagid[i]][sagid[j]]]++;
 
@@ -244,12 +245,12 @@ pair<ld, ld> compute_mAP() {
 
 ld kendall;
 void compute_kendall() {
-  compute_cost(); println(hlog, "cost = ", cost);
+  compute_cost();
   vector<vector<ld> > weights;
   int DN = isize(sagid);
   weights.resize(DN);
   for(int i=0; i<DN; i++) weights[i].resize(DN, 0);
-  for(auto& e: sagedges) weights[e.i][e.j] += e.weight2, weights[e.j][e.i] += e.weight2;
+  for(auto& e: edgeinfos) weights[e->i][e->j] += e->weight2, weights[e->j][e->i] += e->weight2;
   vector<pair<int, ld>> kdata;
   for(int i=0; i<DN; i++) for(int j=0; j<i; j++) kdata.emplace_back(sagdist[sagid[i]][sagid[j]], -weights[i][j]);
   kendall = stats::kendall(kdata);
@@ -272,7 +273,7 @@ int function_read_args() {
   else if(argis("-sagrt")) {
     shift(); sag::lgsag.R = argf();
     shift(); sag::lgsag.T = argf();
-    if(method == smLogistic) compute_loglik_tab();
+    if(method == smLogistic) { compute_loglik_tab(); compute_cost(); }
     }
 
   else if(argis("-sagmatch-ab")) {

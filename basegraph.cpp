@@ -132,25 +132,17 @@ bool eqs(const char* x, const char* y) {
   return *y? *x==*y?eqs(x+1,y+1):false:true;
   }
 
-EX int getnext(const char* s, int& i) {
+EX int getnext(const string& s, int& i) {
 
   int siz = utfsize(s[i]);
 // if(fontdeb) printf("s=%s i=%d siz=%d\n", s, i, siz);
   if(siz == 1) return s[i++];
   for(int k=0; k<NUMEXTRA; k++)
-    if(eqs(s+i, natchars[k])) {
+    if(eqs(s.c_str()+i, natchars[k])) {
       i += siz; return 128+k;
       }
 
-#ifdef REPLACE_LETTERS
-  for(int j=0; j<isize(dialog::latin_letters_l); j++)
-    if(s[i] == dialog::foreign_letters[2*j] && s[i+1] == dialog::foreign_letters[2*j+1]) {
-      i += 2;
-      return int(dialog::latin_letters_l[j]);
-      }
-#endif
-
-  printf("Unknown character in: '%s' at position %d\n", s, i);
+  printf("Unknown character in: '%s' at position %d\n", s.c_str(), i);
   i += siz; return '?';
   }
 
@@ -251,6 +243,8 @@ EX vector<pair<string, string>> font_names = {
 EX int last_font_id = 0;
 EX int font_id = 0;
 
+EX debugflag debug_init_font = {"init_font", true};
+
 #ifdef FONTCONFIG
 TTF_Font* findfont(int siz) {
 
@@ -289,7 +283,7 @@ TTF_Font* findfont(int siz) {
   FcPatternDestroy(pat);
   FcFini();
   cfont->use_fontconfig = false;
-  if(debugflags & DF_INIT) println(hlog, "fontpath is: ", cfont->filename);
+  if(debug_init_font) println(hlog, "fontpath is: ", cfont->filename);
   return TTF_OpenFont(cfont->filename.c_str(), siz);
   }
 #endif
@@ -410,7 +404,7 @@ EX bool model_needs_depth() {
   }
 
 EX void setGLProjection(color_t col IS(backcolor)) {
-  DEBBI(DF_GRAPH, ("setGLProjection"));
+  DEBBI(debug_graph, ("setGLProjection"));
   GLERR("pre_setGLProjection");
 
   glClearColor(part(col, 2) / 255.0, part(col, 1) / 255.0, part(col, 0) / 255.0, 1);
@@ -484,10 +478,12 @@ struct fontdata {
 #endif
 
 EX map<string, fontdata> fontdatas;
-
 EX fontdata *cfont, *cfont_chinese;
 
 EX fontdata* font_by_name(string fname) {
+  #if CAP_TABFONT
+  return &(fontdatas[""]);
+  #endif
   auto& fd = fontdatas[fname];
   if(fd.filename == "") {
     fd.filename = fname;
@@ -517,6 +513,7 @@ struct glfont_t {
   GLuint texture;                                     // Holds The Texture Id
 //GLuint list_base;                                   // Holds The First Display List ID  
   vector<charinfo_t> chars; 
+  vector<const char*> reps;
   };
 #endif
 
@@ -566,7 +563,7 @@ void sdltogl(SDL_Surface *txt, glfont_t& f, int ch) {
   
 EX void init_glfont(int size) {
   if(cfont->glfont[size]) return;
-  DEBBI(DF_GRAPH, ("init GL font: ", size));
+  DEBBI(debug_init_font, ("init GL font: ", size));
   
 #if !CAP_TABFONT
   loadfont(size);
@@ -578,6 +575,7 @@ EX void init_glfont(int size) {
   glfont_t& f(*(cfont->glfont[size]));
   
   f.chars.resize(CHARS);
+  f.reps.resize(CHARS, nullptr);
 
 //f.list_base = glGenLists(128);
   glGenTextures(1, &f.texture );
@@ -626,6 +624,22 @@ EX void init_glfont(int size) {
     sdltogl(txt, f, ch);
     SDL_DestroySurface(txt);
 #endif
+
+    if(ch >= 128 && !TTF_GlyphIsProvided(cfont->font[siz], unicode_value(natchars[ch-128], 0).first)) {
+      string s = natchars[ch - 128];
+      if(s == "Ⓐ") f.reps[ch] = "(A)";
+      if(s == "Ⓑ") f.reps[ch] = "(B)";
+      if(s == "Ⓧ") f.reps[ch] = "(X)";
+      if(s == "Ⓨ") f.reps[ch] = "(Y)";
+      if(s == "Ⓛ") f.reps[ch] = "(L)";
+      if(s == "Ⓡ") f.reps[ch] = "(R)";
+      if(s == "Ⓡ") f.reps[ch] = "(R)";
+
+      for(int j=0; j<isize(dialog::latin_letters); j++)
+        if(s[0] == dialog::foreign_letters[2*j] && s[1] == dialog::foreign_letters[2*j+1])
+          f.reps[ch] = strdup((string("") + char(dialog::latin_letters[j])).c_str());
+      }
+
     }
 
   glBindTexture( GL_TEXTURE_2D, f.texture);
@@ -650,6 +664,23 @@ EX void init_glfont(int size) {
   GLERR("initfont");
   }
 
+vector<int> get_tabids(glfont_t& f, const char* s) {
+
+  vector<int> res;
+  for(int i=0; s[i];) {
+    int tabid = getnext(s,i);
+    if(f.reps[tabid]) {
+      for(auto sub: get_tabids(f, f.reps[tabid])) res.push_back(sub);
+      continue;
+      }
+
+    res.push_back(tabid);
+    }
+
+  return res;
+  }
+
+
 int gl_width(int size, const char *s) {
   int gsiz = size;
   if(size > vid.fsize || size > max_glfont_size) gsiz = max_glfont_size;
@@ -664,10 +695,7 @@ int gl_width(int size, const char *s) {
   glfont_t& f(*cfont->glfont[gsiz]);
 
   int x = 0;
-  for(int i=0; s[i];) {
-    int tabid = getnext(s,i);    
-    x += f.chars[tabid].w * size/gsiz;
-    }
+  for(int tabid: get_tabids(f, s)) x += f.chars[tabid].w * size/gsiz;
   
   return x;
   }
@@ -698,8 +726,10 @@ bool gl_print(int x, int y, int shift, int size, const char *s, color_t color, i
   
   int tsize = 0;
   
-  for(int i=0; s[i];) {
-    tsize += f.chars[getnext(s,i)].w * size/gsiz;
+  auto tabids = get_tabids(f, s);
+
+  for(int tabid: tabids) {
+    tsize += f.chars[tabid].w * size/gsiz;
     }
   x -= tsize * align / 16;
   y += f.chars[32].h * size / (gsiz*2);
@@ -721,9 +751,8 @@ bool gl_print(int x, int y, int shift, int size, const char *s, color_t color, i
 
   glBindTexture(GL_TEXTURE_2D, f.texture);
 
-  for(int i=0; s[i];) {
+  for(int tabid: tabids) {
   
-    int tabid = getnext(s,i);
     auto& c = f.chars[tabid];
     int wi = c.w * size/gsiz;
     int hi = c.h * size/gsiz;
@@ -753,7 +782,7 @@ bool gl_print(int x, int y, int shift, int size, const char *s, color_t color, i
 EX purehookset hooks_resetGL;
 
 EX void resetGL() {
-  DEBBI(DF_INIT | DF_GRAPH, ("reset GL"))
+  DEBBI(debug_init_graph, ("reset GL"))
   callhooks(hooks_resetGL);
 #if CAP_GLFONT
   for(auto& cf: fontdatas)
@@ -774,15 +803,18 @@ EX void resetGL() {
     airbuf = nullptr;
     }
   #endif
-  check_cgi();
-  if(currentmap) cgi.require_shapes();
-  #if MAXMDIM >= 4
-  if(GDIM == 3 && !floor_textures) make_floor_textures();
-  #endif
-  cgi.initPolyForGL();
+
   compiled_programs.clear();
   matched_programs.clear();
   glhr::current_glprogram = nullptr;
+  glhr::flags_become(0);
+
+  check_cgi();
+  if(currentmap) cgi.require_shapes();
+  cgi.initPolyForGL();
+  #if MAXMDIM >= 4
+  if(GDIM == 3 && !floor_textures) make_floor_textures();
+  #endif
   ray::reset_raycaster();
   #if CAP_RUG
   if(rug::glbuf) rug::close_glbuf();
@@ -790,6 +822,25 @@ EX void resetGL() {
   }
 
 #endif
+
+EX pair<int, int> unicode_value(const string& s, int i) {
+  unsigned char uch = (unsigned char) s[i];
+  if(uch >= 192 && uch < 224) {
+    int u = ((s[i] - 192)&31) << 6;
+    i++;
+    u += (s[i] - 128) & 63;
+    return {u, i};
+    }
+  else if(uch >= 224 && uch < 240) {
+    int u = ((s[i] - 224)&15) << 12;
+    i++;
+    u += (s[i] & 63) << 6;
+    i++;
+    u += (s[i] & 63) << 0;
+    return {u, i};
+    }
+  return {uch, i+1};
+  }
 
 #if CAP_XGD
 
@@ -809,27 +860,9 @@ EX bool displaychr(int x, int y, int shift, int size, char chr, color_t col) {
 void gdpush_utf8(const string& s) {
   int g = (int) graphdata.size(), q = 0;
   gdpush((int) s.size()); for(int i=0; i<isize(s); i++) {
-#if ISANDROID
-    unsigned char uch = (unsigned char) s[i];
-    if(uch >= 192 && uch < 224) {
-      int u = ((s[i] - 192)&31) << 6;
-      i++;
-      u += (s[i] - 128) & 63;
-      gdpush(u); q++;
-      }
-    else if(uch >= 224 && uch < 240) {
-      int u = ((s[i] - 224)&15) << 12;
-      i++;
-      u += (s[i] & 63) << 6;
-      i++;
-      u += (s[i] & 63) << 0;
-      gdpush(u); q++;
-      }
-    else
-#endif
-      {
-      gdpush(s[i]); q++;
-      }
+    int u;
+    tie(u, i) = unicode_value(s, i);
+    gdpush(u); q++;
     }
   graphdata[g] = q;
   }
@@ -1010,9 +1043,11 @@ void addMessageToLog(msginfo& m, vector<msginfo>& log) {
 
 EX void clearMessages() { msgs.clear(); }
 
+EX debugflag debug_messages = {"messages", true};
+
 EX void addMessage(string s, char spamtype) {
   LATE( addMessage(s, spamtype); )
-  DEBB(DF_MSG, ("addMessage: ", s));
+  DEBB(debug_messages, ("addMessage: ", s));
 
   msginfo m;
   m.msg = s; m.spamtype = spamtype; m.flashout = false; m.stamp = ticks;
@@ -1058,7 +1093,7 @@ EX void drawmessage(const string& s, int& y, color_t col) {
   if(nomsg) return;
   int rrad = (int) realradius();
   int space;
-  if(dual::state)
+  if(dual::state || nomap || in_perspective())
     space = vid.xres;
   else if(y > current_display->ycenter + rrad * pconf.stretch)
     space = vid.xres;
@@ -1078,8 +1113,8 @@ EX void drawmessage(const string& s, int& y, color_t col) {
     }
 
   for(int i=1; i<isize(s); i++)
-    if(s[i-1] == ' ' && textwidth(vid.fsize, "..."+s.substr(i)) <= space) {    
-      displayfr(0, y, 1, vid.fsize, "..."+s.substr(i), col, 0);
+    if(s[i-1] == ' ' && textwidth(vid.fsize, "... "+s.substr(i)) <= space) {    
+      displayfr(0, y, 1, vid.fsize, "... "+s.substr(i), col, 0);
       y -= vid.fsize;
       drawmessage(s.substr(0, i-1), y, col);
       return;
@@ -1092,7 +1127,7 @@ EX void drawmessage(const string& s, int& y, color_t col) {
   }
 
 EX void drawmessages() {
-  DEBBI(DF_GRAPH, ("draw messages"));
+  DEBBI(debug_graph, ("draw messages"));
   int i = 0;
   int t = ticks;
   for(int j=0; j<isize(msgs); j++) {
@@ -1343,7 +1378,7 @@ EX int current_window_flags = -1;
 
 EX void setvideomode() {
 
-  DEBBI(DF_INIT | DF_GRAPH, ("setvideomode"));
+  DEBBI(debug_graph || debug_init, ("setvideomode"));
   
   vid.full = vid.want_fullscreen;
   
@@ -1361,6 +1396,7 @@ EX void setvideomode() {
     flags = SDL12(SDL_OPENGL | SDL_HWSURFACE, SDL_WINDOW_OPENGL | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
+    SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
 
     vid.current_vsync = want_vsync();
     #if !ISMOBWEB && SDLVER == 1
@@ -1368,6 +1404,9 @@ EX void setvideomode() {
       SDL_GL_SetAttribute( SDL_GL_SWAP_CONTROL, 1 );
     else
       SDL_GL_SetAttribute( SDL_GL_SWAP_CONTROL, 0 ); 
+    #endif
+    #if SDLVER > 1
+    SDL_GL_SetSwapInterval(vid.current_vsync ? 1 : 0);
     #endif
     if(vid.antialias & AA_MULTI) {
       SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
@@ -1450,9 +1489,8 @@ EX void setvideomode() {
   #if SDLVER >= 3
   s_renderer = SDL_CreateRenderer(s_window, nullptr);
   SDL_SetRenderVSync(s_renderer, vid.current_vsync ? 1 : SDL_RENDERER_VSYNC_DISABLED);
-  // todo VSYNC -- , SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER
   #else
-  s_renderer = SDL_CreateRenderer(s_window, -1, vid.current_vsync ? SDL_RENDERER_PRESENTVSYNC : 0);
+  s_renderer = SDL_CreateRenderer(s_window, -1, SDL_RENDERER_ACCELERATED | (vid.current_vsync ? SDL_RENDERER_PRESENTVSYNC : 0));
   #endif
 
   SDL_GetCurrentRenderOutputSize(s_renderer, &vid.xres, &vid.yres);
@@ -1527,6 +1565,9 @@ EX void init_font() {
     exit(2);
     }
   set_cfont();
+#endif
+#if CAP_TABFONT
+  cfont = cfont_chinese = font_by_name("");
 #endif
   }
 
@@ -1620,16 +1661,14 @@ EX void init_graph() {
 
 EX void initialize_all() {
 
-  DEBBI(DF_INIT | DF_GRAPH, ("initgraph"));
+  DEBBI(debug_init || debug_graph, ("initialize_all"));
   
-  DEBB(DF_INIT, ("initconfig"));
   initConfig();
 
 #if CAP_SDLJOY
   joyx = joyy = 0; joydir.d = -1;
 #endif
   
-  DEBB(DF_INIT, ("restartGraph"));
   restartGraph();
   
   if(noGUI) {
@@ -1639,14 +1678,11 @@ EX void initialize_all() {
     return;
     }
 
-  DEBB(DF_INIT, ("preparesort"));
   preparesort();
 #if CAP_CONFIG
-  DEBB(DF_INIT, ("loadConfig"));
   loadConfig();
 #endif
 #if CAP_ARCM
-  DEBB(DF_INIT, ("parse symbol"));
   arcm::current.parse();
 #endif
   if(mhybrid) geometry = hybrid::underlying;
@@ -1655,14 +1691,10 @@ EX void initialize_all() {
   arg::read(2);
 #endif
 
-  DEBB(DF_INIT | DF_GRAPH, ("init graph"));
   init_graph();
-  DEBB(DF_INIT | DF_POLY, ("check CGI"));
   check_cgi();
-  DEBB(DF_INIT | DF_POLY, ("require basic"));
   cgi.require_basics();
   
-  DEBB(DF_INIT | DF_GRAPH, ("init font"));
   init_font();
 
 #if CAP_SDLJOY  
@@ -1670,15 +1702,12 @@ EX void initialize_all() {
 #endif
 
 #if CAP_SDLAUDIO
-  DEBB(DF_INIT, ("init audio"));
   initAudio();
 #endif
-
-  DEBB(DF_INIT, ("initialize_all done"));
   }
 
 EX void quit_all() {
-  DEBBI(DF_INIT, ("clear graph"));
+  DEBBI(debug_init, ("quit_all"));
 #if CAP_SDLJOY
   closeJoysticks();
 #endif

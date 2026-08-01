@@ -156,11 +156,19 @@ EX void welcomeMessage() {
     }
 
   if(nohelp == 2) return;
+
+  if(!dialog::never_keys()) {
+    if(bow::crossbow_mode()) {
+      addMessage(XLAT("Press 'f' or click the crossbow icon to target."));
+      }
+    else {
 #if ISMAC
-  addMessage(XLAT("Press F1 or right-shift-click things for help."));
-#elif !ISMOBILE
-  addMessage(XLAT("Press F1 or right-click things for help."));
+      addMessage(XLAT("Press F1 or right-shift-click things for help."));
+#else
+      addMessage(XLAT("Press F1 or right-click things for help."));
 #endif
+      }
+    }
   }
 
 /** \brief These hooks are called at the start of initgame. */
@@ -176,9 +184,24 @@ EX bool ineligible_starting_land;
 
 EX int easy_specialland;
 
+EX void reset_cheats() {
+  if(autocheat) {
+    cheater = 1;
+    return;
+    }
+  cheater = 0;
+  reptilecheat = false;
+  shadingcheat = false;
+  cheat_items_enabled = false;
+  timerghost = true;
+  gen_wandering = true;
+  }
+
 /** \brief initialize the game */
 EX void initgame() {
-  DEBBI(DF_INIT, ("initGame"));
+  DEBBI(debug_init, ("initGame"));
+  if(!safety) reset_cheats();
+
   callhooks(hooks_initgame);
 
   modecode(1);
@@ -393,24 +416,18 @@ EX void initgame() {
 
   if(!safety) {
     usedSafety = false;
-    timerstart = time(NULL); turncount = 0; rosewave = 0; rosephase = 0;
+    timerstart = time(NULL); turncount = 0; lastexplore = 0; rosewave = 0; rosephase = 0;
     tickstart = ticks;
     noiseuntil = 0;
-    sagephase = 0; hardcoreAt = 0;
+    sagephase = 0; hardcoreAt = 0; lineofsightAt = 0;
     timerstopped = false;
     savecount = 0; savetime = 0;
     loadcount = 0; current_loadcount = 0; load_branching = 0;
 
     tortoise::last21tort = 0;
-    cheater = 0;
-    if(autocheat) cheater = 1;
     if(!wfc::use_eclectic) cheater = 1;
     if(!autocheat && !cheater && geometry == gNormal) patterns::whichShape = 0;
     hauntedWarning = false;
-    if(!autocheat) {
-      timerghost = true;
-      gen_wandering = true;
-      }
     truelotus = 0;
     asteroids_generated = 0;
     asteroid_orbs_generated = 0;
@@ -438,7 +455,7 @@ EX void initgame() {
 
   lastsafety = gold();
   bfs();
-  checkmove();
+  checkmove(false);
   playermoved = true;
 
   if(quotient || sphere)
@@ -468,7 +485,7 @@ EX namespace scores {
 /** \brief the amount of boxes reserved for each hr::score item */
 #define MAXBOX 500
 /** \brief currently used boxes in hr::score */
-#define POSSCORE 421
+#define POSSCORE 423
 /** \brief a struct to keep local score from an earlier game */
 struct score {
   /** \brief version used */
@@ -488,10 +505,31 @@ EX int boxid;
 /** \brief see hr::applyBox */
 EX bool saving, loading, loadingHi;
 
+#if HDR
+enum boxpriority {
+  bpMain, bpMain1,
+  bpSpecialTreasure,
+  bpTreasure,
+  bpMonster,
+  bpDeadOrb,
+  bpOtherItem,
+  bpFriendlyMonster,
+  bpMonsterPart,
+  bpWeirdStat,
+  bpOrb,
+  bpNAI,
+  bpMode,
+  bpTechnical,
+  bpGUARD
+  };
+#endif
+
 /** \brief names of all the boxes */
 EX string boxname[MAXBOX];
 /** \brief 'fake' boxes should not appear when examining local scores */
 EX bool fakebox[MAXBOX];
+/** \brief box priority, for local scores */
+EX boxpriority boxprio[MAXBOX];
 /** \brief does this box contain monster kills */
 EX bool monsbox[MAXBOX];
 
@@ -544,8 +582,16 @@ int applyBoxLoad(string name = "") {
   return i;
   }
 
+void setprio(boxpriority idx) { boxprio[boxid] = idx; }
+
 /** \brief the next box is the number of collected items it */
 void applyBoxI(eItem it, bool f = false) {
+  if(among(it, itOrbYendor, itHolyGrail)) setprio(bpSpecialTreasure);
+  else if(itemclass(it) == IC_NAI) setprio(bpNAI);
+  else if(it == itGreenStone) setprio(bpDeadOrb);
+  else if(itemclass(it) == IC_ORB) setprio(bpOrb);
+  else if(itemclass(it) == IC_OTHER) setprio(bpOtherItem);
+  else if(itemclass(it) == IC_TREASURE) setprio(bpTreasure);
   boxname[boxid] = iinf[it].name;
   fakebox[boxid] = f;
   monsbox[boxid] = false;
@@ -584,6 +630,7 @@ void list_invorb() {
 
 /** \brief handle the number of monsters of type m killed */
 void applyBoxM(eMonster m, bool f = false) {
+  setprio(isMonsterPart(m) ? bpMonsterPart : (isFriendly(m) || m == moTortoise) ? bpFriendlyMonster : bpMonster);
   fakebox[boxid] = f;
   boxname[boxid] = minf[m].name;
   monsbox[boxid] = true;
@@ -604,13 +651,13 @@ EX void applyBoxes() {
 
   eLand lostin = laNone;
 
-  applyBoxSave((int) timerstart, "time elapsed");
+  setprio(bpMain); applyBoxSave((int) timerstart, "time elapsed");
   time_t timer = time(NULL);
-  applyBoxSave((int) timer, "date");
-  applyBoxSave(gold(), "treasure collected");
-  applyBoxSave(tkills(), "total kills");
-  applyBoxNum(turncount, "turn count");
-  applyBoxNum(cellcount, "cells generated");
+  setprio(bpMain); applyBoxSave((int) timer, "date");
+  setprio(bpMain); applyBoxSave(gold(), "treasure collected");
+  setprio(bpMain); applyBoxSave(tkills(), "total kills");
+  setprio(bpMain); applyBoxNum(turncount, "turn count");
+  setprio(bpWeirdStat); applyBoxNum(cellcount, "cells generated");
 
   if(loading) timerstart = time(NULL);
 
@@ -631,10 +678,11 @@ EX void applyBoxes() {
     else if(i == moGreaterM) applyBoxOrb(itOrbIllusion);
     else if(i == moLesserM) applyBoxM(moFriendlyGhost);
     else if(i == moWolfMoved) applyBoxM(moWorldTurtle);
-    else if(i == moNone) applyBoxNum(kills[i], "icewalls melted");
+    else if(i == moNone) { setprio(bpWeirdStat); applyBoxNum(kills[i], "icewalls melted"); }
     else applyBoxM(eMonster(i));
     }
 
+  setprio(bpMain);
   if(saving) {
     int totaltime = savetime;
     if(!timerstopped) totaltime += timer - timerstart;
@@ -643,14 +691,16 @@ EX void applyBoxes() {
   else if(loading) savetime = applyBoxLoad("time played");
   else boxname[boxid] = "time played", boxid++;
 
+  setprio(bpMain1);
   if(saving) savecount++;
   applyBoxNum(savecount, "number of saves");
   if(saving) savecount--;
+  setprio(bpMode);
   applyBoxNum(cheater, "number of cheats");
 
-  fakebox[boxid] = false;
-  if(saving) applyBoxSave(items[itOrbSafety] ? safetyland : cwt.at->land, "@safetyland");
-  else if(loading) firstland = safetyland = eLand(applyBoxLoad("@safetyland"));
+  fakebox[boxid] = false; setprio(bpMain);
+  if(saving) applyBoxSave(items[itOrbSafety] ? safetyland : cwt.at->land, "where");
+  else if(loading) firstland = safetyland = eLand(applyBoxLoad("where"));
   else lostin = eLand(save.box[boxid++]);
 
   for(int i=itOrbLightning; i<25; i++) applyBoxOrb(eItem(i));
@@ -698,9 +748,13 @@ EX void applyBoxes() {
 
   int geo = geometry;
   applyBoxNum(geo, "@geometry"); geometry = eGeometry(geo);
+  setprio(bpMode);
   applyBoxBool(hardcore, "hardcore");
+  setprio(bpMode);
   applyBoxNum(hardcoreAt, "@hardcoreAt");
+  setprio(bpMode);
   applyBoxBool(shmup::on, "shmup");
+  setprio(bpMode);
   if(saving) applyBoxSave(specialland, "euclid land");
   else if(loading) specialland = eLand(applyBoxLoad("euclid land"));
   else fakebox[boxid++] = true;
@@ -764,7 +818,9 @@ EX void applyBoxes() {
   applyBoxOrb(itOrbLuck);
   applyBoxOrb(itOrbStunning);
 
+  setprio(bpMode);
   applyBoxBool(tactic::on, "@tactic");
+  setprio(bpMode);
   applyBoxNum(elec::lightningfast, "@lightningfast");
 
   // if(save.box[boxid]) printf("lotus = %d (lost = %d)\n", save.box[boxid], isHaunted(lostin));
@@ -778,9 +834,11 @@ EX void applyBoxes() {
   applyBoxOrb(itOrbFreedom);
   applyBoxM(moRedFox);
   applyBoxBool(survivalist, "@survivalist");
+  setprio(bpMode);
   if(loadingHi) applyBoxI(itLotus);
   else applyBoxNum(truelotus, "lotus/escape");
 
+  setprio(bpMode);
   applyBoxEnum(variation, "variation");
   applyBoxI(itRose);
   applyBoxOrb(itOrbBeauty);
@@ -791,7 +849,9 @@ EX void applyBoxes() {
   applyBoxM(moFalsePrincess);
   applyBoxM(moRoseLady);
   applyBoxM(moRoseBeauty);
+  setprio(bpMode);
   applyBoxEnum(land_structure, "land structure");
+  setprio(bpMode);
   applyBoxNum(multi::players, "shmup players");
   if(multi::players < 1 || multi::players > MAXPLAYER)
     multi::players = 1;
@@ -809,12 +869,16 @@ EX void applyBoxes() {
   applyBoxM(moTortoise);
   applyBoxOrb(itOrbShell);
 
+  setprio(bpMode);
   applyBoxNum(safetyseed, "@safetyseed");
 
   // (+18)
   for(int i=0; i<6; i++) {
+    setprio(bpWeirdStat);
     applyBoxNum(multi::treasures[i], "@multi-treasures" + its(i));
+    setprio(bpWeirdStat);
     applyBoxNum(multi::kills[i], "@multi-kills" + its(i));
+    setprio(bpWeirdStat);
     applyBoxNum(multi::deaths[i], "@multi-deaths" + its(i));
     }
   // (+8)
@@ -830,7 +894,9 @@ EX void applyBoxes() {
   applyBoxOrb(itOrbStone);
 
   bool sph;
+  setprio(bpMode);
   sph = false; applyBoxBool(sph, "sphere"); if(sph) geometry = gSphere;
+  setprio(bpMode);
   sph = false; applyBoxBool(sph, "elliptic"); if(sph) geometry = gElliptic;
   applyBoxNum(princess::reviveAt, "@reviveAt");
 
@@ -860,6 +926,7 @@ EX void applyBoxes() {
   addinv(itGreenStone);
   list_invorb();
   #if CAP_INV
+  setprio(bpMode);
   applyBoxBool(inv::on, "inventory"); // 306
   applyBoxNum(inv::rseed, "@inv-rseed");
   #else
@@ -907,7 +974,7 @@ EX void applyBoxes() {
   applyBoxNum(gp::param.first, "@gp-first");
   applyBoxNum(gp::param.second, "@gp-second");
 
-  v2 = false; applyBoxBool(v2); if(loading && v2) variation = eVariation::irregular;
+  v2 = false; applyBoxBool(v2, "@irregular"); if(loading && v2) variation = eVariation::irregular;
   applyBoxNum(irr::cellcount, "@irr-cellcount");
 
   list_invorb();
@@ -946,10 +1013,14 @@ EX void applyBoxes() {
   applyBoxM(moRusalka);
   list_invorb();
 
+  setprio(bpTechnical);
   applyBoxNum(saved_modecode, "modecode");
+  setprio(bpMode);
   applyBoxBool(ineligible_starting_land, "ineligible_starting_land");
 
+  setprio(bpMain1);
   applyBoxNum(yasc_code, "YASC code");
+  setprio(bpMode);
   applyBoxBool(casual, "casual mode");
 
   applyBoxI(itCursed);
@@ -967,24 +1038,34 @@ EX void applyBoxes() {
   applyBoxI(itCurseWater, true);
   list_invorb();
 
+  setprio(bpMode);
   applyBoxEnum(bow::weapon, "weapon choice");
+  setprio(bpMode);
   applyBoxEnum(bow::style, "crossbow style");
 
   applyBoxOrb(itOrbFish);
   list_invorb();
 
-  applyBoxNum(items[itCrossbow]);
-  applyBoxNum(items[itRevolver]);
-  applyBoxNum(items[itAsteroid]);
+  applyBoxI(itCrossbow, true);
+  applyBoxI(itRevolver, true);
+  applyBoxI(itAsteroid);
   applyBoxM(moAsteroid);
-  applyBoxNum(items[itTreat]);
+  applyBoxI(itTreat);
   applyBoxM(moVampire);
-  applyBoxNum(asteroids_generated);
-  applyBoxNum(asteroid_orbs_generated);
+  applyBoxNum(asteroids_generated, "@asteroids generated");
+  applyBoxNum(asteroid_orbs_generated, "@orbs generated");
 
+  setprio(bpWeirdStat);
   applyBoxNum(loadcount, "load count");
+  setprio(bpWeirdStat);
   applyBoxNum(load_branching, "load branching");
+  setprio(bpWeirdStat);
   applyBoxNum(current_loadcount, "current load count");
+
+  setprio(bpMode);
+  applyBoxEnum(lineofsight, "lineofsight");
+  setprio(bpMode);
+  applyBoxNum(lineofsightAt, "@lineofsightAt");
 
   if(POSSCORE != boxid) printf("ERROR: %d boxes\n", boxid);
   if(isize(invorb)) { println(hlog, "ERROR: Orbs not taken into account"); exit(1); }
@@ -1086,7 +1167,7 @@ scores::score scorebox;
 EX bool save_cheats;
 
 EX void saveStats(bool emergency IS(false)) {
-  DEBBI(DF_INIT, ("saveStats [", scorefile, "]"));
+  DEBBI(debug_init, ("saveStats [", scorefile, "]"));
 
   if(autocheat && !save_cheats) return;
   if(scorefile == "") return;
@@ -1223,7 +1304,7 @@ EX void saveStats(bool emergency IS(false)) {
   fprintf(f, "\n\n\n");
 
 #if !ISMOBILE
-  DEBB(DF_INIT, ("Game statistics saved to ", scorefile));
+  DEBB(debug_init, ("Game statistics saved to ", scorefile));
   addMessage(XLAT("Game statistics saved to %1", scorefile));
 #endif
   fclose(f);
@@ -1238,7 +1319,7 @@ EX void loadsave() {
 #if CAP_TOUR
   if(tour::on) return;
 #endif
-  DEBBI(DF_INIT, ("loadSave"));
+  DEBBI(debug_init, ("loadSave"));
 
   FILE *f = fopen(scorefile.c_str(), "rt");
   havesave = f;
@@ -1431,7 +1512,7 @@ EX void load_last_save() {
 EX void stop_game() {
   if(!game_active) return;
   if(dual::split(stop_game)) return;
-  DEBBI(DF_INIT, ("stop_game"));
+  DEBBI(debug_init, ("stop_game"));
   achievement_final(true);
   save_if_needed();
   for(int i=0; i<ittypes; i++) items[i] = 0;
@@ -1457,6 +1538,7 @@ EX void stop_game() {
   #endif
   // items[itGreenStone] = 100;
   game_active = false;
+  movehints_ticks = 0;
   clearMemory();
 #if CAP_DAILY
   if(daily::on)
@@ -1537,6 +1619,7 @@ EX void set_variation(eVariation target) {
     if(target != eVariation::pure) {
       if(bt::in() || sol || aperiodic || WDIM == 3) if(!mproduct) geometry = gNormal;
       }
+    arb::convert::deactivate();
     auto& cd = ginf[gCrystal];
     if(target == eVariation::bitruncated && cryst && cd.sides == 8 && cd.vertex == 4) {
       cd.vertex = 3;
@@ -1548,7 +1631,7 @@ EX void set_variation(eVariation target) {
   }
 
 EX void switch_game_mode(char switchWhat) {
-  DEBBI(DF_INIT, ("switch_game_mode ", switchWhat));
+  DEBBI(debug_init, ("switch_game_mode ", switchWhat));
   switch(switchWhat) {
     case rg::peace:
       peace::on = !peace::on;
@@ -1607,7 +1690,7 @@ EX void switch_game_mode(char switchWhat) {
       randomPatternsMode = false;
       land_structure = lsNiceWalls;
       racing::on = false;
-      if(!yendor::on) firstland = laIce;
+      if(!yendor::on) firstland = specialland = laIce;
       dual::disable();
       break;
 
@@ -1633,7 +1716,7 @@ EX void switch_game_mode(char switchWhat) {
       princess::challenge = false;
       racing::on = false;
       land_structure = tactic::on ? lsSingle : lsNiceWalls;
-      if(!tactic::on) firstland = laIce;
+      if(!tactic::on) firstland = specialland = laIce;
       dual::disable();
       break;
 
@@ -1679,7 +1762,7 @@ EX void switch_game_mode(char switchWhat) {
 
 EX void start_game() {
   if(game_active) return;
-  DEBBI(DF_INIT, ("start_game"));
+  DEBBI(debug_init, ("start_game"));
   if(dual::state == 1) dual::assign_landsides();
   if(dual::split(start_game)) return;
   restart:

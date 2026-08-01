@@ -11,6 +11,8 @@ namespace hr {
 
 EX namespace rulegen {
 
+EX bool auto_rulegen = true;
+
 /* limits */
 EX int max_retries = 999;
 EX int max_tcellcount = 1000000;
@@ -558,7 +560,7 @@ EX void shortcut_found(tcell *c, tcell *alt, vector<twalker> &walkers, vector<tw
     return;
     }
 
-  if(debugflags & DF_GEOM)
+  if(debug_geometry)
     println(hlog, "new shortcut found, pre =  ", pre, " post = ", post, " pre reaches ", walkers[wpos], " post reaches ", walkers2.back(), " of type ", walkers[wpos].at->id, " sample = ", c);
 
   if(isize(pre) > max_shortcut_length) {
@@ -575,7 +577,7 @@ EX void shortcut_found(tcell *c, tcell *alt, vector<twalker> &walkers, vector<tw
   sh->last_dir = c->any_nearer;
   auto& sh1 = *sh;
 
-  if(debugflags & DF_GEOM) println(hlog, "exhaustive search:");
+  if(debug_geometry) println(hlog, "exhaustive search:");
   indenter ind(2);
   tcell* c1 = first_tcell;
   while(c1) {
@@ -595,11 +597,11 @@ EX void find_new_shortcuts(tcell *c, int d, tcell *alt, int newdir, int delta) {
   if(flags & w_known_distances) return;
 
   ufindc(c);
-  if(debugflags & DF_GEOM)
+  if(debug_geometry)
     println(hlog, "solid ", c, " changes ", c->dist, " to ", d, " alt=", alt);
 
   if(newdir == c->any_nearer) {
-    if(debugflags & DF_GEOM)
+    if(debug_geometry)
       println(hlog, "same direction");
     return;
     }
@@ -785,7 +787,7 @@ EX void be_solid(tcell *c) {
   look_for_shortcuts(c);
   ufindc(c);
   if(c->dist == MYSTERY) {
-    if(debugflags & DF_GEOM)
+    if(debug_geometry)
       println(hlog, "set solid but no dist ", c);
     debuglist = { c };
     throw rulegen_failure("set solid but no dist");
@@ -832,7 +834,7 @@ EX void look_for_shortcuts(tcell *c, shortcut& sh) {
 
     process_fix_queue();
     if(tw.at->dist < c->dist) {
-      if(debugflags & DF_GEOM)
+      if(debug_geometry)
         println(hlog, "smart shortcut updated ", c->dist, " to ", tw.at->dist);
       }
     push_unify(tw, tw0);
@@ -1236,7 +1238,7 @@ int get_side(twalker what) {
       cw = get_parent_dir(cw);
       if(cw.peek()->dist >= cw.at->dist) {
         handle_distance_errors();
-        if(debugflags & DF_GEOM)
+        if(debug_geometry)
           println(hlog, "get_parent_dir error at ", cw, " and ", cw.at->move(cw.spin), ": ", cw.at->dist, "::", cw.at->move(cw.spin)->dist);
         throw rulegen_failure("get_parent_dir error");
         }
@@ -1513,7 +1515,7 @@ EX void rules_iteration_for(twalker& cw) {
   else if(ts.rules != cids) {
     handle_distance_errors();
     auto& r = ts.rules;
-    if(debugflags & DF_GEOM) {
+    if(debug_geometry) {
       println(hlog, "merging ", ts.rules, " vs ", cids);
       }
     int mismatches = 0;
@@ -1555,7 +1557,7 @@ EX void rules_iteration_for(twalker& cw) {
 
 void minimize_rules() {
   states_premini = isize(treestates);
-  if(debugflags & DF_GEOM)
+  if(debug_geometry)
     println(hlog, "minimizing rules...");
   int next_id = isize(treestates);
 
@@ -1599,7 +1601,7 @@ void minimize_rules() {
       }
     }
 
-  if(debugflags & DF_GEOM)
+  if(debug_geometry)
     println(hlog, "final new_ids = ", new_ids, " / ", next_id);
 
   if(1) {
@@ -1613,6 +1615,21 @@ void minimize_rules() {
       for(auto& r: ts.rules)
         if(r >= 0) r = new_id[r];
       }
+    }
+  }
+
+void find_live_states() {
+  for(auto& ts: treestates) ts.is_live = true;
+  while(true) {
+    int changes = 0;
+    for(auto& ts: treestates) if(ts.is_live) {
+      bool ok = false;
+      for(int r: ts.rules) {
+        if(r >= 0 && treestates[r].is_live) ok = true;
+        }
+      if(!ok) changes++, ts.is_live = false;
+      }
+    if(!changes) break;
     }
   }
 
@@ -1671,7 +1688,7 @@ void find_possible_parents() {
   
   int pp = 0;
   for(auto& ts: treestates) if(ts.is_possible_parent) pp++;
-  if(debugflags & DF_GEOM)
+  if(debug_geometry)
     println(hlog, pp, " of ", isize(treestates), " states are possible_parents");
   }
 
@@ -1741,10 +1758,10 @@ void verified_treewalk(twalker& tw, int id, int dir) {
       if((flags & w_examine_all) || !branch_conflicts_seen.count(conflict_id)) {
         branch_conflicts_seen.insert(conflict_id);
         important.push_back(tw.at);
-        if(debugflags & DF_GEOM)
+        if(debug_geometry)
           println(hlog, "branch conflict ", conflict_id, " found");
         }
-      else if(debugflags & DF_GEOM)
+      else if(debug_geometry)
         println(hlog, "branch conflict ", conflict_id, " found again");
       debuglist = {tw, tw+wstep};
       throw verify_advance_failed();
@@ -1757,7 +1774,7 @@ bool examine_branch(int id, int left, int right) {
   if(WDIM == 3) return true;
   auto rg = treestates[id].giver;
 
-  if(debugflags & DF_GEOM)
+  if(debug_geometry)
     println(hlog, "need to examine branches ", tie(left, right), " of ", id, " starting from ", rg, " step = ", rg+left+wstep, " vs ", rg+right+wstep);
 
   indenter ind(2);
@@ -1957,10 +1974,10 @@ EX void rules_iteration() {
     }
   
   handle_distance_errors();
-  if(debugflags & DF_GEOM)
+  if(debug_geometry)
     println(hlog, "number of treestates = ", isize(treestates));
   rule_root = get_treestate_id(t_origin[0]).second;
-  if(debugflags & DF_GEOM)
+  if(debug_geometry)
     println(hlog, "rule_root = ", rule_root);
 
   for(int id=0; id<isize(treestates); id++) {
@@ -2049,7 +2066,7 @@ EX void rules_iteration() {
         }
     if(qbranches == 2) double_live_branches++;
     if((flags & w_slow_side) && first_live_branch == last_live_branch && treestates[id].is_root) {
-      if(debugflags & DF_GEOM)
+      if(debug_geometry)
         println(hlog, "for id ", id, " we have a single live branch");
       single_live_branches++;
       indenter ind(2);
@@ -2059,7 +2076,7 @@ EX void rules_iteration() {
     if(isize(single_live_branch_close_to_root) != q) {
       vector<tcell*> v;
       for(auto c: single_live_branch_close_to_root) v.push_back(c);
-      if(debugflags & DF_GEOM) 
+      if(debug_geometry)
         println(hlog, "changed single_live_branch_close_to_root from ", q, " to ", v);
       debuglist = { treestates[id].giver };
       clear_sidecache_and_codes();
@@ -2491,7 +2508,7 @@ EX bool prepare_rules() {
     rules_known_for = arb::current.name;
     rule_status = XLAT("rules generated successfully: %1 states using %2-%3 cells", 
       its(isize(treestates)), its(tcellcount), its(tunified));
-    if(debugflags & DF_GEOM) println(hlog, rule_status);
+    if(debug_geometry) println(hlog, rule_status);
     return true;
     }
   catch(rulegen_retry& e) {
@@ -2503,7 +2520,7 @@ EX bool prepare_rules() {
   catch(rulegen_failure& e) {
     rule_status = XLAT("bug: %1", e.what());
     }
-  if(debugflags & DF_GEOM) println(hlog, rule_status);
+  if(debug_geometry) println(hlog, rule_status);
   return false;
   }
 
@@ -2539,6 +2556,8 @@ auto hooks_arg =
 #endif
 
 auto hooks = addHook(hooks_configfile, 100, [] {
+      param_b(auto_rulegen, "auto_rulegen")
+      ->editable("auto-use strict tree maps when appropriate", 'a');
       param_i(max_retries, "max_retries")
       ->set_reaction(change_rulegen_params);
       param_i(max_tcellcount, "max_tcellcount")
@@ -2597,9 +2616,9 @@ EX void parse_treestate(arb::arbi_tiling& c, exp_parser& ep) {
   if(qparent > 1) throw hr_parse_exception("multiple parent at " + ep.where());
   if(qparent == 1) {
     ts.parent_dir = sumparent;
-    if(debugflags & DF_GEOM) println(hlog, "before: ", ts.rules);
+    if(debug_geometry) println(hlog, "before: ", ts.rules);
     std::rotate(ts.rules.begin(), ts.rules.begin() + sumparent, ts.rules.end());
-    if(debugflags & DF_GEOM) println(hlog, "after : ", ts.rules);
+    if(debug_geometry) println(hlog, "after : ", ts.rules);
     }
   ep.force_eat(")");
   }
@@ -2614,6 +2633,7 @@ EX void verify_parsed_treestates(arb::arbi_tiling& c) {
       throw hr_parse_exception("undefined treestate");
     }
   for(auto& sh: c.shapes) sh.cycle_length = sh.size();
+  find_live_states();
   find_possible_parents();
   }
 
@@ -2697,6 +2717,8 @@ EX void show() {
     dialog::display();
     return;
     }
+
+  add_edit(auto_rulegen);
 
   dialog::addBoolItem(XLAT("in tes internal format"), arb::in(), 't');
   dialog::add_action(switch_tes_internal_format);
@@ -2797,6 +2819,21 @@ int readRuleArgs() {
 
 auto hook = addHook(hooks_args, 100, readRuleArgs);
 #endif
+
+EX void convert_if_appropriate() {
+  println(hlog, "*** CONVERT TO RULEGEN");
+  if(!auto_rulegen) return;
+  if(!hyperbolic) return;
+  println(hlog, "converting");
+  if(geometry != gArbitrary)
+    arb::convert::convert();
+  println(hlog, "activating");
+  arb::convert::activate();
+  println(hlog, "preparing rules");
+
+  if(!prepare_rules()) return;
+  println(hlog, "success");
+  }
 
 EX }
 }

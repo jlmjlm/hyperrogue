@@ -27,6 +27,26 @@ EX int SDL_GetTicks() {
 #endif
 #endif
 
+#if HDR
+template<class T>
+class span {
+  T *begin_ = nullptr;
+  T *end_ = nullptr;
+
+  public:
+  explicit span() = default;
+  explicit span(T *p, int n) : begin_(p), end_(p + n) {}
+  T *begin() const { return begin_; }
+  T *end() const { return end_; }
+  };
+
+template<class Map, class Key>
+hr::span<const shiftmatrix> span_at(const Map& map, const Key& key) {
+  auto it = map.find(key);
+  return (it == map.end()) ? hr::span<const shiftmatrix>() : hr::span<const shiftmatrix>(it->second.data(), it->second.size());
+  }
+#endif
+
 EX long double sqr(long double x) { return x*x; }
 
 EX ld round_nearest(ld x) { if(x > 0) return int(x+.5); else return -int(.5-x); }
@@ -225,6 +245,12 @@ cld exp_parser::parse(int prio) {
   else if(eat("floor(")) res = floor(validate_real(parsepar()));
   else if(eat("frac(")) { res = parsepar(); res = res - floor(validate_real(res)); }
   else if(eat("to01(")) { res = parsepar(); return atan(res) / ld(M_PI) + ld(0.5); }
+  else if(eat("angle_from_matrix(")) {
+    auto m = parsematrix(); eat(")"); return -atan2(m * C0);
+    }
+  else if(eat("dist_from_matrix(")) {
+    auto m = parsematrix(); eat(")"); return hdist0(m * C0);
+    }
   else if(eat("min(")) {
     ld a = rparse(0);
     while(skip_white(), eat(",")) a = min(a, rparse(0));
@@ -361,6 +387,23 @@ cld exp_parser::parse(int prio) {
     dynamicval<cld> d(extra_params[name], val);
     res = parsepar();
     }
+  else if(eat("solve(")) {
+    string name = next_token();
+    force_eat("=");
+    cld minval = parse(0);
+    force_eat(",");
+    cld maxval = parse(0);
+    force_eat(",");
+    int bak_at = at;
+    for(int i=0; i<100; i++) {
+      res = (minval + maxval) / cld(2);
+      dynamicval<cld> d(extra_params[name], res);
+      at = bak_at;
+      cld result = parsepar();
+      if(real(result) > 0) maxval = res;
+      else minval = res;
+      }
+    }
   #if CAP_TEXTURE
   else if(eat("txp(")) {
     cld val = parsepar();
@@ -406,6 +449,18 @@ cld exp_parser::parse(int prio) {
     else if(number == "last_c") res = anims::last_anim_vars[2];
     else if(number == "last_d") res = anims::last_anim_vars[3];
     else if(number == "illegal_moves") res = illegal_moves;
+    else if(number == "lshift") res = lshiftclick;
+    else if(number == "rshift") res = rshiftclick;
+    else if(number == "lctrl") res = lctrlclick;
+    else if(number == "rctrl") res = rctrlclick;
+#if !ISMOBILE
+    else if(number == "capslock") res = (SDL_GetModState() & KMOD_CAPS) ? 1 : 0;
+    else if(number == "numlock") res = (SDL_GetModState() & KMOD_NUM) ? 1 : 0;
+#if SDLVER >= 2
+    else if(number == "scrolllock") res = (SDL_GetModState() & KMOD_SCROLL) ? 1 : 0;
+#endif
+#endif
+    else if(number == "holdmouse") res = holdmouse ? 1 : 0;
     else if(number == "mousexs") {
       if(!inHighQual) bmousexs = (1. * mousex - current_display->xcenter) / current_display->radius;
       res = bmousexs;
@@ -616,17 +671,17 @@ color_t exp_parser::parsecolor(int prio) {
   string token = next_token();
   if(params.count(token)) return (color_t) real(params[token]->get_cld());
 
-  auto p = find_color_by_name(s);
+  auto p = find_color_by_name(token);
   if(p) return (p->second << 8) | 0xFF;
 
   color_t res;
-  if(s.size() == 6) {
-    int qty = sscanf(s.c_str(), "%x", &res);
+  if(token.size() == 6) {
+    int qty = sscanf(token.c_str(), "%x", &res);
     if(qty == 0) throw hr_parse_exception("color parse error");
     return res * 256 + 0xFF;
     }
-  else if(s.size() == 8) {
-    int qty = sscanf(s.c_str(), "%x", &res);
+  else if(token.size() == 8) {
+    int qty = sscanf(token.c_str(), "%x", &res);
     if(qty == 0) throw hr_parse_exception("color parse error");
     return res;
    }
@@ -689,8 +744,17 @@ EX string available_functions() {
   }
 
 EX string available_constants() {
+  return
+    "e, i, pi, tau, phi, deg [degree]";
+  }
+
+EX string available_variables() {
   return 
-    "e, i, pi, s, ms, mousex, mousey, mousez, shot [1 if taking screenshot/animation]";
+    "Keyboard and mouse:\n\n"
+    "mousex, mousey, mousez, lshift, rshift, lctrl, rctrl, capslock, numlock, scrolllock, holdmouse, random, mousexs, mouseys\n\n"
+    "Time:\n\n"
+    "s [seconds], ms [milliseconds], turncount, framecount, gametime\n\n"
+    "Other:\n\nshot [1 if taking screenshot/animation], illegal_moves";
   }
 
 #if HDR
@@ -725,7 +789,7 @@ struct bignum {
     }
   
   ld log_approx() const {
-    return log(leading()) * log(BASE) * (isize(digits) - 1);
+    return log(leading()) + log(BASE) * (isize(digits) - 1);
     }
   
   ld approx_div(const bignum& b) const {
@@ -988,7 +1052,22 @@ EX string find_file(string s) {
 #ifdef FHS
   if(file_exists(s1 = "/usr/share/hyperrogue/" + s)) return s1;
 #endif
+#if SDLVER >= 2
+  char *path = SDL_GetBasePath();
+  if(path) {
+    string bpath = path;
+    if(file_exists(s1 = bpath + s)) return s1;
+    }
+#endif
   return s;
+  }
+
+EX void file_error(const string& fname) {
+  throw hr_exception("missing file error");
+  }
+
+EX void file_format_error(const string& fname) {
+  throw hr_exception("file format error");
   }
 
 EX void open_url(string s) {

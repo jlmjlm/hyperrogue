@@ -102,6 +102,17 @@ void room::reveal(int cx, int cy) {
     if(b&1) cx--;
     if(b&2) cy--;
     fov[cy][cx+1] = fov[cy+1][cx] = fov[cy+1][cx+1] = fov[cy][cx] = true;
+    }
+  }
+
+void room::unreveal(int cx, int cy) {
+  if(cx < 0 || cy < 0 || cx >= room_x || cy >= room_y) return;
+  fov[cy][cx] = 0;
+  auto b = block_at[cy][cx];
+  if(b & 4) {
+    if(b&1) cx--;
+    if(b&2) cy--;
+    fov[cy][cx+1] = fov[cy+1][cx] = fov[cy+1][cx+1] = fov[cy][cx] = 0;
     }   
   }
 
@@ -126,6 +137,28 @@ void room::fov_from(int sx, int sy) {
       reveal_around(cx, cy);
       }
     }
+  }
+
+array<array<int, room_x>, room_y> bfs_visited;
+int bfs_id;
+
+vector<intxy> room::bfs(intxy start, const bfs_progress& f) {
+  bfs_id++;
+  vector<intxy> all = { start };
+  for(int i=0; i<isize(all); i++) {
+    auto at = all[i];
+    auto add = [&] (int x, int y) {
+      if(bfs_visited[y][x] == bfs_id) return;
+      bfs_visited[y][x] = bfs_id;
+      intxy v {x, y};
+      if(f(v)) all.push_back(v);
+      };
+    if(at.x > 0) add(at.x-1, at.y);
+    if(at.x < room_x-1) add(at.x+1, at.y);
+    if(at.y > 0) add(at.x, at.y-1);
+    if(at.y < room_y-1) add(at.x, at.y+1);
+    }
+  return all;
   }
     
 room *get_room_at(cell *c) {

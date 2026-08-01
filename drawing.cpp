@@ -180,7 +180,7 @@ vector<glhr::colored_vertex> line_vertices;
 #endif
 
 EX void glflush() {
-  DEBBI(DF_GRAPH, ("glflush"));
+  DEBBI(debug_graph, ("glflush"));
   #if MINIMIZE_GL_CALLS
   if(isize(triangle_vertices)) {
     // printf("%3d | %d shapes, %d/%d vertices\n", lprio, shapes_merged, isize(triangle_vertices), isize(line_vertices));
@@ -310,12 +310,15 @@ bool knowgood;
 hyperpoint goodpoint;
 vector<pair<int, hyperpoint>> tofix;
 
+EX hookset<int()> hooks_two_sided_model;
+
 EX bool two_sided_model() {
   #if CAP_VR
   bool in_vr = vrhr::rendering();
   #else
   constexpr bool in_vr = false;
   #endif
+  auto i = callhandlers(0, hooks_two_sided_model); if(i) return i > 0;
   if(GDIM == 3) return false;
   if(in_vr_sphere) return true;
   if(pmodel == mdHemisphere || pmodel == mdHyperboloid) return !in_vr;
@@ -328,7 +331,11 @@ EX bool two_sided_model() {
   return false;
   }
 
+EX hookset<int(const hyperpoint& H)> hooks_get_side;
+
 EX int get_side(const hyperpoint& H) {
+  int i = callhandlers(0, hooks_get_side, H);
+  if(i) return i;
   #if CAP_VR
   if(in_vr_sphere) {
     hyperpoint Hscr;
@@ -1817,10 +1824,12 @@ bool broken_projection(dqi_poly& p0) {
   return false;
   }
 
+EX debugflag debug_vertex = {"vertex"};
+
 void dqi_poly::draw() {
   if(flags & POLY_DEBUG) debug_this();
 
-  if(debugflags & DF_VERTEX) {
+  if(debug_vertex) {
     println(hlog, int(prio), ": V=", V, " o=", offset, " c=", cnt, " ot=", offset_texture, " ol=", outline, " lw=", linewidth, " f=", (color_t) flags, " i=", intester, " c=", cache, " ti=", (cell*) tinf);
     for(int i=0; i<cnt; i++) print(hlog, (*tab)[offset+i]);
     println(hlog);
@@ -2119,6 +2128,10 @@ void dqi_poly::draw() {
   
   #if CAP_SVG
     if(svg::in) {
+      bool bad = false;
+      for(int i=0; i<polyi; i++) if(isnan(glcoords[i][0]) || isnan(glcoords[i][1]) || isnan(glcoords[i][2])) bad = true;
+      if(bad) continue;
+
       coords_to_poly();
       color_t col = color;
       if(poly_flags & POLY_INVERSE) col = 0;
@@ -2345,7 +2358,7 @@ void dqi_line::draw_back() {
   }
 
 EX void sort_drawqueue() {
-  DEBBI(DF_GRAPH, ("sort_drawqueue"));
+  DEBBI(debug_graph, ("sort_drawqueue"));
   
   for(int a=0; a<PMAX; a++) qp[a] = 0;
   
@@ -2399,7 +2412,7 @@ EX void reverse_side_priorities() {
 
 // on the sphere, parts on the back are drawn first
 EX void draw_backside() {
-  DEBBI(DF_GRAPH, ("draw_backside"));
+  DEBBI(debug_graph, ("draw_backside"));
   if(pmodel == mdHyperboloid && hyperbolic && pconf.show_hyperboloid_flat) {
     dynamicval<eModel> dv (pmodel, mdHyperboloidFlat);
     for(auto& ptd: ptds) 
@@ -2456,8 +2469,12 @@ EX void set_vr_sphere() {
 
 EX int hemi_side = 0;
 
+EX hookset<bool()> hooks_draw_main;
+
 EX void draw_main() {
-  DEBBI(DF_GRAPH, ("draw_main"));
+  DEBBI(debug_graph, ("draw_main"));
+
+  if(callhandlers(false, hooks_draw_main)) return;
   
   if(pconf.back_and_front == 1 && vid.consider_shader_projection) {
     dynamicval<int> pa(pconf.back_and_front);
@@ -2546,20 +2563,20 @@ EX void draw_main() {
     glflush();
     }
   else {
-    DEBB(DF_GRAPH, ("draw_main1"));
+    DEBB(debug_graph, ("draw_main1"));
     if(ray::in_use && !ray::comparison_mode) {
       ray::cast();
       reset_projection();
       }
 
-    DEBB(DF_GRAPH, ("outcircle"));
+    DEBB(debug_graph, ("outcircle"));
     for(auto& ptd: ptds) if(ptd->prio == PPR::OUTCIRCLE)
       ptd->draw();
     
     if(two_sided_model()) draw_backside();
   
     for(auto& ptd: ptds) if(ptd->prio != PPR::OUTCIRCLE) {
-      DEBBI(DF_VERTEX, ("prio: ", int(ptd->prio), " color ", ptd->color));
+      DEBBI(debug_vertex, ("prio: ", int(ptd->prio), " color ", ptd->color));
       dynamicval<int> ss(spherespecial, among(ptd->prio, PPR::MOBILE_ARROW, PPR::OUTCIRCLE, PPR::CIRCLE) ? 0 : spherespecial);
       ptd->draw();
       }
@@ -2582,7 +2599,7 @@ EX void draw_main() {
 
 EX void drawqueue() {
 
-  DEBBI(DF_GRAPH, ("drawqueue"));
+  DEBBI(debug_graph, ("drawqueue"));
   
   #if CAP_WRL
   if(wrl::in) { wrl::render(); return; }
@@ -2611,7 +2628,7 @@ EX void drawqueue() {
   
   sort_drawqueue();
 
-  DEBB(DF_GRAPH, ("sort walls"));
+  DEBB(debug_graph, ("sort walls"));
   
   if(GDIM == 2)
   for(PPR p: all_side_prios) {
@@ -2905,7 +2922,7 @@ EX void write_in_space(const shiftmatrix& V, int fsize, double size, const strin
   
   vector<int> chars;
   int i = 0;
-  while(i < isize(s)) { chars.push_back(getnext(s.c_str(), i)); }
+  while(i < isize(s)) { chars.push_back(getnext(s, i)); }
   
   ld tw = 0;
   for(int c: chars) tw += f.chars[c].w;

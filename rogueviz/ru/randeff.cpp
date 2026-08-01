@@ -1,5 +1,15 @@
 namespace rogue_unlike {
 
+map<string, randeff*> *all_effects;
+
+randeff::randeff (string name, string desc, string effect, powerfun act)
+ : name(name), desc(desc), effect(effect), act(act) {
+   id = unspace(name);
+   if(!all_effects) all_effects = new map<string, randeff*>;
+   (*all_effects)[id] = this;
+   unact = [] (data&d) {};
+   }
+
 randeff inc_str("Strength", "Increases your Strength by 50%.", "You feel stronger!", [] (data &d) { m.next.stats[stat::str] += m.current.stats[stat::str] / 3; });
 randeff inc_dex("Dexterity", "Increases your Dexterity by 50%.", "You feel faster!", [] (data &d) { m.next.stats[stat::dex] += m.current.stats[stat::dex] / 3; });
 randeff inc_con("Toughness", "Increases your Toughness by 50%.", "You feel tougher!", [] (data &d) { m.next.stats[stat::con] += m.current.stats[stat::con] / 3; });
@@ -31,9 +41,60 @@ randeff jump_bubble("Bubble", "Lets you create bubbles to reach higher places.",
 randeff jump_light("Lightness", "Causes you to be less affected by gravity.", "You feel lighter!", [] (data &d) { });
 
 // trap powers
-randeff trap_detect("Detect traps", "Lets you see traps and secret passages in a circle around you.", "You see things you could not see before!", [] (data &d) { });
-randeff trap_snake("Snake Hair", "Lets you create snakes that can be used to disarm traps and secret passages.", "You grow snakes on your head!", [] (data &d) { });
-randeff trap_disarm("Disarm traps", "Lets you see all traps on the level for a short time, and to attack them with your [weapon] to destroy them.", "You suddenly feel able to disarm traps with your [weapon]!", [] (data &d) { });
+randeff trap_detect("Detect traps", "Lets you see traps and secret passages in a circle around you.", "You see things you could not see before!", [] (data &d) {
+  bool grow = gframeid > m.last_action + 10;
+  auto& nd = m.next.detect_area;
+  nd = m.current.detect_area;
+  if(grow) {
+    nd += 0.01 / game_fps * m.current.stats[stat::wis];
+    if(nd > 5) nd = 5;
+    }
+  else {
+    nd *= (1 - 5. / game_fps);
+    if(nd < 0) nd = 0;
+    }
+  });
+
+randeff trap_detect_cross("Detect cross", "Lets you see traps and secret passages in a cross around you.", "You see things you could not see before!", [] (data &d) {
+  m.next.detect_cross = m.current.detect_cross + 0.01 / game_fps * m.current.stats[stat::wis];
+  });
+
+randeff trap_snake("Snake Hair", "Lets you create snakes that can be used to disarm traps and secret passages.", "You grow snakes on your head!", [] (data &d) {
+  if(d.mode == rev::start || (d.mode == rev::active && d.keystate == 1)) {
+    auto d = m.get_dat();
+    auto mi = std::make_unique<disnake>();
+    mi->id = "DISNAKE";
+    mi->respawn = m.where + xy(m.facing * m.get_scale() * m.siz().y * 0.45, 0);
+    mi->hs(fountain_resetter);
+    mi->invinc_end = gframeid + 50;
+    mi->vel = m.vel + xy(m.facing * d.modv * 2, -d.modv * 3.5);
+    mi->dir = m.facing * 2;
+    current_room->entities.emplace_back(std::move(mi));
+    }
+  });
+
+randeff trap_disarm("Disarm traps", "Lets you see all traps on the level for a short time, and to attack them with your [weapon] to destroy them.", "You suddenly feel able to disarm traps with your [weapon]!", [] (data &d) { 
+  m.next.rough_detect = 0.1;
+  if(d.mode == rev::active) m.next.mods.emplace_back(weaponmod{
+    d.re->which_weapon,
+    [] (color_t& col) { col = 0x4040C0FF; },
+    [] (string& s) { s = "disarming " + s; },
+    [] (entity *e, int dam, int sav) {
+      if(e->hidden()) {
+        e->existing = false;
+        addMessage("You have disarmed a "+e->hal()->get_name()+".");
+        }
+      e->invinc_end = sav; e->attacked(0, thief_power);
+      },
+    [] (int x, int y) {
+      int b = current_room->at(x, y);
+      if(b == wRogueWallHidden) {
+        current_room->replace_block_frev(x, y, wRogueWall);
+        addMessage("You open a secret passage!");
+        }
+      }
+    });
+  });
 
 // health powers
 randeff health_heal("Healing", "Instantly heals you.", "You feel healthier!", [] (data &d) {
@@ -60,13 +121,59 @@ randeff health_regen("Regeneration", "Heals you over a period of time.", "You fe
     }
   });
 randeff health_protect("Protection", "Makes you more resistant to damage.", "You feel protected!", [] (data &d) {
-  // m.protection += 3 * m.current.stats[stat::wis] + m.hp * m.current.stats[stat::wis] * 2 / 100;
+  int& protection = d.re->a;
+  if(d.mode == rev::start) protection += 3 * m.current.stats[stat::wis] + m.hp * m.current.stats[stat::wis] * 2 / 100;
+  if(d.mode == rev::active) {
+    m.next.on_hit.emplace_back([&] (int& x) {
+      ld fraction = 1 - 100 / (protection + 100);
+      int take = ceil(x * fraction);
+      if(take > protection) take = protection;
+      protection -= take;
+      x -= protection;
+      });
+   m.next.status_strings.emplace_back([&] (hstream& ss) { print(ss, " P", protection); });
+   }
   });
 randeff health_vampire("Vampirism", "Attacks with your [weapon] restore your health.", "Your [weapon] wants blood!", [] (data &d) {
-  // m.vampire += 4 * m.current.stats[stat::wis] + m.max_hp() * m.current.stats[stat::wis] * 3 / 100;
+  int& vampire = d.re->a;
+  if(d.mode == rev::start)
+    vampire += 4 * m.current.stats[stat::wis] + m.max_hp() * m.current.stats[stat::wis] * 3 / 100;
+  if(d.mode == rev::active) {
+    m.next.mods.emplace_back(weaponmod{
+      d.re->which_weapon,
+      [] (color_t& col) { col = 0x802020FF; },
+      [] (string& s) { s = "vampiric " + s; },
+      [&] (entity *e, int dam, int sav) {
+        int dam1 = min(dam, vampire);
+        m.hp += dam1; vampire -= dam1;
+        if(m.hp > m.max_hp()) { m.hp = m.max_hp(); }
+        },
+      [] (int x, int y) {}
+      });
+     m.next.status_strings.emplace_back([&] (hstream& ss) { print(ss, " V", vampire); });
+     }
   });
 randeff health_bubbles("Bubbles", "When you are attacked, you produce red bubbles that you can collect to heal yourself back.", "You feel something bouncy growing inside you!", [] (data &d) {
-  // m.healbubbles += 4 * m.current.stats[stat::wis] + m.max_hp() * m.current.stats[stat::wis] * 3 / 100;
+  int& healbubble = d.re->a;
+  if(d.mode == rev::start) healbubble += 4 * m.current.stats[stat::wis] + m.max_hp() * m.current.stats[stat::wis] * 3 / 100;
+  if(d.mode == rev::active) {
+    m.next.on_hit.emplace_back([&] (int& x) {
+      int take = x;
+      if(take > healbubble) take = healbubble;
+      healbubble -= take;
+      auto d = m.get_dat();
+      auto mi = std::make_unique<healthbubble>();
+      mi->id = "HEALBUBBLE";
+      ld r = (rand() % 360) * degree;
+      mi->hs(fountain_resetter);
+      mi->power = take * 2;
+      mi->where = m.where;
+      mi->vel = { cos(r) * d.modv * 3, sin(r) * d.modv * 3 };
+      mi->invinc_end = gframeid + 300;
+      new_entities.emplace_back(std::move(mi));
+      });
+    m.next.status_strings.emplace_back([&] (hstream& ss) { print(ss, " B", healbubble); });
+    }
   });
 
 // fire powers
@@ -75,45 +182,78 @@ randeff fire_spit("Fiery Spit", "Lets you spit fire.", "You feel fire in your mo
     for(int i=1; i<10; i++) {
       auto d = m.get_dat();
       auto mi = std::make_unique<fire_missile>();
+      mi->id = "FIREMISSILE";
+      mi->hs(fountain_resetter);
       mi->where = m.where + xy(m.facing * m.get_scale() * m.siz().y * 0.45, 0);
       mi->vel = m.vel + xy(m.facing * d.modv * i, d.modv * (10-i) / 5.);
-      mi->clearg();
       mi->index = i; mi->power = m.current.stats[stat::wis] * 2 / 5 + 1e-6;
       current_room->entities.emplace_back(std::move(mi));
       }
   });
 randeff fire_weapon("Fiery Weapon", "Attacks with your [weapon] set things on fire.", "Your hands glow, and your [weapon] burst into flame!", [] (data &d) {
   if(d.mode == rev::active)
-    m.next.mods.emplace_back(d.re->which_weapon, mod::burning, 2 * m.current.stats[stat::wis] + 1e-6);
+    m.next.mods.emplace_back(
+     weaponmod{
+       d.re->which_weapon,
+       [] (color_t& col) { col = gradient(0xFFFF00FF, 0xFF0000FF, -1, sin(ticks/100), 1); },
+       [] (string& s) { s = "burning " + s; },
+       [] (entity *e, int dam, int sav) {
+         e->invinc_end = sav; e->attacked(2 * m.current.stats[stat::wis] + 1e-6, fire_power);
+         },
+       [] (int x, int y) {
+         int b = current_room->at(x, y);
+         if(b == wWoodWall) {
+           current_room->replace_block_frev(x, y, wAir);
+           addMessage("You burn the wall!");
+           }
+         }
+       });
   });
 
-cat_color morph_cat_color;
+randeff ice_weapon("Chill Weapon", "Attacks with your [weapon] freeze things.", "Your hands glow, and your [weapon] turns cold!", [] (data &d) {
+  if(d.mode == rev::active)
+    m.next.mods.emplace_back(
+     weaponmod{
+       d.re->which_weapon,
+       [] (color_t& col) { col = 0x8080FFFF; },
+       [] (string& s) { s = "freezing " + s; },
+       [] (entity *e, int dam, int sav) {
+         e->invinc_end = sav; e->attacked(2 * m.current.stats[stat::wis] + 1e-6, ice_power);
+         },
+       [] (int x, int y) {
+         int b = current_room->at(x, y);
+         if(b == wWater) {
+           current_room->replace_block_frev(x, y, wFrozen);
+           addMessage("You freeze the water!");
+           }
+         }
+       });
+  });
+
+flavor morph_cat_color;
+
+cat *new_cat() {
+  auto c = new cat;
+  c->id = "cat";
+  c->col = morph_cat_color;
+  return c;
+  }
+
+capybara *new_capy() {
+  auto c = new capybara;
+  c->id = "capy";
+  return c;
+  }
 
 // morph powers
 randeff morph_cat("Cat", "Turns you into a cat.", "You turn into a cat!", [] (data &d) {
   if(d.mode == rev::start || (d.mode == rev::active && d.keystate == 1) || (d.mode == rev::stop && m.morphed)) {
-    if(m.morphed) {
-      delete(m.morphed), m.morphed = nullptr;
-      addMessage("You morph back into a human.");
-      }
-    else {
-      auto mcat = new cat;
-      mcat->col = morph_cat_color;
-      m.morphed = mcat;
-      addMessage("You morph into a " + m.morphed->get_name() + "!");
-      }
+    m.handle_morph(m.morphed ? nullptr : new_cat());
     }
   });
 randeff morph_capy("Capybara", "Turns you into a capybara.", "You turn into a capybara!", [] (data &d) {
   if(d.mode == rev::start || (d.mode == rev::active && d.keystate == 1) || (d.mode == rev::stop && m.morphed)) {
-    if(m.morphed) {
-      delete(m.morphed), m.morphed = nullptr;
-      addMessage("You morph back into a human.");
-      }
-    else {
-      m.morphed = new capybara;
-      addMessage("You morph into a lovely capybara!");
-      }
+    m.handle_morph(m.morphed ? nullptr : new_capy());
     }
   });
 
@@ -125,6 +265,14 @@ vector<power*> all_weapons() {
   return res;
   }
 
+void gen_randeffs() {
+  powerfun unmorph = [] (data& d) {
+    if(m.morphed) { m.handle_morph(nullptr); if(!m.morphed) d.flags |= DO_NOT_DRINK; }
+    };
+  morph_cat.unact = unmorph;
+  morph_capy.unact = unmorph;
+  }
+
 void assign_potion_powers() {
   vector<randeff*> random_powers = { &inc_str, &inc_dex, &inc_con, &inc_wis, &dec_str, &dec_dex, &dec_con, &dec_wis, &hallux, &confux };
   hrandom_shuffle(random_powers);
@@ -134,9 +282,11 @@ void assign_potion_powers() {
 
   fire_weapon.which_weapon = wpn[0];
   trap_disarm.which_weapon = wpn[1];
+  health_vampire.which_weapon = wpn[2];
+
   using relist = vector<randeff*>;
-  find_power("health").randeffs = relist{ pick(&health_heal, &health_regen, &health_protect), random_powers[0] };
-  find_power("the thief").randeffs = relist{ pick(&trap_detect, &trap_snake, &trap_disarm), random_powers[1] };
+  find_power("health").randeffs = relist{ pick(&health_heal, &health_regen, &health_protect, &health_vampire, &health_bubbles, &health_protect), random_powers[0] };
+  find_power("the thief").randeffs = relist{ pick(&trap_detect, &trap_snake, &trap_disarm, &trap_detect_cross), random_powers[1] };
   find_power("polymorph").randeffs = relist{ pick(&morph_cat, &morph_capy), random_powers[2] };
   find_power("reach").randeffs = relist{ pick(&jump_double, &jump_high, &jump_bubble, &jump_light), random_powers[3] };
   find_power("fire").randeffs = relist{ pick(&fire_spit, &fire_weapon), random_powers[4] };

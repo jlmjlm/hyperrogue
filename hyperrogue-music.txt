@@ -162,6 +162,11 @@
 [91] cMusMod/cursedcanyon.ogg
 # Dice Reserve
 [92] cMusMod/dicereserve.ogg
+# Crossroads VI
+[93] */music/hr3-crossroads.ogg
+# Master Crossroads
+[94] */music/hr3-crossroads.ogg
+
 # None [00] (used when the window is out of focus)
 
 HyperRogue soundtrack under the Creative Commons BY-SA 3.0 license, http://creativecommons.org/licenses/by-sa/3.0/

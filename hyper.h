@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "13.0z"
-#define VERNUM_HEX 0xAA1A
+#define VER "13.1m"
+#define VERNUM_HEX 0xAA2D
 
 #include "sysconfig.h"
 
@@ -126,8 +126,8 @@ void addMessage(string s, char spamtype = 0);
 
 #define S7 cginf.sides
 #define S3 cginf.vertex
-#define hyperbolic_37 (S7 == 7 && S3 == 3 && !bt::in() && !arcm::in())
-#define hyperbolic_not37 ((S7 > 7 || S3 > 3 || bt::in() || arcm::in()) && hyperbolic)
+#define hyperbolic_37 (S7 == 7 && S3 == 3 && !bt::in() && !arcm::in() && !arb::in())
+#define hyperbolic_not37 ((S7 > 7 || S3 > 3 || bt::in() || arcm::in() || arb::in()) && hyperbolic)
 #define weirdhyperbolic ((S7 > 7 || S3 > 3 || !STDVAR || bt::in() || arcm::in() || arb::in()) && hyperbolic)
 #define stdhyperbolic (S7 == 7 && S3 == 3 && STDVAR && !bt::in() && !arcm::in() && !arb::in())
 
@@ -177,7 +177,7 @@ void addMessage(string s, char spamtype = 0);
 // Dry Forest burning, heat transfer, etc. are performed on the whole universe
 #define doall (closed_or_bounded)
 
-#define sphere_narcm (sphere && !arcm::in())
+#define sphere_narcm (sphere && !arcm::in() && !arb::in())
 
 #define a4 (S3 == 4)
 #define a45 (S3 == 4 && S7 == 5)
@@ -469,6 +469,10 @@ extern videopar vid;
 #define R200 (big_unlock ? 800 : 200)
 // Crossroads V
 #define R300 (big_unlock ? 1200 : 300)
+// Thematic Crossroads
+#define R400 (big_unlock ? 1600 : 400)
+// Master Crossroads
+#define R500 (big_unlock ? 2000 : 500)
 // kill types for Dragon Chasms
 #define R20 (big_unlock ? 30 : 20)
 // kill count for Graveyard/Hive
@@ -783,6 +787,10 @@ template<class T, class V, class... U> V callhandlers(V zero, const hookset<T>& 
 
 void popScreen();
 
+extern vector< function<void()> > screens;
+
+template<class T> void pushScreen(const T& x) { screens.push_back(x); }
+
 template<class T, class U> void hook_in_subscreen(hookset<T>& m, int prio, U&& hook) {
   int v = m.add(prio, static_cast<U&&>(hook));
   pushScreen([&m, v] {
@@ -940,6 +948,32 @@ typedef unsigned long long flagtype;
 static inline void set_flag(flagtype& f, flagtype which, bool b) {
   if(b) f |= which;
   else f &= ~which;
+  }
+
+void add_debugflag(const string& s, struct debugflag *d);
+
+/** Flags to enable debugging.
+ *  A debugflag can be defined with e.g.: debugflag memory_cell("memory_cell")
+ *  and used as in: if(memory_cell) { ... output debugging info ... }
+ *  Then a commandline parameter '-debug memory' will enable all flags with 'memory' in its name
+ */
+
+struct debugflag {
+  bool enabled;
+  debugflag(string s, bool initial = false) {
+    add_debugflag(s, this);
+    enabled = initial;
+    }
+  operator bool() { return enabled; }
+  void flip() { enabled = !enabled; }
+  };
+
+template<class T> void sizeto(T& t, int n) {
+  if(isize(t) <= n) t.resize(n+1);
+  }
+
+template<class T, class U> void sizeto(T& t, int n, const U& val) {
+  if(isize(t) <= n) t.resize(n+1, val);
   }
 
 }

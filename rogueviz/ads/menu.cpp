@@ -1,3 +1,6 @@
+// Relative Hell: menus
+// Copyright (C) 2022-2025 Zeno Rogue, see '../../hyper.cpp' for details
+
 namespace hr {
 
 namespace ads_game {
@@ -205,9 +208,10 @@ void game_menu() {
   add_edit(pause_speed);
   add_edit(view_proper_times);
   add_edit(DS_(time_unit));
-  if(view_proper_times)
-    add_edit(time_scale);
-  else dialog::addBreak(100);
+  if(view_proper_times) {
+    add_edit(time_scale); add_edit(time_shift);
+    }
+  else dialog::addBreak(200);
 
   dialog::addItem(XLAT("set view mode"), 'v');
   dialog::add_action_push(edit_view_mode);
@@ -269,6 +273,22 @@ void game_menu() {
   dialog::display();
   }
 
+void pick_the_game();
+
+void may_subloop() {
+  #if RELHELL
+  mainloop();
+  if(tour::on) tour::stop_tour();
+  quitmainloop = false;
+  popScreenAll();
+  stop_game();
+  set_geometry(gEuclid);
+  pmodel = mdDisk;
+  start_game();
+  pushScreen(pick_the_game);
+  #endif
+  }
+
 void pick_the_game() {
   cmode = sm::NOSCR;
   clearMessages();
@@ -279,24 +299,28 @@ void pick_the_game() {
   dialog::addBreak(200);
 
   dialog::addBigItem("anti-de Sitter space", 'a');
-  dialog::add_action([] { popScreen(); run_ads_game_std(); add_ads_cleanup(); clearMessages(); });
+  dialog::add_action([] { popScreen(); run_ads_game_std(); add_ads_cleanup(); clearMessages(); may_subloop(); });
   dialog::addInfo(XLAT("shoot asteroids, mine resources, collect gold"));
 
   dialog::addBreak(100);
 
   dialog::addBigItem("de Sitter space", 'd');
-  dialog::add_action([] { popScreen(); run_ds_game_std(); add_ds_cleanup(); clearMessages(); });
+  dialog::add_action([] { popScreen(); run_ds_game_std(); add_ds_cleanup(); clearMessages(); may_subloop(); });
   dialog::addInfo(XLAT("avoid energy balls, but do not let the main star run away!"));
 
   dialog::addBreak(100);
 
   dialog::addBigItem("guided tour", 't');
-  dialog::add_action(start_relhell_tour);
+  dialog::add_action([] { start_relhell_tour(); may_subloop(); });
   dialog::addInfo(XLAT("but what exactly are these spaces?"));
 
   dialog::addBreak(100);
 
+  #if RELHELL
+  dialog::addBigItem("quit the game", 'q');
+  #else
   dialog::addItem("not now", 'q');
+  #endif
   dialog::add_action([] { quitmainloop = true; });
 
   dialog::display();

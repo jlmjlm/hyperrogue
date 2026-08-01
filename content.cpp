@@ -1186,7 +1186,7 @@ LAND( 0xFFFF00, "Land of Power", laPower, ZERO, itPower, RESERVED,
 
 LAND( 0xD0D0D0, "Camelot", laCamelot, ZERO | LF_CYCLIC, itHolyGrail, RESERVED, camelothelp )
   NATIVE((m == moKnight || m == moHedge || m == moFlailer || m == moLancer) ? 1 : 0)
-  REQ(ITEMS(itEmerald, U5) ACCONLY3(laCrossroads, laCrossroads3, laCrossroads4))
+  REQ(ITEMS(itEmerald, U5) ACCONLY4(laCrossroads, laCrossroads3, laCrossroads4, laCrossroads6))
 
 LAND( 0xD000D0, "Temple of Cthulhu", laTemple, ZERO | LF_CYCLIC, itGrimoire, RESERVED, templehelp )
   NATIVE((m == moTentacle || m == moCultist || m == moPyroCultist || m == moCultistLeader) ? 1 : 0)
@@ -1384,7 +1384,7 @@ LAND( 0x804020, "Burial Grounds", laBurial, ZERO, itBarrow, RESERVED,
     "ancient jewelry buried in the graves."
     )
   NATIVE(m == moDraugr ? 1 : 0)
-  REQ(ITEMS(itKraken, U10))
+  REQ(IFINGAME(laKraken, ITEMS(itKraken, U10), GOLD(R60)))
 
 LAND( 0x90A548, "Trollheim", laTrollheim, ZERO, itTrollEgg, RESERVED, 
     "Many clans of Trolls spend their lives in this kingdom. You can find many "
@@ -1504,7 +1504,7 @@ LAND( 0x306030, "Snake Nest", laSnakeNest, ZERO, itSnake, RESERVED, NODESCYET)
   NATIVE(m == moHexSnake ? 2 : among(m, moRedTroll, moMiner, moSkeleton, moBomberbird) ? 1 : 0)
   REQ(GOLD(R90))
 
-LAND( 0x80FF00, "Docks", laDocks, ZERO | LF_SEA, itDock, RESERVED, NODESCYET)
+LAND( 0x80FF00, "Docks", laDocks, ZERO | LF_SEA | LF_COASTAL, itDock, RESERVED, NODESCYET)
   NATIVE(among(m, moRatling, moPirate, moCShark, moAlbatross, moFireFairy) ? 2 : 0)
   REQAS(laOcean,)
 
@@ -1750,10 +1750,19 @@ MONSTER('d', 0x901020, "Angry Die", moAngryDie, ZERO, RESERVED, moAnimatedDie,
   "You have made a die unhappy. Taste the revenge! This one won't forgive you, no matter what you do."
   )
 
+LAND( 0x7030A0, "Crossroads VI", laCrossroads6, ZERO, itHyperstone, RESERVED, "A cursed Crossroads layout.")
+  NATIVE(0)
+  REQ(IFINGAME(laCursed, ITEMS(itCursed, 5), GOLD(R400)))
+
+LAND( 0xC0B090, "Master Crossroads", laMasterCrossroads, ZERO, itHyperstone, RESERVED, "A crossroads that connects only to other crossroads.")
+  NATIVE(0) REQ(GOLD(R500))
+
 ITEM('}', 0xFFFF80, "Crossbow", itCrossbow, IC_NAI, ZERO, RESERVED, osNone,
   "Your crossbow. Press 'f' or click it in the inventory to toggle firing mode. In firing mode, select a tile to see the trajectory, then "
   "click again to fire. After firing, the crossbow takes some time to reload."
   )
+
+MONSTER('D', 0xA0A0A0, "Donkey", moDonkey, CF_FACE_SIDE | CF_FACING, RESERVED, moYeti, "A donkey never moves if two potential moves are equally good.")
 
 //shmupspecials
 MONSTER( '@', 0xC0C0C0, "Rogue", moPlayer, CF_FACE_UP | CF_PLAYER, RESERVED, moNone, "In the Shoot'em Up mode, you are armed with thrown Knives.")
@@ -1773,6 +1782,7 @@ MONSTER( '?', 0xE06000, "Energy Sword", moEnergySword, ZERO | CF_TECHNICAL, RESE
 MONSTER( '!', 0xFF0000, "Warning", moWarning, ZERO | CF_TECHNICAL, RESERVED, moNone, warningdesc)
 MONSTER( '!', 0xFF0000, "arrow trap", moArrowTrap, ZERO | CF_BULLET | CF_TECHNICAL, RESERVED, moNone, arrowtrapdesc)
 MONSTER( '*', 0,        "vertex", moRogueviz, ZERO | CF_TECHNICAL, RESERVED, moNone, "A vertex from rogueviz.")
+MONSTER( '*', 0,        "edge", moRoguevizExtender, ZERO | CF_TECHNICAL, RESERVED, moNone, "An edge extender from rogueviz.")
 
 #undef MONSTER
 #undef LAND
@@ -1796,6 +1806,8 @@ MONSTER( '*', 0,        "vertex", moRogueviz, ZERO | CF_TECHNICAL, RESERVED, moN
 #undef ACCONLY
 #undef ACCONLY2
 #undef ACCONLY3
+#undef ACCONLY4
+#undef ACCONLY5
 #undef ACCONLYF
 #undef IFINGAME
 #undef INMODE

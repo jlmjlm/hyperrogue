@@ -87,6 +87,10 @@
 
 #include "sag/sag.cpp"
 
+#include "embeddings/embeddings.cpp"
+
+#include "watcher.cpp"
+#include "tricenter.cpp"
 
 // the following comments are read by mymake so that it knows that the files include other files there:
 // hidden dependencies: rogueviz/nilrider/
@@ -94,6 +98,7 @@
 // hidden dependencies: rogueviz/ads/
 // hidden dependencies: rogueviz/sag/
 // hidden dependencies: rogueviz/ru/
+// hidden dependencies: rogueviz/embeddings/
 
 //#endif
 

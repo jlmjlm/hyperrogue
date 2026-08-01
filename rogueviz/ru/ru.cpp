@@ -24,17 +24,22 @@ Have fun!
 */
 
 #include "globals.cpp"
+#include "flavors.cpp"
 #include "classes.cpp"
+#include "staters.cpp"
 #include "geometry.cpp"
 #include "entity.cpp"
+#include "hallucinate.cpp"
 #include "man.cpp"
 #include "room.cpp"
 #include "render.cpp"
 #include "portals.cpp"
 #include "powers.cpp"
-#include "save.cpp"
+#include "load-world.cpp"
 #include "stats.cpp"
 #include "randeff.cpp"
+#include "reverts.cpp"
+#include "save.cpp"
 
 namespace rogue_unlike {
 
@@ -93,35 +98,45 @@ void editmap_frame() {
     dialog::display();
     });
   if(keypressed('f')) floodfill_pick(mousepx / block_x, mousepy / block_y);
-  if(keypressed('t')) { m.where = xy(mousepx, mousepy); m.vel = xy(0, 0); current_room->edited = true; }
+  if(keypressed('x')) final_view = !final_view;
+  if(keypressed('t')) { m.where = xy(mousepx, mousepy); m.vel = xy(0, 0); current_room->edited = true; m.existing = true; m.hp = m.max_hp(); }
   }
 
 /* new w, velocity multiplier, neighbor id */
-tuple<xy, ld, int> get_next_room(xy w, room *r) {
-  if(w.x < l_margin_at) {
+tuple<xy, ld, int> get_next_room(xy w, room *r, int which) {
+  auto chk = [&] (bool b, int rid) {
+    return which == rid || (which == -1 && b);
+    };
+
+  if(chk(w.x < l_margin_at, 2)) {
     w.x += actual_screen_x;
     return {w, 1, 2};
     }
-  if(w.x > r_margin_at) {
+  if(chk(w.x > r_margin_at, non_hyperbolic ? 0 : 4)) {
     w.x -= actual_screen_x;
     return {w, 1, non_hyperbolic ? 0 : 4};
     }
 
-  if(w.y < t_margin_at && !non_hyperbolic) {
-    w.y = (w.y - t_margin_at) * 2 + b_margin_at;
-    w.x -= l_margin_at;
-    w.x = 2 * w.x;
-    int rid = w.x <= actual_screen_x;
-    if(rid == 0) w.x -= actual_screen_x;
-    w.x += l_margin_at;
-    return {w, 2, rid};
+  xy w1;
+  w1.y = (w.y - t_margin_at) * 2 + b_margin_at;
+  w1.x = 2 * (w.x - l_margin_at);
+
+  if(chk(w.y < t_margin_at && !non_hyperbolic && w1.x <= actual_screen_x, 1)) {
+    w1.x += l_margin_at;
+    return {w1, 2, 1};
     }
-  if(w.y > b_margin_at && !non_hyperbolic) {
+  if(chk(w.y < t_margin_at && !non_hyperbolic && w1.x > actual_screen_x, 0)) {
+    w1.x -= actual_screen_x;
+    w1.x += l_margin_at;
+    return {w1, 2, 0};
+    }
+
+  if(chk(w.y > b_margin_at && !non_hyperbolic, 3)) {
     w.x -= l_margin_at;
     w.y -= b_margin_at;
     w.y /= 2;
     w.y += t_margin_at;
-    if(is_right(current_room))
+    if(is_right(r))
       w.x += actual_screen_x;
     w.x /= 2;
     w.x += l_margin_at;
@@ -131,16 +146,37 @@ tuple<xy, ld, int> get_next_room(xy w, room *r) {
   return {w, 1, -1};
   }
 
-void playing_frame() {
-  m.act();
+vector<unique_ptr<struct entity>> new_entities;
 
+void playing_frame() {
   auto& ents = current_room->entities;
+
+  for(auto& e: current_room->room_mods) e->act();
+
+  for(auto& e: ents) if(e->existing) e->preact();
+
+  m.act();
 
   for(auto& e: ents) if(e->existing) e->act(); else e->unact();
 
   auto mb = ents.begin();
   for(auto& e: ents) if(!e->destroyed) *(mb++) = std::move(e);
   ents.resize(mb - ents.begin());
+
+  int enemies = 0;
+  for(auto& e: ents) if(e->as_enemy() && e->existing) enemies++;
+  if(enemies > 0) {
+    walls[wArenaDoor].glyph = '+';
+    walls[wArenaDoor].flags = W_BLOCK | W_BLOCKBIRD;
+    }
+  else {
+    walls[wArenaDoor].glyph = '\'';
+    walls[wArenaDoor].flags = W_TRANS;
+    }
+
+
+  for(auto &e: new_entities) ents.push_back(std::move(e));
+  new_entities.clear();
 
   if(one_room) return;
 
@@ -150,7 +186,6 @@ void playing_frame() {
     m.where = w1;
     m.vel *= vmul;
     switch_to_adjacent_room(cr);
-    m.clearg();
     }
   }
 
@@ -198,7 +233,7 @@ void render_the_map() {
         mousepx = (mousex - current_display->xcenter) * 2 / scale / current_display->radius + screen_x/2;
         mousepy = (mousey - current_display->ycenter) * 2 / scale / current_display->radius + screen_y/2;
         }
-      dialog::add_key_action('v', [] { cmode = mode::menu; });
+      dialog::add_key_action('v', [] { save(); cmode = mode::menu; });
       break;
     case mapmode::poincare:
     case mapmode::klein:
@@ -270,7 +305,10 @@ void run() {
       if(cmode == mode::playing) {
         titlecolor = 0xFFFFFF;
         mouseovers = current_room->roomname;
-        displayfr(vid.fsize, vid.fsize, 2, vid.fsize, "HP " + its(m.hp) + "/" + its(m.max_hp()), titlecolor, 0);
+        shstream ss;
+        print(ss, "HP ", m.hp, "/", m.max_hp());
+        for(auto& sts: m.current.status_strings) sts(ss);
+        displayfr(vid.fsize, vid.fsize, 2, vid.fsize, ss.s, titlecolor, 0);
         if(current_target && current_target->existing)
         displayfr(vid.xres - vid.fsize, vid.fsize, 2, vid.fsize, "HP " + its(current_target->hp) + "/" + its(current_target->max_hp()) + " " + current_target->get_name(), titlecolor, 16);
         }
@@ -289,8 +327,8 @@ void run() {
               help_entity = &*e;
 
         if(help_entity) {
-          mouseovers = help_entity->get_name();
-          helpstr = help_entity->get_help();
+          mouseovers = help_entity->hal()->get_name();
+          helpstr = help_entity->hal()->get_help();
           }
 
         int x = mousepx / block_x, y = mousepy / block_y;
@@ -315,6 +353,7 @@ void run() {
       dialog::addTitle("Fountains of Alchemy", 0x4040C0, 150);
       dialog::addItem("return to game", 'v');
       dialog::add_action([] { cmode = mode::playing; });
+      inventory_page = 0;
 
       dialog::addItem("inventory", 'i');
       dialog::add_action_push(draw_inventory);
@@ -376,12 +415,18 @@ string parse_markup(string s) {
   }
 
 void enable() {
-  
+
+  if(powers.size()) throw hr_exception("error: ru doubly-enabled");
+
   stop_game();
+  geometry = gBinary4;
+  showstartmenu = false;
   
+  init_stats();
   set_sval();
   init_scales();
   gen_powers();
+  gen_randeffs();
   shuffle_all();
   
   hyperpoint aleft = deparabolic13(to_hyper(l_margin_at, yctr));
@@ -472,7 +517,17 @@ void add_platf_hooks() {
   pushScreen(run);  
   }
 
+void start_new_game() {
+  enable();
+  generate_character();
+  cmode = mode::menu;
+  pushScreen(initial_stats);
+  clearMessages();
+  }
+
 auto chk = arg::add3("-ru", enable)
+  + arg::add3("-ru-start", start_new_game)
+  + arg::add3("-ru-load", [] { arg::shift(); enable(); load_from(arg::args()); })
   + arg::add3("-ru-cheat", [] { arg::shift(); load_cheat(arg::args()); })
   + addHook(mapstream::hooks_loadmap, 100, [] (hstream& f, int id) {
     if(id == 67) {

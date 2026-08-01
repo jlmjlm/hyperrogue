@@ -87,9 +87,51 @@ vector<string> extra_keys_3d = {
 
 EX hookset<bool()> hooks_build_help;
 
+EX void build_controls() {
+  help = "";
+#if ISMOBILE
+  help += XLAT(
+    "Usually, you move by touching somewhere on the map; you can also touch one "
+    "of the four buttons on the map corners to change this (to scroll the map "
+    "or get information about map objects). You can also touch the "
+    "numbers displayed to get their meanings.\n"
+    );
+#else
+  if(DEFAULTCONTROL && dialog::display_keys == 3)
+    help += XLAT(
+      "To move, aim with the left joystick then press Ⓐ. Press Ⓑ for menu, Steam+Ⓧ for keyboard, Ⓨ to center. Ⓡ to highlight important things on the map.\n\n"
+      "For ranged attacks, use the DPad to aim, then push the left joystick to target an orb or the right joystick to target a ranged weapon. "
+      "Alternatively, you can also use the right trackpad.\n\n"
+      "Press L5 to drop a dead orb. R4/R5 to rotate the screen.\n\n"
+      );
+  else
+  if(DEFAULTCONTROL && !game_keys_scroll)
+    help += XLAT(
+      "Move with mouse, num pad, qweadzxc, or hjklyubn. Wait by pressing 's' or '.'. Spin the world with arrows, PageUp/Down, and Space. "
+      "To save the game you need an Orb of Safety. Press 'v' for the main menu (configuration, special modes, etc.), ESC for the quest status.\n\n"
+      );
+  else if(DEFAULTCONTROL && WDIM == 2)
+    help += XLAT(
+      "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n");
+  else if(DEFAULTCONTROL && WDIM == 3)
+    help += XLAT(
+      "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n");
+
+  if(dialog::display_keys != 3) help += XLAT(
+    "You can right click any element to get more information about it.\n\n"
+    );
+  else help += XLAT(
+    "You can use trackpad to point at things, then press the right trigger, to get more information about things.\n\n"
+    );
+#if ISMAC
+  help += XLAT("(You can also use right Shift)\n\n");
+#endif
+#endif
+  }
+
 EX void buildHelpText() {
   if(callhandlers(0, hooks_build_help)) return;
-  DEBBI(DF_GRAPH, ("buildHelpText"));
+  DEBBI(debug_graph, ("buildHelpText"));
 
   help = XLAT("Welcome to HyperRogue");
 #if ISANDROID  
@@ -106,7 +148,7 @@ EX void buildHelpText() {
     "monsters come to hunt you, as long as you are in the same land type. The "
     "Orbs of Yendor are the ultimate treasure; get at least one of them to win the game!"
     );
-  if(!game_keys_scroll) help += XLAT(" (press ESC for some hints about it).");
+  if(!game_keys_scroll && dialog::display_keys != 3) help += XLAT(" (press ESC for some hints about it).");
   if(!game_keys_scroll) help += "\n\n";
   
   if(!shmup::on && !hardcore && !game_keys_scroll)
@@ -161,67 +203,36 @@ EX void buildHelpText() {
     "get the details of all the Lands.\n\n");
   if(!game_keys_scroll) help += "\n\n";
     
-#if ISMOBILE
-  help += XLAT(
-    "Usually, you move by touching somewhere on the map; you can also touch one "
-    "of the four buttons on the map corners to change this (to scroll the map "
-    "or get information about map objects). You can also touch the "
-    "numbers displayed to get their meanings.\n"
-    );
-#else
-  if(DEFAULTCONTROL && !game_keys_scroll)
-    help += XLAT(
-      "Move with mouse, num pad, qweadzxc, or hjklyubn. Wait by pressing 's' or '.'. Spin the world with arrows, PageUp/Down, and Space. "
-      "To save the game you need an Orb of Safety. Press 'v' for the main menu (configuration, special modes, etc.), ESC for the quest status.\n\n"
-      );
-  else if(DEFAULTCONTROL && WDIM == 2)
-    help += XLAT(
-      "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n");
-  else if(DEFAULTCONTROL && WDIM == 3)
-    help += XLAT(
-      "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n");
-  help += XLAT(
-    "You can right click any element to get more information about it.\n\n"
-    );
-#if ISMAC
-  help += XLAT("(You can also use right Shift)\n\n");
-#endif
-#endif
-  help += XLAT("See more on the website: ") 
-    + "https://roguetemple.com/z/hyper/\n\n";
-  
-#if CAP_TOUR
-  if(!tour::on)
-  help += XLAT("Try the Guided Tour to help with understanding the "
-    "geometry of HyperRogue (menu -> special modes).\n\n");
-#endif
-  
-  help += XLAT("Still confused? Read the FAQ on the HyperRogue website!\n\n");
-  
   help_extensions.clear();
   
   help_extensions.push_back(help_extension{'c', XLAT("credits"), [] () { buildCredits(); }});
-#if ISMOBILE == 0
-  help_extensions.push_back(help_extension{'k', XLAT("advanced keyboard shortcuts"), [] () { 
-    help = "";
-    for(string s: normal_keys) help += s, help += "\n";
-    for(string s: extra_keys) help += s, help += "\n";
-    help += "\n\nQuick keys:\n";
-    for(string s: quick_keys) help += s, help += "\n";
-    if(GDIM == 3 || rug::rugged) {
-      help += "\n\nIn 3D modes:\n";
-      for(string s: extra_keys_3d) help += s, help += "\n";
-      }
-    else {
-      help += "\n\nIn 2D modes:\n";
-      for(string s: extra_keys_2d) help += s, help += "\n";
-      }
+  
+  help_extensions.push_back(help_extension{'k', XLAT("controls"), [] () {
+    build_controls();
+    help_extensions.resize(2);
+    #if ISMOBILE == 0
+    help_extensions.push_back(help_extension{'k', XLAT("advanced keyboard shortcuts"), [] () {
+      help = "";
+      for(string s: normal_keys) help += s, help += "\n";
+      for(string s: extra_keys) help += s, help += "\n";
+      help += "\n\nQuick keys:\n";
+      for(string s: quick_keys) help += s, help += "\n";
+      if(GDIM == 3 || rug::rugged) {
+        help += "\n\nIn 3D modes:\n";
+        for(string s: extra_keys_3d) help += s, help += "\n";
+        }
+      else {
+        help += "\n\nIn 2D modes:\n";
+        for(string s: extra_keys_2d) help += s, help += "\n";
+        }
+      }});
+    #endif
     }});
-#endif
+
   }
 
 EX string standard_help() {
-  if(nohelp == 2) return "";
+  if(nohelp == 2 || dialog::display_keys == 3) return "";
   return XLAT("Press F1 or right click for help");
   }
 
@@ -244,7 +255,7 @@ EX void buildCredits() {
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
     "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
     "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight, jennlbw, Kali Ranya, spiritbackup, Dylan, L_Lord, AntiRogue, "
-    "masonlgreen, A human, Pasu4, inbetween selves, CodeParade, Existentialistic, blejanre, Esme"
+    "masonlgreen, A human, Pasu4, inbetween selves, CodeParade, Existentialistic, blejanre, Esme, Joshua Murphy, josephcsible, googobbug, garnet420, wlatendresse, jdemeyer, swooboo, pengvado"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -347,6 +358,24 @@ string power_help =
   "collected. This also affects the mirrorings which happened before "
   "collecting the Powerstones.";
 
+EX string ranged_click_help() {
+  string s;
+#if ISMOBILE
+  if(vid.shifttarget&2)
+    s = XLAT("\nRanged Orbs can be targeted by long touching the desired location.");
+  else
+    s = XLAT("\nRanged Orbs can be targeted by touching the desired location.");
+#else
+  if(vid.shifttarget&1)
+    s = XLAT("\nRanged Orbs can be targeted by shift-clicking the desired location. ");
+  else
+    s = XLAT("\nRanged Orbs can be targeted by clicking the desired location. ");
+  if(DEFAULTCONTROL)
+    s += XLAT("You can also scroll to the desired location and then press 't'.");
+#endif
+  return s;
+  }
+
 EX string generateHelpForItem(eItem it) {
 
    string help = helptitle(XLATN(iinf[it].name), iinf[it].color);
@@ -391,19 +420,8 @@ EX string generateHelpForItem(eItem it) {
 #endif
 
    if(isRangedOrb(it)) {
-     help += XLAT("\nThis is a ranged Orb. ");
-#if ISMOBILE   
-     if(vid.shifttarget&2)
-       help += XLAT("\nRanged Orbs can be targeted by long touching the desired location.");
-     else
-       help += XLAT("\nRanged Orbs can be targeted by touching the desired location.");
-#else
-     if(vid.shifttarget&1)
-       help += XLAT("\nRanged Orbs can be targeted by shift-clicking the desired location. ");
-     else
-       help += XLAT("\nRanged Orbs can be targeted by clicking the desired location. ");
-     help += XLAT("You can also scroll to the desired location and then press 't'.");
-#endif
+     help += XLAT("\nThis is a ranged Orb. \n");
+     help += ranged_click_help();
      help += XLAT("\nYou can never target cells which are adjacent to the player character, or ones out of the sight range.");
      }
 
@@ -426,6 +444,9 @@ EX string generateHelpForItem(eItem it) {
   
   if(it == itOrbIntensity && inv::on)
     help += XLAT("\n\nIn the Orb Strategy Mode, the effect is increased to +100%.");
+
+  if(it == itOrbRecall)
+    help += XLAT("\n\nOther active orbs extend the duration of this orb.");
 
   if(it == itOrbEmpathy) {
     int cnt = 0;
@@ -754,6 +775,8 @@ void add_reqs(eLand l, string& s) {
     #define ACCONLY(z) s += XLAT("Accessible only from %the1.\n", z);
     #define ACCONLY2(z,x) s += XLAT("Accessible only from %the1 or %the2.\n", z, x);
     #define ACCONLY3(z,y,x) s += XLAT("Accessible only from %the1, %2, or %3.\n", z, y, x);
+    #define ACCONLY4(z1,z2,z3,z4) s += XLAT("Accessible only from %the1, %2, %3, or %4.\n", z1, z2, z3, z4);
+    #define ACCONLY5(z1,z2,z3,z4,z5) s += XLAT("Accessible only from %the1, %2, %3, %4, or %5.\n", z1, z2, z3, z4, z5);
     #define ACCONLYF(z) s += XLAT("Accessible only from %the1 (until finished).\n", z);
     #define IFINGAME(land, ok, fallback) if(isLandIngame(land)) { ok } else { s += XLAT("Alternative rule when %the1 is not in the game:\n", land); fallback }
     #include "content.cpp"
@@ -807,6 +830,9 @@ EX string generateHelpForLand(eLand l) {
   if(l == laWildWest)
     s += XLAT("Bonus land, available only in some special modes.\n");
   
+  if(among(l, laBlizzard, laVolcano) && windmap::wind_failed)
+    s += XLAT("Failed to construct a wind/lava pattern. This land will not work correctly.\n");
+
   if(l == laWhirlpool)
     s += XLAT("Orbs of Safety always appear here, and may be used to escape.\n");
 
@@ -907,13 +933,19 @@ template<class T> void set_help_to(T t) {
   }
 
 EX void describeMouseover() {
-  DEBBI(DF_GRAPH, ("describeMouseover"));
+  DEBBI(debug_graph, ("describeMouseover"));
 
   if(callhandlers(0, hooks_global_mouseover)) return;
 
   cell *c = mousing ? mouseover : playermoved ? NULL : centerover;
   string& out = mouseovers;
   if(!c || instat || getcstat != '-') { }
+  else if(!in_line_of_sight_for_player(c)) {
+    out = XLAT("you cannot see this place");
+    help = XLAT("You cannot currently see this tile.\n\nThis also means that most enemies will not try to reach you through this tile.\n\n");
+    help += XLAT("Enemies which ignore this restriction:");
+    help += XLAT(" ghosts, demon sharks, hyperbugs");
+    }
   else if(c->wall != waInvisibleFloor) {
     out = XLAT1(linf[c->land].name);
     set_help_to(c->land);
@@ -1018,7 +1050,7 @@ EX void describeMouseover() {
       }
     #endif
       
-    if(c->wall && !(c->wall == waChasm && c->land == laDual && ctof(c)) &&
+    if(c->wall && !(c->land == laDual && pseudohept(c)) &&
       !(c->land == laMemory) &&
       !((c->wall == waFloorA || c->wall == waFloorB) && c->item)) { 
 
@@ -1080,7 +1112,7 @@ EX void describeMouseover() {
     if(c->item && !itemHiddenFromSight(c)) {
       out += ", "; 
       out += XLAT1(iinf[c->item].name); 
-      if(c->item == itBarrow) out += " (x" + its(c->landparam) + ")";
+      if(c->item == itBarrow) out += " (x" + its(barrowCount(c)) + ")";
       #if CAP_COMPLEX2
       if(c->land == laHunting) {      
         int i = ambush::size(c, c->item);
@@ -1092,7 +1124,8 @@ EX void describeMouseover() {
       if(!c->monst) set_help_to(c->item);
       }
     
-    if(isPlayerOn(c) && !shmup::on) out += XLAT(", you"), help = generateHelpForMonster(moPlayer);
+    if(isPlayerOn(c) && !shmup::on && mapeditor::drawplayer)
+      out += XLAT(", you"), help = generateHelpForMonster(moPlayer);
 
     shmup::addShmupHelp(out);
 
@@ -1110,13 +1143,18 @@ EX void describeMouseover() {
     if(isWarped(c) && !isWarpedType(c->land))
       out += ", warped";
 
+    if(!in_line_of_sight(c)) {
+      out += " (magical vision)";
+      appendHelp("\n\nWhile you magically know what is there, most enemies won't track you through here.");
+      }
+
     if(isWarped(c)) {
       appendHelp(string("\n\n") + XLAT(warpdesc));
 
       if(S7 != 7 || !BITRUNCATED) if(c->item != itOrb37)
         appendHelp("\n\n" + other_geometry() + forbidden_unmarked());
       }
-    
+
     if(isElectricLand(c) || isElectricLand(cwt.at->land)) {
       using namespace elec;
       eCharge ch = getCharge(c);
@@ -1137,8 +1175,13 @@ EX void describeMouseover() {
   if(tour::on && !tour::texts) {
     if(tour::slides[tour::currentslide].flags & tour::NOTITLE)
       mouseovers = "";
-    else
+    else {
       mouseovers = XLAT(tour::slides[tour::currentslide].name);
+      auto posf = mouseovers.find("//");
+      if(posf != string::npos) mouseovers = mouseovers.substr(0, posf);
+      posf = mouseovers.rfind("/");
+      if(posf != string::npos) mouseovers = mouseovers.substr(posf+1);
+      }
     }
   #endif
   }

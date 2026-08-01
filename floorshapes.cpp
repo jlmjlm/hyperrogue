@@ -232,7 +232,8 @@ void geometry_information::bshape2(hpcshape& sh, PPR prio, int shapeid, matrixli
   T = spin(m.o.bspi) * T;
   for(auto &pp: lst) pp = T * pp;
   
-  if(osym % rots && rots % osym && (debugflags & DF_GEOM)) printf("warning: rotation oddity (shapeid %d, osym=%d rots=%d)\n", shapeid, osym, rots);
+  if(osym % rots && rots % osym && debug_geometry)
+    printf("warning: rotation oddity (shapeid %d, osym=%d rots=%d)\n", shapeid, osym, rots);
 
   if(rots > osym && rots % osym == 0) {
     int rep = rots / osym;
@@ -260,7 +261,8 @@ void geometry_information::bshape2(hpcshape& sh, PPR prio, int shapeid, matrixli
           nh = m.second[r] * z, mapped++;
           }
         }
-      if(mapped == 0 && (debugflags & DF_GEOM)) printf("warning: not mapped (shapeid %d)\n", shapeid);
+      if(mapped == 0 && debug_geometry)
+        println(hlog, "warning: not mapped shapeid = ", shapeid);
       if(invalid) {
         apeirogonal = true;        
         for(auto h: head) tail.push_back(h);
@@ -275,14 +277,7 @@ void geometry_information::bshape2(hpcshape& sh, PPR prio, int shapeid, matrixli
   if(!apeirogonal) hpcpush(starting_point);
   }
 
-template<class T> void sizeto(T& t, int n) {
-  if(isize(t) <= n) t.resize(n+1);
-  }
-
-template<class T, class U> void sizeto(T& t, int n, const U& val) {
-  if(isize(t) <= n) t.resize(n+1, val);
-  }
-
+#if CAP_BT
 void geometry_information::bshape_bt(floorshape &fsh, int id, int sides, ld size, cell *c) {
   
   sizeto(fsh.b, id);
@@ -329,6 +324,7 @@ void geometry_information::bshape_bt(floorshape &fsh, int id, int sides, ld size
       }
     }
   }
+#endif
 
 #if CAP_IRR
 namespace irr { void generate_floorshapes(); }
@@ -378,7 +374,10 @@ void geometry_information::generate_floorshapes_for(int id, cell *c) {
 
   int siid = 0, sidir = 0;
 
-  if(arcm::in()) {
+  if(0) ;
+
+  #if CAP_ARCM
+  else if(arcm::in()) {
     if(BITRUNCATED)
       siid = arcm::pseudohept(c), sidir = arcm::pseudohept(c) ? 0 : !arcm::pseudohept(c->cmove(0));
     else if(geosupport_football() == 2)
@@ -386,10 +385,11 @@ void geometry_information::generate_floorshapes_for(int id, cell *c) {
     else
       siid = 1, sidir = 0;
     }
+  #endif
 
   #if CAP_IRR
   else if(IRREGULAR) {
-    DEBBI(DF_POLY, ("generate_floorshapes: irregular"));
+    DEBBI(debug_poly, ("generate_floorshapes: irregular"));
 
     auto& vs = irr::cells[id];
     siid = vs.is_pseudohept;
@@ -402,6 +402,7 @@ void geometry_information::generate_floorshapes_for(int id, cell *c) {
     auto& c = arb::current;
     siid = c.shapes[id].football_type >= 2;
     sidir = c.shapes[id].football_type == 1;
+    if(!c.is_football_colorable) siid = 1;
     }
   
   else if(geometry == gBinary4) {
@@ -437,15 +438,17 @@ void geometry_information::generate_floorshapes_for(int id, cell *c) {
     }
   #endif
 
-  DEBBI(DF_POLY, ("generate_floorshapes_for ", id));
+  DEBBI(debug_poly, ("generate_floorshapes_for ", id));
 
   for(auto pfsh: all_plain_floorshapes) {
     auto& fsh = *pfsh;
 
+    #if CAP_BT
     if(bt::in()) {
       bshape_bt(fsh, id, S7, fsh.rad1, c);
       continue;
       }
+    #endif
 
     // special
     ld sca = 3 * shFullFloor.rad0 / fsh.rad0;
@@ -856,16 +859,17 @@ EX namespace gp {
         sidir = 0;
         }
       else {
-        siid = 0;
+        siid = 1;
         sidir = 0;
         }
       };
     if(INVERSE && gp::variation_for(gp::param) == eVariation::goldberg) {
       c1 = gp::get_mapped(c);
       UIU(f());
+      siid = 1; sidir = 0;
       }
     else if(INVERSE) {
-      siid = 0;
+      siid = 1;
       sidir = 0;
       }
     else f();
@@ -1369,11 +1373,12 @@ void geometry_information::make_floor_textures_here() {
   */
   rb.reset();
   last_texture_step = vid.texture_step;
+  delete m;
   }
 
 EX void make_floor_textures() {
   if(noGUI || !vid.usingGL) return;
-  DEBBI(DF_POLY, ("make_floor_textures"));
+  DEBBI(debug_poly, ("make_floor_textures"));
   dynamicval<euc::torus_config_full> geu(euc::eu, euc::eu);
   dynamicval<eGeometry> g(geometry, gEuclidSquare);
   dynamicval<eModel> gm(pmodel, mdDisk);

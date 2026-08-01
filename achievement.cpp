@@ -116,6 +116,8 @@ EX int score_default(int id);
 EX void improveItemScores();
 EX void upload_score(int id, int v);
 
+EX bool is_steamdeck();
+
 EX string achievementMessage[3];
 EX int achievementTimer;
 /** achievements received this game */
@@ -137,6 +139,7 @@ EX bool wrongMode(char flags) {
     }
   if(ineligible_starting_land && !flags) return true;
   if(use_custom_land_list) return true;
+  if(lineofsight != los::none || lineofsightAt >= PURELOS_LEVEL) return true;
 
   if(shmup::on != (flags == rg::shmup || flags == rg::racing)) return true;
   if(racing::on != (flags == rg::racing)) return true;
@@ -192,10 +195,16 @@ EX char specgeom_lovasz() { return rg::check(geometry == gKleinQuartic && variat
 EX char specgeom_halloween() { return rg::check((geometry == gSphere || geometry == gElliptic) && BITRUNCATED && !disksize && firstland == laHalloween); }
 EX char specgeom_heptagonal() { return rg::check(PURE && geometry == gNormal && !disksize, rg::special_geometry_nicewalls); }
 EX char specgeom_euclid_gen() { return rg::check(geometry == gEuclid && !disksize && firstland == laMirrorOld); }
+#if CAP_CRYSTAL
 EX char specgeom_crystal1() { return rg::check(PURE && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 4 && !crystal::used_compass_inside && !disksize && firstland == laCamelot); }
 EX char specgeom_crystal2() { return rg::check(BITRUNCATED && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 3 && !crystal::used_compass_inside && !disksize && firstland == laCamelot); }
+#endif
 
-EX vector<std::function<char()>> all_specgeom_checks = { specgeom_zebra, specgeom_lovasz, specgeom_halloween, specgeom_heptagonal, specgeom_crystal1, specgeom_crystal2, specgeom_euclid_gen };
+EX vector<std::function<char()>> all_specgeom_checks = { specgeom_zebra, specgeom_lovasz, specgeom_halloween, specgeom_heptagonal,
+  #if CAP_CRYSTAL
+  specgeom_crystal1, specgeom_crystal2,
+  #endif
+  specgeom_euclid_gen };
 
 EX char any_specgeom() {
   for(auto chk: all_specgeom_checks) if(chk() != rg::fail) return chk();
@@ -903,12 +912,14 @@ EX void check_total_victory() {
   hadtotalvictory = true;
   achievement_gain("TOTALVICTORY");
   }
-  
+
+EX debugflag debug_achievements = {"steam_achievements"};
+
 /** gain the victory achievements. 
  *  @param hyper true for the Hyperstone victory, and false for the Orb of Yendor victory.
  */
 EX void achievement_victory(bool hyper) {
-  DEBBI(DF_STEAM, ("achievement_victory"))
+  if(debug_achievements) println(hlog, "achievement_victory");
   if(offlineMode) return;
 #if CAP_ACHIEVE
   if(cheater) return;
@@ -925,7 +936,8 @@ EX void achievement_victory(bool hyper) {
   if(ineligible_starting_land) return;
   if(use_custom_land_list) return;
   LATE( achievement_victory(hyper); )
-  DEBB(DF_STEAM, ("after checks"))
+
+  if(debug_achievements) println(hlog, "after checks");
 
   int t = getgametime();
   
@@ -976,7 +988,8 @@ EX void achievement_victory(bool hyper) {
       }
     }
   
-  DEBB(DF_STEAM, ("uploading scores"))
+  if(debug_achievements) println(hlog, "uploading scores");
+
   upload_score(ih1, t);
   upload_score(ih2, turncount);
 #endif

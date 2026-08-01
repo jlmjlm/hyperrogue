@@ -8,7 +8,9 @@
 #include "hyper.h"
 #if CAP_SAVE
 
-namespace hr { namespace scores {
+namespace hr {
+
+EX namespace scores {
 
 vector<score> scores;
 score *currentgame;
@@ -20,7 +22,7 @@ int which_mode;
 
 string csub(const string& str, int q) {
   int i = 0;
-  for(int j=0; j<q && i<isize(str); j++) getnext(str.c_str(), i);
+  for(int j=0; j<q && i<isize(str); j++) getnext(str, i);
   return str.substr(0, i);
   }
 
@@ -59,6 +61,9 @@ int modediff(score *S) {
   if(S->box[196] != (int) land_structure) diff += 32;
   if(S->box[119] != shmup::on) diff += 64;
   if(pureHardcore() && !isHardcore(S)) diff += 128;
+  if((S->box[422] < PURELOS_LEVEL) != (lineofsightAt < PURELOS_LEVEL)) diff += 8;
+  else if(S->box[421] != int(lineofsight)) diff += 8;
+
   if(g != gNormal && S->box[120] != specialland) 
     diff += 256;
   if(g != geometry) {
@@ -82,6 +87,9 @@ string modedesc(score *S) {
   if(S->box[197] > 1) s += "/P" + its(S->box[197]);
   if(S->box[306]) s += "/i";
   if(isHardcore(S)) s += "/h";
+  if(S->box[421] == 1 && S->box[422] < PURELOS_LEVEL) s += "/l1";
+  if(S->box[421] == 2 && S->box[422] < PURELOS_LEVEL) s += "/l2";
+  if(S->box[422] >= PURELOS_LEVEL) s += "/l?";
   return s;
   }
 
@@ -91,7 +99,7 @@ string displayfor(int scoredisplay, score* S, bool shorten = false) {
     if(scoredisplay == POSSCORE) return "mode";
     string str = XLATN(boxname[scoredisplay]);
     if(!shorten) return str;
-    if(scoredisplay == 0 || scoredisplay == 65) return XLAT("time");
+    if(scoredisplay == 65) return XLAT("time");
     if(scoredisplay == 2) return "$$$";
     if(scoredisplay == 3) return XLAT("kills");
     if(scoredisplay == 4) return XLAT("turns");
@@ -102,7 +110,7 @@ string displayfor(int scoredisplay, score* S, bool shorten = false) {
     if(scoredisplay == 68) return XLAT("where");
     return csub(str, 5);
     }
-  if(scoredisplay == 0 || scoredisplay == 65) {
+  if(scoredisplay == 65) {
     char buf[20];
     int t = S->box[0];
     if(t >= 3600) 
@@ -137,7 +145,7 @@ void showPickScores() {
 
   scorerev = false;
 
-  for(int i=0; i<=POSSCORE; i++) {
+  for(int i=1; i<=POSSCORE; i++) {
     int scoredisplay = i;
     if(!fakebox[scoredisplay]) {
       string s = displayfor(scoredisplay, NULL);
@@ -159,7 +167,7 @@ void showPickScores() {
     dialog::addItem(vi.first, dialog::list_fake_key++);
     dialog::add_action([&vi] {
       int scoredisplay = vi.second;
-      for(int i=0; i<=POSSCORE; i++)
+      for(int i=1; i<=POSSCORE; i++)
         if(columns[i] == scoredisplay) swap(columns[i], columns[curcol]);
       popScreen();
       });
@@ -171,21 +179,23 @@ void showPickScores() {
   mouseovers = dialog::infix;
   keyhandler = [] (int sym, int uni) {
     dialog::handleNavigation(sym, uni);
-    if(dialog::editInfix(uni)) dialog::list_skip = 0;
+    if(dialog::editInfix(sym, uni)) dialog::list_skip = 0;
     else if(doexiton(sym, uni)) popScreen();
     };
   }
 
-int scale = 2;
+EX int scale = 2;
+
+int first_col = 0;
 
 void show() {
 
   if(columns.size() == 0) {
     columns.push_back(POSSCORE);
-    for(int i=0; i<POSSCORE; i++) {
-      if(i == 5) columns.push_back(68);
-      else if(i == 68) columns.push_back(5);
-      else columns.push_back(i);
+
+    for(int j=0; j<(int) scores::bpGUARD; j++)
+    for(int i=1; i<POSSCORE; i++) if(!fakebox[i] && boxprio[i] == j) {
+      columns.push_back(i);
       }
     }
   int score_size = vid.fsize / scale;
@@ -193,13 +203,20 @@ void show() {
   int bx = score_size;
   getcstat = 0;
   
-  displaystr(bx*4, score_size, 0, vid.fsize, "#", forecolor, 16);
-  displaystr(bx*8, score_size, 0, vid.fsize, XLAT("ver"), forecolor, 16);
+  displaystr(bx*4, score_size, 0, score_size, "#", forecolor, 16);
+  displaystr(bx*8, score_size, 0, score_size, XLAT("ver"), forecolor, 16);
   
+  bool not_shown = false;
+  if(curcol < first_col) first_col = curcol;
+  int numcol = isize(columns);
+
   int at = 9;
-  for(int i=0; i<=POSSCORE; i++) {
+  for(int i=first_col; i<numcol; i++) {
     int c = columns[i];
-    if(bx*at > vid.xres) break;
+    if(bx*at > vid.xres) {
+      not_shown = i <= curcol;
+      break;
+      }
     string s = displayfor(c, NULL, true);
     auto& cw = column_width[c];
     cw = max(cw, textwidth(score_size, s) / bx + 1);
@@ -238,7 +255,7 @@ void show() {
     displaystr(bx*8,  y, 0, score_size, S.ver, col, 16);
 
     int at = 9;
-    for(int i=0; i<=POSSCORE; i++) {
+    for(int i=first_col; i<numcol; i++) {
       int c = columns[i];
       if(bx*at > vid.xres) break;
       string s = displayfor(c, &S);
@@ -259,39 +276,41 @@ void show() {
     y += score_size*5/4; id++;
     }
 
+  if(not_shown) first_col++;
+
   column_width = next_column_width;
   int i0 = vid.yres - vid.fsize;
   int xr = vid.xres / 80;
 
-  displayButton(xr*10, i0, IFM("s - ") + XLAT("sort"), 's', 8);
-  displayButton(xr*30, i0, IFM("t - ") + XLAT("choose"), 't', 8);
-  displayButton(xr*50, i0, IFM("z - ") + XLAT("zoom"), 'z', 8);
-  displayButton(xr*70, i0, IFM(dialog::keyname(SDLK_ESCAPE) + " - ") + XLAT("go back"), '0', 8);
+  displayButton(xr*1, i0, IFM("s - ") + XLAT("sort"), 's', 0);
+  displayButton(xr*15, i0, IFM("t - ") + XLAT("choose") + ": " +  displayfor(columns[curcol], NULL, false), 't', 0);
+  displayButton(xr*60, i0, IFM("z - ") + XLAT("zoom"), 'z', 16);
+  displayButton(xr*79, i0, IFM(dialog::keyname(SDLK_ESCAPE) + " - ") + XLAT("go back"), '0', 16);
 
-  keyhandler = [] (int sym, int uni) {
+  keyhandler = [numcol] (int sym, int uni) {
     if(DKEY == SDLK_LEFT || uni == 'h' || uni == 'a') {
       scorerev = false;
       if(curcol > 0) curcol--;
       }
     else if(DKEY == SDLK_RIGHT || uni == 'l' || uni == 'd') {
       scorerev = false;
-      if(curcol < POSSCORE) curcol++;
+      if(curcol < numcol - 1) curcol++;
       }
     else if(sym >= 1000 && sym <= 1000+POSSCORE) {
       scorerev = false;
       curcol = sym - 1000;
       }
-    else if(uni == 't') { dialog::infix = ""; pushScreen(showPickScores); }
+    else if(uni == 't' || is_joy_index(sym, deck::enter)) { dialog::infix = ""; pushScreen(showPickScores); }
     else if(DKEY == SDLK_UP || uni == 'k' || uni == 'w')
       scorefrom -= 5;
     else if(DKEY == SDLK_DOWN || uni == 'j' || uni == 'x')
       scorefrom += 5;
-    else if(uni == 'z') scale = 3 - scale;
+    else if(uni == 'z' || is_joy_index(sym, deck::alt_enter)) scale = 3 - scale;
     else if(sym == PSEUDOKEY_WHEELUP)
       scorefrom--;
     else if(sym == PSEUDOKEY_WHEELDOWN)
       scorefrom++;
-    else if(uni == 's') {
+    else if(uni == 's' || is_joy_index(sym, deck::space)) {
       if(scorerev) reverse(scores.begin(), scores.end());
       else {
         scorerev = true;
@@ -301,24 +320,24 @@ void show() {
         }
       }
     else if(doexiton(sym, uni)) popScreen();
-
-    static int scoredragy;
-    static bool lclicked;
-    
-    if(mousepressed) {
-      if(!lclicked) {
-        // scoredragx = mousex;
-        scoredragy = mousey;
-        }
-  
-      else {
-        while(mousey > scoredragy + vid.fsize) scoredragy += vid.fsize, scorefrom--;
-        while(mousey < scoredragy - vid.fsize) scoredragy -= vid.fsize, scorefrom++;
-        }
-
-      lclicked = mousepressed;
-      }
     };
+
+  static int scoredragy;
+  static bool lclicked;
+  if(mousepressed) {
+    if(!lclicked) {
+      // scoredragx = mousex;
+      scoredragy = mousey;
+      }
+
+    else {
+      while(mousey > scoredragy + vid.fsize) scoredragy += vid.fsize, scorefrom--;
+      while(mousey < scoredragy - vid.fsize) scoredragy -= vid.fsize, scorefrom++;
+      }
+
+    lclicked = mousepressed;
+    }
+  else lclicked = false;
   }
 
 void load_only() {
@@ -407,7 +426,7 @@ void load() {
     });
   }
 
-}
+EX }
 
 EX map<int, int> qty_scores_for;
 

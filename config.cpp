@@ -95,7 +95,7 @@ struct parameter : public std::enable_shared_from_this<parameter> {
   bool menu_item_name_modified;
   string help_text;
   reaction_t pre_reaction, reaction;
-  char default_key;
+  key_type default_key;
   bool is_editable;
   bool needs_confirm;
   virtual bool available() { if(restrict) return restrict(); return true; }
@@ -117,6 +117,7 @@ struct parameter : public std::enable_shared_from_this<parameter> {
   parameter *set_sets(const reaction_t& s) { sets = s; return this; }
   parameter *set_extra(const reaction_t& r);
   parameter *set_reaction(const reaction_t& r);
+  parameter *set_pre_reaction(const reaction_t& r);
   virtual ~parameter() = default;
   virtual bool load_from_animation(const string& s) {
     load(s); return false;
@@ -130,6 +131,7 @@ struct parameter : public std::enable_shared_from_this<parameter> {
   virtual void set_cld_raw(cld x) { throw param_exception("parameter has no complex value", this); }
   virtual void set_cld(cld value) {
     auto bak = get_cld();
+    if(value != bak && pre_reaction) pre_reaction();
     set_cld_raw(value);
     if(value != bak && reaction) reaction();
     }
@@ -165,13 +167,15 @@ parameter *parameter::set_reaction(const reaction_t& r) {
   reaction = r; return this;
   }
 
+parameter *parameter::set_pre_reaction(const reaction_t& r) {
+  pre_reaction = r; return this;
+  }
+
 #if HDR
 using paramlist = map<string, std::shared_ptr<parameter>>;
 #endif
 
 EX paramlist params;
-
-EX void show_edit_option_enum(char* value, const string& name, const vector<pair<string, string>>& options, char key, parameter *s);
 
 #if HDR
 struct list_parameter : parameter {
@@ -180,7 +184,7 @@ struct list_parameter : parameter {
   virtual void set_value(int i) = 0;
   vector<pair<string, string> > options;
   reaction_t extras;
-  list_parameter* editable(const vector<pair<string, string> >& o, string menu_item_name, char key) {
+  list_parameter* editable(const vector<pair<string, string> >& o, string menu_item_name, key_type key) {
     is_editable = true;
     options = o;
     this->menu_item_name = menu_item_name;
@@ -240,7 +244,7 @@ template<class T> struct enum_parameter : list_parameter {
     anims::animate_parameter(this, s);
     }
 
-  enum_parameter<T>* editable(const vector<pair<string, string> >& o, string menu_item_name, char key) {
+  enum_parameter<T>* editable(const vector<pair<string, string> >& o, string menu_item_name, key_type key) {
     list_parameter::editable(o, menu_item_name, key);
     return this;
     }
@@ -302,7 +306,7 @@ template<class T> struct val_parameter : public parameter {
 struct float_parameter : public val_parameter<ld> {
   ld min_value, max_value, step;
   string unit;
-  float_parameter *editable(ld min_value, ld max_value, ld step, string menu_item_name, string help_text, char key) {
+  float_parameter *editable(ld min_value, ld max_value, ld step, string menu_item_name, string help_text, key_type key) {
     is_editable = true;
     this->min_value = min_value;
     this->max_value = max_value;
@@ -335,7 +339,7 @@ struct int_parameter : public val_parameter<int> {
   function<void(int_parameter*)> modify_me;
   int_parameter *modif(const function<void(int_parameter*)>& r) { modify_me = r; return this; }
   void show_edit_option(key_type key) override;
-  int_parameter *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, char key) {
+  int_parameter *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, key_type key) {
     this->is_editable = true;
     this->min_value = min_value;
     this->max_value = max_value;
@@ -370,7 +374,7 @@ struct string_parameter: public val_parameter<string> {
   void show_edit_option(key_type key) override;
   string_parameter* set_standard_editor(bool direct);
   string_parameter* set_file_editor(string ext);
-  string_parameter* editable(string cap, string help, char key ) {
+  string_parameter* editable(string cap, string help, key_type key ) {
     is_editable = true;
     menu_item_name = cap;
     default_key = key;
@@ -392,7 +396,7 @@ struct char_parameter : public val_parameter<char> {
 struct bool_parameter : public val_parameter<bool> {
   string save() override { return (*value) ? "yes" : "no"; }
   reaction_t switcher;
-  bool_parameter* editable(string cap, char key ) {
+  bool_parameter* editable(string cap, key_type key ) {
     is_editable = true;
     menu_item_name = cap; default_key = key;
     menu_item_name_modified = true;
@@ -417,7 +421,7 @@ struct bool_parameter : public val_parameter<bool> {
 struct color_parameter : public val_parameter<color_t> {
   bool has_alpha;
   void show_edit_option(key_type key) override;
-  color_parameter *editable(string menu_item_name, string help_text, char key) {
+  color_parameter *editable(string menu_item_name, string help_text, key_type key) {
     this->is_editable = true;
     this->menu_item_name = menu_item_name;
     menu_item_name_modified = true;
@@ -456,7 +460,7 @@ struct matrix_parameter : public val_parameter<matrix_eq> {
 
   int dim;
   void show_edit_option(key_type key) override;
-  matrix_parameter *editable(string menu_item_name, string help_text, char key) {
+  matrix_parameter *editable(string menu_item_name, string help_text, key_type key) {
     this->is_editable = true;
     this->menu_item_name = menu_item_name;
     menu_item_name_modified = true;
@@ -614,6 +618,7 @@ void color_parameter::show_edit_option(key_type key) {
     dialog::openColorDialog(*value);
     dialog::colorAlpha = has_alpha;
     dialog::get_di().dialogflags |= sm::SIDE;
+    if(sets) sets();
     });
   }
 
@@ -846,7 +851,7 @@ shared_ptr<parameter> float_parameter::clone(struct local_parameter_set& lps, vo
 
 #if HDR
 template<class T>
-shared_ptr<custom_parameter> param_custom_int(T& val, const parameter_names& n, function<void(key_type)> menuitem, char key) {
+shared_ptr<custom_parameter> param_custom_int(T& val, const parameter_names& n, function<void(key_type)> menuitem, key_type key) {
   shared_ptr<custom_parameter> u ( new custom_parameter );
   u->setup(n);
   int dft = (int) val;
@@ -865,7 +870,7 @@ shared_ptr<custom_parameter> param_custom_int(T& val, const parameter_names& n, 
   }
 #endif
 
-EX shared_ptr<custom_parameter> param_custom_ld(ld& val, const parameter_names& n, function<void(key_type)> menuitem, char key) {
+EX shared_ptr<custom_parameter> param_custom_ld(ld& val, const parameter_names& n, function<void(key_type)> menuitem, key_type key) {
   shared_ptr<custom_parameter> u ( new custom_parameter );
   u->setup(n);
   ld dft = val;
@@ -890,7 +895,7 @@ EX shared_ptr<custom_parameter> param_colortable(colortable& val, const paramete
   u->setup(n);
   colortable dft = val;
   u->last_value = -1;
-  u->custom_viewer = [] (char key) {};
+  u->custom_viewer = [] (key_type key) {};
   u->custom_value = [] () { return -1; };
   u->custom_affect = [&val] (void *v) { return &val == v; };
   u->custom_load = [&val] (const string& s) {
@@ -899,7 +904,7 @@ EX shared_ptr<custom_parameter> param_colortable(colortable& val, const paramete
   u->custom_save = [&val] {
     bool first = true;
     string str;
-    for(auto v: val) { if(first) first = false; else str += ","; str += itsh(v); }
+    for(auto v: val) { if(first) first = false; else str += ","; str += itsh6(v); }
     return str;
     };
   u->custom_do_save = [dft, &val] { return val != dft; };
@@ -914,7 +919,7 @@ EX shared_ptr<custom_parameter> param_colortable(colortable& val, const paramete
 EX ld bounded_mine_percentage = 0.1;
 EX int bounded_mine_quantity, bounded_mine_max;
 
-EX const char *conffile = "hyperrogue.ini";
+EX string conffile = "hyperrogue.ini";
 
 /* extra space if more geometries are added */
 EX array<ld, gGUARD+64> sightranges;
@@ -997,11 +1002,7 @@ EX string csnameid(int id) {
   if(id == 1) return XLAT("female");
   if(id == 2) return XLAT("Prince");
   if(id == 3) return XLAT("Princess");
-  if(id == 4 || id == 5) return XLAT("cat");
-  if(id == 6 || id == 7) return XLAT("dog");
-  if(id == 8 || id == 9) return XLATN("Familiar");
-  if(id == 10 || id == 11) return XLATN("spaceship");
-  return XLAT("none");
+  return XLAT(playershapes[id >> 1].name);
   }
 
 EX string csname(charstyle& cs) {
@@ -1025,7 +1026,9 @@ EX int lang() {
   return default_language;
   }
 
-EX bool autojoy = true;
+EX bool autojoy = false;
+
+EX bool defaultjoy = true;
 
 EX void paramset(charstyle& cs, string s) {
   param_i(cs.charid, s + ".charid");
@@ -1068,6 +1071,49 @@ EX purehookset hooks_configfile;
 
 EX ld mapfontscale = 100;
 
+EX vector<int> get_display_modes(char which) {
+  set<int> seen;
+
+  #if SDLVER >= 2
+  SDL_DisplayMode mode;
+  int num_video_displays = SDL_GetNumVideoDisplays();
+  if(num_video_displays < 0)
+    println(hlog, "SDL_GetNumVideoDisplays error: ", SDL_GetError());
+  else if(num_video_displays == 0)
+    println(hlog, "SDL_GetNumVideoDisplays returned 0");
+  for(int m=0; m<num_video_displays; m++) {
+    int num_display_modes = SDL_GetNumDisplayModes(m);
+    if(num_display_modes < 0)
+      println(hlog, "SDL_GetNumDisplayModes(", m, ") error: ", SDL_GetError());
+    else if(num_display_modes == 0)
+      println(hlog, "SDL_GetNumDisplayModes(", m, ") returned 0");
+    for(int i=0; i<num_display_modes; i++) {
+      SDL_GetDisplayMode(m, i, &mode);
+      if(which == 'x') seen.insert(mode.w);
+      if(which == 'y') seen.insert(mode.h);
+      }
+    }
+
+  #else
+  SDL_Rect **modes = SDL_ListModes(nullptr, SDL_FULLSCREEN);
+  if(!modes)
+    println(hlog, "SDL_ListModes: No modes available!");
+  else if(modes == (SDL_Rect**)-1)
+    println(hlog, "SDL_ListModes: All resolutions available.");
+  else if(!*modes)
+    println(hlog, "SDL_ListModes returned an empty array");
+  else for(int i=0; modes[i]; i++) {
+    if(which == 'x') seen.insert(modes[i]->w);
+    if(which == 'y') seen.insert(modes[i]->h);
+    }
+  #endif
+
+  if(seen.empty()) return which == 'x' ? vector<int> { 640, 800, 1024, 1280, 1600, 1920 } : vector<int> { 480, 600, 720, 800, 1200, 1080 };
+  vector<int> v;
+  for(auto s: seen) v.push_back(s);
+  return v;
+  }
+
 #if CAP_SDLTTF
 EX void font_reaction() {
   if(among(font_id, 5, 6)) {
@@ -1082,12 +1128,54 @@ EX void font_reaction() {
 
 EX void initConfig() {
   
+  DEBBI(debug_init_config, ("initconfig"));
+
+  bool qm = !ISPANDORA;
+  bool deck = false;
+
+  #if ISLINUX
+  if(1) {
+    string name = "", vendor = "";
+    if(1) {
+      fhstream f("/sys/devices/virtual/dmi/id/board_name", "rt");
+      if(f.f) name = scanline_noblank(f);
+      }
+    if(1) {
+      fhstream f("/sys/devices/virtual/dmi/id/board_vendor", "rt");
+      if(f.f) vendor = scanline_noblank(f);
+      }
+    if(vendor.find("Valve") != string::npos && (name.find("Jupiter") != string::npos || name.find("Galileo") != string::npos))
+      deck = true;
+    }
+  #endif
+
+  #if ISSTEAM
+  if(is_steamdeck()) deck = true;
+  #endif
+
+  if(deck) {
+    centered_menus = true;
+    lands_per_page = 18;
+    dialog::onscreen_keyboard = true;
+    dialog::dialog_font_scale = 3;
+    dialog::display_keys = 3;
+    qm = false;
+    separate_status = true;
+    multi::multi_autojoy = false;
+    touch_interface = true;
+    scores::scale = 1;
+    }
+
   // basic config
   param_i(vid.flashtime, "flashtime", 8);
 
   param_i(vid.msglimit, "message limit", 5);
   param_i(vid.timeformat, "message log time format", 0);
-  
+
+  param_b(separate_status, "separate_status")
+  -> editable("separate status", 's')
+  -> help("Make quest status and main menu separate screens.");
+
   param_b(resizable, "resizable", true)
   -> editable("resizable window", 'r')
   -> help("This lets your operating system resize the window.");
@@ -1117,15 +1205,16 @@ EX void initConfig() {
   ->editable("use higher contrast", 'h')
   ->help("Use higher contrast for some terrain elements.");
 
-  param_b(vid.grid, "grid");
+  param_b(vid.grid, "grid")
+  -> editable("display grid", 'g');
   param_b(models::desitter_projections, "desitter_projections", false);
   param_b(nonisotropic_weird_transforms, "nonisotropic_weird_transforms", false);
 
   param_b(arb::apeirogon_consistent_coloring, "apeirogon_consistent_coloring", true)
-  -> editable("apeirogon_consistent_coloring", 'c')
+  -> editable("apeirogon: consistent coloring", 'c')
   -> help("In arbitrary tilings, apeirogons are internally represented as multiple tiles. This option ensures that all subtiles have the same color.");
   param_b(arb::apeirogon_hide_grid_edges, "apeirogon_hide_grid_edges", true)
-  -> editable("apeirogon_hide_grid_edges", 'h')
+  -> editable("apeirogon: hide grid edges", 'h')
   -> help("In arbitrary tilings, apeirogons are internally represented as multiple tiles. This option hides the subtile edges.");
   param_b(arb::apeirogon_simplified_display, "apeirogon_simplified_display", false)
   -> editable("simplified display of apeirogons", 'f')
@@ -1199,13 +1288,27 @@ EX void initConfig() {
   ->set_sets(sets_sfx_volume);
   #endif
 
+  param_b(touch_interface, "touch_interface")
+    ->editable("a button for easier touching", 't');
+
+  param_enum(dialog::display_keys, "dialog_display_keys")
+    ->editable({{"never", ""}, {"when using keyboard", ""}, {"always", ""}, {"SteamDeck controls", ""}}, "display keys in dialogs", 'K');
+
   param_enum(vid.faraway_highlight, parameter_names("faraway_highlight", "highlight faraway monsters"), tlNoThreat)
     ->editable({{"off", ""}, {"spam", ""}, {"normal monsters", ""}, {"high-threat monsters only", ""}}, "highlight faraway monsters", 'h');
 
   param_i(vid.faraway_highlight_color, "faraway_highlight_color", 50)
   -> editable(0, 100, 10, "faraway highlight color", "0 = monster color, 100 = red-light oscillation", 'c');
 
-  param_b(keybd_subdir_enabled, "keybd_subdir_enabled", 0)->editable("control the pushing direction with TAB", 'P')->help("If set, you control the off-hepetagon pushing direction with TAB. Otherwise, you control it by rotating the screen.");
+  param_b(keybd_subdir_enabled, "keybd_subdir_enabled", 0)->editable("control the pushing direction with TAB", 'P')->help("If set, you control the off-heptagon pushing direction with TAB. Otherwise, you control it by rotating the screen.");
+
+  param_str(pinnedglyphs, "pinned_glyphs", "")
+  ->set_standard_editor(true)
+  ->editable("pinned glyphs",
+     "A list of glyphs to always sort at the front, "
+     "and reserve space for even when they're not being displayed.",
+     'p')
+  ->set_reaction(updateglyphpinned);
 
   param_enum(glyphsortorder, parameter_names("glyph_sort", "glyph sort order"), glyphsortorder)
     ->editable({
@@ -1223,6 +1326,11 @@ EX void initConfig() {
       {"types", ""},
       {"icons", ""},
       }, "orb display mode", 'o');
+
+  param_b(orb_treasure_gap, "orb_treasure_gap", false)
+  ->editable("gap between orbs and treasures", 'G')
+  -> help("If set, a gap row will be left between orbs and treasures in the HUD")
+  -> set_reaction([] { vid.killreduction = 0; });
 
   param_b(less_in_landscape, "less_in_landscape", false)
   ->editable("less items/kills in landscape", 'L')
@@ -1273,8 +1381,18 @@ EX void initConfig() {
   param_i(menu_darkening, "menu_darkening", 2)
   -> editable(0, 8, 1, "menu map darkening", "A larger number means darker game map in the background. Set to 8 to disable the background.", 'd')
   -> set_sets([] { dialog::bound_low(0); dialog::bound_up(8); dialog::get_di().dialogflags |= sm::DARKEN; });
-  param_b(centered_menus, "centered_menus", false)
+  param_b(centered_menus, "centered_menus")
   -> editable("centered menus in widescreen", 'c');
+  param_f(dialog::dialog_font_scale, "dialog_font_scale")
+  -> editable(1, 5, 0.25, "dialog font scale",
+    "allow larger font in dialogs",
+    'D');
+  param_i(lands_per_page, "lands_per_page")
+  -> editable(10, 60, 5, "lands per page",
+    "lands per page shown in the World Overview",
+    'L');
+
+  param_i(scores::scale, "scores_scale")->editable(1, 2, 1, "scores scale", "", 'S');
 
   param_b(startanims::enabled, "startanim", true)
   -> editable("start animations", 's');
@@ -1331,9 +1449,9 @@ EX void initConfig() {
   ->editable("vsync", 'v');
   #endif
   
-  param_b(vid.want_fullscreen, "fullscreen", false)
+  param_b(vid.want_fullscreen, "fullscreen", deck ? true : false)
   ->editable("fullscreen mode", 'f');
-  param_b(vid.change_fullscr, "fullscreen_change", false)
+  param_b(vid.change_fullscr, "fullscreen_change", deck ? true : false)
   ->editable("use specific fullscreen resolution", 'g');
   param_b(vid.relative_window_size, "window_relative", true)
   ->editable("specify relative window size", 'g');
@@ -1342,26 +1460,32 @@ EX void initConfig() {
   param_custom_int(vid.yres, "yres", [] (key_type ch) {}, 0)->restrict = return_false;
   
   param_i(vid.fullscreen_x, "fullscreen_x", 1280)
-  -> editable(640, 3840, 640, "fullscreen resolution to use (X)", "", 'x')
-  -> set_sets([] { dialog::bound_low(640); dialog::get_di().reaction_final = do_request_resolution_change; });
+  -> editable(640, 3840, 1, "fullscreen resolution to use (X)", "", 'x')
+  -> set_sets([] {
+    dialog::scale_given(get_display_modes('x'));
+    dialog::bound_low(dialog::get_ne().vmin);
+    dialog::get_di().reaction_final = do_request_resolution_change; });
   
-  param_i(vid.fullscreen_y, "fullscreen_y", 1024)
-  -> editable(480, 2160, 480, "fullscreen resolution to use (Y)", "", 'x')
-  -> set_sets([] { dialog::bound_low(480); dialog::get_di().reaction_final = do_request_resolution_change; });
+  param_i(vid.fullscreen_y, "fullscreen_y", deck ? 800 : 1024)
+  -> editable(480, 2160, 1, "fullscreen resolution to use (Y)", "", 'x')
+  -> set_sets([] {
+    dialog::scale_given(get_display_modes('y'));
+    dialog::bound_low(dialog::get_ne().vmin);
+    dialog::get_di().reaction_final = do_request_resolution_change; });
 
   param_i(vid.window_x, "window_x", 1280)
-  -> editable(160, 3840, 160, "window resolution to use (X)", "", 'x')
+  -> editable(160, 3840, 40, "window resolution to use (X)", "", 'x')
   -> set_sets([] { dialog::bound_low(160); dialog::get_di().reaction_final = do_request_resolution_change; });
 
-  param_i(vid.window_y, "window_y", 1024)
-  -> editable(120, 2160, 120, "window resolution to use (Y)", "", 'x')
+  param_i(vid.window_y, "window_y", deck ? 800 : 1024)
+  -> editable(120, 2160, 40, "window resolution to use (Y)", "", 'x')
   -> set_sets([] { dialog::bound_low(120); dialog::get_di().reaction_final = do_request_resolution_change; });
 
-  param_f(vid.window_rel_x, "window_rel_x", .9)
+  param_f(vid.window_rel_x, "window_rel_x", deck ? 1 : .9)
   -> editable(.1, 1, .1, "screen size percentage to use (X)", "", 'x')
   -> set_sets([] { dialog::bound_low(.1); dialog::get_di().reaction_final = do_request_resolution_change; });
 
-  param_f(vid.window_rel_y, "window_rel_y", .9)
+  param_f(vid.window_rel_y, "window_rel_y", deck ? 1 : .9)
   -> editable(.1, 1, .1, "screen size percentage to use (Y)", "", 'x')
   -> set_sets([] { dialog::bound_low(.1); dialog::get_di().reaction_final = do_request_resolution_change; });
 
@@ -1373,6 +1497,16 @@ EX void initConfig() {
     param_color(lp->color, "lpcolor-" + lp->lpname, true, lp->color);
     param_f(lp->multiplier, "lpwidth-" + lp->lpname);
     }
+
+  auto display_the_ruler = [] { rulers::active = true; dialog::get_di().dialogflags |= sm::DRAW; };
+
+  // ruler settings
+  param_color(rulers::ruler_color, "ruler_color", true)->editable("ruler color", "", 'C')
+  -> set_sets(display_the_ruler);
+  param_f(rulers::ruler_width, "ruler_width")->editable(0, 10, 0.1, "ruler width", "", 'W')
+  -> set_sets(display_the_ruler);
+  param_f(rulers::measuring_unit, "ruler_measure")->editable(0, 5, 0.1, "measuring unit", "A mark is displayed on the ruler, on every multiple of this distance, and a bigger one every 10 multiples. Set to 0 to disable.", 'M')
+  -> set_sets(display_the_ruler);
   
   // special graphics
 
@@ -1415,10 +1549,13 @@ EX void initConfig() {
   -> editable("flat, not equidistant", 'F')
   -> set_reaction(geom3::apply_settings_full);
 
-  param_enum(geom3::spatial_embedding, "spatial_embedding", geom3::seDefault)
-  ->editable(geom3::spatial_embedding_options, "3D embedding method", 'E')
-  ->set_reaction(geom3::apply_settings_full);
-  
+  param_custom_int(geom3::want_spatial_embedding, "spatial_embedding", menuitem_spatial_embedding, 'E')
+  ->set_reaction([] {
+    if(geom3::want_spatial_embedding != shown_spatial_embedding())
+      invoke_embed(geom3::want_spatial_embedding);
+    })
+  ->help_text = "3D embedding method|3D style";
+
   param_b(memory_saving_mode, "memory_saving_mode", (ISMOBILE || ISPANDORA || ISWEB) ? 1 : 0);
   param_i(reserve_limit, "memory_reserve", 128);
   param_b(show_memory_warning, "show_memory_warning");
@@ -1441,14 +1578,20 @@ EX void initConfig() {
   param_i(vid.joyvalue2, "vid.joyvalue2", 5600);
   param_i(vid.joysmooth, "vid.joysmooth", 200);
   param_i(vid.joypanthreshold, "vid.joypanthreshold", 2500);
-  param_f(vid.joypanspeed, "vid.joypanspeed", ISPANDORA ? 0.0001 : 0);
-  param_b(autojoy, "autojoy");
+  param_f(vid.joypanspeed, "vid.joypanspeed", (ISPANDORA || SDLVER >= 2) ? 0.0001 : 0);
+  param_b(autojoy, "autojoy")
+  -> editable("joystick moves automatically", 'J');
+  param_b(defaultjoy, "defaultjoy")
+  -> editable("apply joystick movements", 'H')
+  -> help("You may disable this on Steam controllers, if configured to also send key events, to avoid duplicated input. Press key ` (or assign it to the controller button in Steam) to move or accept menu options.");
   #endif
     
   vid.killreduction = 0;
   
   param_b(vid.skipstart, "skip the start menu", false);
-  param_b(vid.quickmouse, "quick mouse", !ISPANDORA)
+  param_f(drag_sensitivity, "drag_sensitivity", 0)
+  ->editable(0, 100, 1, "drag threshold", "Drag automatically on touch movement. Only if quick mouse is off. Set to 0 to disable, large numbers are more sensitive.", 'T');
+  param_b(vid.quickmouse, "quick mouse", qm)
   -> help("Buttons activate when they are pressed (by clicking), not when they are released.");
   
   // colors
@@ -1528,6 +1671,15 @@ EX void initConfig() {
     {"cylindrical", "full vertical (not implemented in raycaster)"}
     }, "stereo/high-FOV mode", 'm')
   ->set_reaction(reset_all_shaders);
+
+  param_enum(lineofsight, "mode-lineofsight", los::none)
+   ->editable({
+     {"OFF", "You see everything in range, but also everything in range sees you!"},
+     {"geodesic", "Graph geodesic: any sequence of tiles is OK for line-of-sight as long as there are no shortcuts"},
+     {"geometric", "Approximations of geometric straight lines."}},
+     "line-of-sight mode", 'v')
+   ->add_extra([] { add_edit(neon_magic_vision); })
+   ->set_reaction(switchLOS_quiet);
 
   param_f(vid.plevel_factor, "plevel_factor", 0.7);
 
@@ -1631,7 +1783,7 @@ EX void initConfig() {
   ld emul = 1;
   
   param_b(dialog::onscreen_keyboard, "onscreen_keyboard")
-  ->editable("onscreen keyboard", 'k');
+  ->editable("onscreen keyboard", SDLK_F6);
   
   param_b(context_fog, "coolfog");
 
@@ -1725,16 +1877,17 @@ EX void initConfig() {
   param_i(nilv::nilperiod[0], "nilperiod_x");
   param_i(nilv::nilperiod[1], "nilperiod_y");
   param_i(nilv::nilperiod[2], "nilperiod_z");
+
+  vector<pair<string, string>> neon_options = {{"OFF", ""}, {"standard", ""}, {"no boundary mode", ""}, {"neon mode II", ""}, {"illustration mode", ""}};
   
-  param_enum(neon_mode, "neon_mode", neon_mode)
-    ->editable(
-        {{"OFF", ""}, {"standard", ""}, {"no boundary mode", ""}, {"neon mode II", ""}, {"illustration mode", ""}}, 
-        "neon mode", 'M'
-        );
+  param_enum(neon_mode, "neon_mode", neon_mode)->editable(neon_options, "neon mode", 'M');
+
+  param_enum(neon_magic_vision, "neon_mode", neon_magic_vision)->editable(neon_options, "neon mode in magic vision", 'V')
+  ->add_extra([] { dialog::addHelp("Some Orbs let you see tiles you would not normally see. Such tiles can be shown differently."); });
 
   param_enum(bow::weapon, "pc_class", bow::weapon)
     -> editable({{"blade", "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way."},
-      {"crossbow", "Hits all monsters in a straight line, but slow to reload. Press 'f' or click the crossbow icon to target."}},
+      {"crossbow", "Hits all monsters in a straight line, but slow to reload."}},
       "weapon selection", 'w')
     -> set_need_confirm()
     -> set_value_to = [] (bow::eWeapon wpn) { bool b = game_active; if(wpn != bow::weapon) stop_game(); bow::weapon = wpn;
@@ -1906,7 +2059,12 @@ EX void resetModes(char leave IS('c')) {
 
   set_geometry(gNormal);
   set_variation(leave == rg::heptagons ? eVariation::pure : eVariation::bitruncated);
-  
+
+#if CAP_TEXTURE
+  texture::config.tstate = texture::tsOff;
+#endif
+
+  mapeditor::drawplayer = true;
   start_game();
   }
 
@@ -1923,9 +2081,12 @@ EX void resetConfig() {
 #endif
 
 #if CAP_CONFIG
+
+EX debugflag debug_init_config = {"init_config", true};
+
 EX void saveConfig() {
-  DEBB(DF_INIT, ("save config\n"));
-  FILE *f = fopen(conffile, "wt");
+  indenter_finish(debug_init_config, "saveConfig");
+  FILE *f = fopen(conffile.c_str(), "wt");
   if(!f) {
     addMessage(s0 + "Could not open the config file: " + conffile);
     return;
@@ -1996,9 +2157,9 @@ EX void loadNewConfig(FILE *f) {
 
 EX void loadConfig() {
  
-  DEBB(DF_INIT, ("load config"));
+  indenter_finish(debug_init_config, "loadConfig");
   vid.xres = 9999; vid.yres = 9999; vid.framelimit = 999;
-  FILE *f = fopen(conffile, "rt");
+  FILE *f = fopen(conffile.c_str(), "rt");
   if(f) {
     int err;
     int fs;
@@ -2013,7 +2174,8 @@ EX void loadConfig() {
       }
   
     fclose(f);
-    DEBB(DF_INIT, ("Loaded configuration: %s\n", conffile));
+    if(debug_init_config)
+      println(hlog, "Loaded configuration: ", conffile);
     }
 
   geom3::apply_always3();
@@ -2067,7 +2229,7 @@ EX void menuitem_sightrange_bonus(key_type c) {
     });
   }
 
-EX void edit_sightrange_3d(char key, bool fog) {
+EX void edit_sightrange_3d(key_type key, bool fog) {
   dialog::addSelItem(fog ? XLAT("3D sight range for the fog effect") : ("3D sight range"), fts(sightranges[geometry]), key);
   dialog::add_action([] {
     dialog::editNumber(sightranges[geometry], 0, TAU, 0.5, M_PI, XLAT("3D sight range"),
@@ -2164,6 +2326,8 @@ EX void menuitem_sightrange_style(key_type c IS('c')) {
     c
     );
   dialog::add_action_push([] {
+    cmode = sm::VR_MENU | sm::NOSCR;
+    gamescreen();
     dialog::init(XLAT("draw range based on"));
     dialog::addBoolItem(XLAT("draw range based on distance"), vid.use_smart_range == 0, 'd');
     dialog::add_action([] () { vid.use_smart_range = 0; popScreen(); edit_sightrange(); });
@@ -2299,12 +2463,60 @@ EX void show_vector_settings() {
   dialog::display();
   }
 
-EX void showGraphConfig() {
+void show_animation_speed_settings() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
   gamescreen();
 
-  dialog::init(XLAT("graphics configuration"));
-  
+  dialog::init(XLAT("animation speed"));
+
+  dialog::addSelItem(XLAT("scrolling speed"), fts(vid.sspeed), 'a');
+  dialog::add_action([] {
+    dialog::editNumber(vid.sspeed, -5, 5, 1, 0,
+      XLAT("scrolling speed"),
+      XLAT("+5 = center instantly, -5 = do not center the map")
+      + "\n\n" +
+      XLAT("press Space or Home to center on the PC"));
+    });
+
+  dialog::addSelItem(XLAT("camera movement speed"), fts(camera_speed), 'c');
+  dialog::add_action([] {
+    dialog::editNumber(camera_speed, -10, 10, 0.1, 1, XLAT("camera movement speed"),
+      "This affects:\n\nin 2D: scrolling with arrow keys and Wheel Up\n\nin 3D: camera movement with Home/End."
+      );
+    });
+  dialog::addSelItem(XLAT("camera rotation speed"), fts(camera_rot_speed), 'r');
+  dialog::add_action([] {
+    dialog::editNumber(camera_rot_speed, -10, 10, 0.1, 1, XLAT("camera rotation speed"),
+      "This affects view rotation with Page Up/Down, and in 3D, camera rotation with arrow keys or mouse."
+      );
+    });
+
+  dialog::addSelItem(XLAT("movement animation speed"), fts(vid.mspeed), 'm');
+  dialog::add_action([] {
+    dialog::editNumber(vid.mspeed, -5, 5, 1, 0,
+      XLAT("movement animation speed"),
+      XLAT("+5 = move instantly"));
+    });
+
+  dialog::addSelItem(XLAT("idle animation speed"), fts(vid.ispeed), 'i');
+  dialog::add_action([] {
+    dialog::editNumber(vid.ispeed, 0, 4, 0.1, 1,
+      XLAT("idle animation speed"),
+      "0 = disable\n\nThis affects non-movement animations such as orb effects, item rotation, and more."
+      );
+    });
+
+  dialog::addBreak(50);
+  dialog::addBack();
+  dialog::display();
+  }
+
+EX void showScreenConfig() {
+  cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
+  gamescreen();
+
+  dialog::init(XLAT("screen configuration"));
+
 #if !ISIOS && !ISWEB
   add_edit(vid.want_fullscreen);
   
@@ -2376,11 +2588,19 @@ EX void showGraphConfig() {
   else
     dialog::addBreak(200);  
 
-  add_edit(vid.relative_font);
-  if(vid.relative_font) 
-    add_edit(vid.fontscale);
-  else
-    add_edit(vid.abs_fsize);
+  dialog::display();
+  }
+
+
+EX void showGraphConfig() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+
+  dialog::init(XLAT("graphics configuration"));
+
+  dialog::addSelItem(XLAT("screen settings"), its(current_display->xsize) + "x" + its(current_display->ysize), 's');
+  dialog::add_action_push(showScreenConfig);
+
   add_edit(mapfontscale);
 
   dialog::addSelItem(XLAT("vector settings"), XLAT("width") + " " + fts(vid.linewidth), 'w');
@@ -2392,30 +2612,8 @@ EX void showGraphConfig() {
     mouseovers = XLAT("Reduce the framerate limit to conserve CPU energy");
   #endif
   
-  dialog::addSelItem(XLAT("scrolling speed"), fts(vid.sspeed), 'a');
-
-  dialog::addSelItem(XLAT("camera movement speed"), fts(camera_speed), 'c');
-  dialog::add_action([] { 
-    dialog::editNumber(camera_speed, -10, 10, 0.1, 1, XLAT("camera movement speed"), 
-      "This affects:\n\nin 2D: scrolling with arrow keys and Wheel Up\n\nin 3D: camera movement with Home/End."
-      );
-    });
-  dialog::addSelItem(XLAT("camera rotation speed"), fts(camera_rot_speed), 'r');
-  dialog::add_action([] { 
-    dialog::editNumber(camera_rot_speed, -10, 10, 0.1, 1, XLAT("camera rotation speed"), 
-      "This affects view rotation with Page Up/Down, and in 3D, camera rotation with arrow keys or mouse."
-      );
-    });
-    
-  dialog::addSelItem(XLAT("movement animation speed"), fts(vid.mspeed), 'm');
-  
-  dialog::addSelItem(XLAT("idle animation speed"), fts(vid.ispeed), 'i');
-  dialog::add_action([] {
-    dialog::editNumber(vid.ispeed, 0, 4, 0.1, 1, 
-      XLAT("idle animation speed"),
-      "0 = disable\n\nThis affects non-movement animations such as orb effects, item rotation, and more."
-      );
-    });
+  dialog::addItem(XLAT("animation speed settings"), 'a');
+  dialog::add_action_push(show_animation_speed_settings);
 
   add_edit(vid.flasheffects);
 
@@ -2434,16 +2632,6 @@ EX void showGraphConfig() {
     
     if(xuni == 'u') pushScreen(showSpecialEffects);
 
-    else if(xuni == 'a') dialog::editNumber(vid.sspeed, -5, 5, 1, 0, 
-      XLAT("scrolling speed"),
-      XLAT("+5 = center instantly, -5 = do not center the map")
-      + "\n\n" +
-      XLAT("press Space or Home to center on the PC"));
-  
-    else if(xuni == 'm') dialog::editNumber(vid.mspeed, -5, 5, 1, 0, 
-      XLAT("movement animation speed"),
-      XLAT("+5 = move instantly"));
-  
   #if CAP_FRAMELIMIT    
     else if(xuni == 'l') {
       dialog::editNumber(vid.framelimit, 5, 300, 10, 300, XLAT("framerate limit"), "");
@@ -2520,6 +2708,66 @@ EX void configureOther() {
   dialog::display();
   }
 
+EX void configure_dialogs() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("dialogs"));
+
+  add_edit(menu_darkening);
+  add_edit(centered_menus);
+  add_edit(dialog::dialog_font_scale);
+  add_edit(lands_per_page);
+  add_edit(use_bool_dialog);
+  add_edit(dialog::display_keys);
+
+  dialog::addBreak(50);
+  dialog::addBack();
+  
+  dialog::display();
+  }
+
+EX void configure_hud() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+
+  dialog::init(XLAT("HUD settings"));
+
+  dialog::addSelItem(XLAT("message flash time"), its(vid.flashtime), 't');
+  dialog::add_action([] {
+    dialog::editNumber(vid.flashtime, 0, 64, 1, 8, XLAT("message flash time"),
+      XLAT("How long should the messages stay on the screen."));
+    dialog::bound_low(0);
+    });
+
+  dialog::addSelItem(XLAT("limit messages shown"), its(vid.msglimit), 'z');
+  dialog::add_action([] {
+    dialog::editNumber(vid.msglimit, 0, 64, 1, 5, XLAT("limit messages shown"),
+      XLAT("Maximum number of messages on screen."));
+    dialog::bound_low(0);
+    });
+
+  add_edit(nohelp);
+  add_edit(menu_format);
+  
+  add_edit(vid.msgleft);
+  
+  if(hr_hud_enabled) {
+    add_edit(glyphsortorder);
+    add_edit(vid.graphglyph);
+    add_edit(orb_treasure_gap);
+    add_edit(less_in_landscape);
+    add_edit(less_in_portrait);
+    add_edit(display_yasc_codes);
+    if(casual) add_edit(display_semicasual);
+    add_edit(vid.orbmode);
+    }
+
+  dialog::addBreak(50);
+  dialog::addBack();
+  
+  dialog::display();
+  }
+
 EX void configureInterface() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
@@ -2537,34 +2785,6 @@ EX void configureInterface() {
   dialog::addSelItem(XLAT("player character"), numplayers() > 1 ? "" : csname(vid.cs), 'g');
   dialog::add_action_push(showCustomizeChar);
   if(getcstat == 'g') mouseovers = XLAT("Affects looks and grammar");
-
-  dialog::addSelItem(XLAT("message flash time"), its(vid.flashtime), 't');
-  dialog::add_action([] {
-    dialog::editNumber(vid.flashtime, 0, 64, 1, 8, XLAT("message flash time"),
-      XLAT("How long should the messages stay on the screen."));
-    dialog::bound_low(0);
-    });
-
-  dialog::addSelItem(XLAT("limit messages shown"), its(vid.msglimit), 'z');
-  dialog::add_action([] {
-    dialog::editNumber(vid.msglimit, 0, 64, 1, 5, XLAT("limit messages shown"),
-      XLAT("Maximum number of messages on screen."));
-    dialog::bound_low(0);
-    });
-
-  add_edit(nohelp);
-  
-  add_edit(vid.msgleft);
-  
-  if(hr_hud_enabled) {
-    add_edit(glyphsortorder);
-    add_edit(vid.graphglyph);
-    add_edit(less_in_landscape);
-    add_edit(less_in_portrait);
-    add_edit(display_yasc_codes);
-    if(casual) add_edit(display_semicasual);
-    add_edit(vid.orbmode);
-    }
 
   add_edit(zh_ascii);
 
@@ -2585,11 +2805,19 @@ EX void configureInterface() {
       };
     });
 
-  add_edit(menu_format);
-  add_edit(menu_darkening);
-  add_edit(centered_menus);
   add_edit(startanims::enabled);
-  add_edit(use_bool_dialog);
+
+  add_edit(vid.relative_font);
+  if(vid.relative_font)
+    add_edit(vid.fontscale);
+  else
+    add_edit(vid.abs_fsize);
+
+  dialog::addItem("configure dialogs", 'd');
+  dialog::add_action_push(configure_dialogs);
+
+  dialog::addItem("configure HUD", 'h');
+  dialog::add_action_push(configure_hud);
    
   dialog::addBreak(50);
   dialog::addBack();
@@ -2620,6 +2848,7 @@ EX void showJoyConfig() {
   dialog::addSelItem(XLAT("second joystick: pan threshold"), its(vid.joypanthreshold), 'c');
   dialog::addSelItem(XLAT("second joystick: panning speed"), fts(vid.joypanspeed * 1000), 'd');
   dialog::addSelItem(XLAT("smoothen"), its(vid.joysmooth) + " ms", 'e');
+  add_edit(defaultjoy);
 
   dialog::addBreak(50);
   dialog::addBack();
@@ -2725,7 +2954,7 @@ EX void edit_fov_screen() {
     };
   }
 
-EX void add_edit_fov(char key IS('f')) {
+EX void add_edit_fov(key_type key IS('f')) {
 
   string sfov = fts(vid.fov) + "°";
   if(get_stereo_param()) {
@@ -2862,7 +3091,7 @@ EX void edit_levellines(char c) {
     });
   }
 
-geom3::eSpatialEmbedding shown_spatial_embedding() {
+EX geom3::eSpatialEmbedding shown_spatial_embedding() {
   if(GDIM == 2) return geom3::seNone;
   return geom3::spatial_embedding;
 }
@@ -2998,6 +3227,11 @@ EX void show_spatial_embedding() {
   dialog::display();
   }
 
+EX void menuitem_spatial_embedding(key_type key) {
+  dialog::addSelItem(XLAT("3D style"), XLAT(geom3::spatial_embedding_options[shown_spatial_embedding()].first), key);
+  dialog::add_action_push(show_spatial_embedding);
+  }
+
 EX void show3D_height_details() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
@@ -3060,8 +3294,7 @@ EX void show3D() {
 
 #if MAXMDIM >=4
   if(WDIM == 2) {
-    dialog::addSelItem(XLAT("3D style"), XLAT(geom3::spatial_embedding_options[shown_spatial_embedding()].first), 'E');
-    dialog::add_action_push(show_spatial_embedding);
+    add_edit(geom3::want_spatial_embedding);
 
     display_embedded_errors();
     dialog::addBreak(50);
@@ -3195,6 +3428,8 @@ EX void show3D() {
     }
   #endif
 
+  current_display->set_all(0, 0);
+
   if(0);
   #if CAP_RUG
   else if(rug::rugged && !rug::spatial_rug)
@@ -3228,7 +3463,7 @@ namespace ccolor { struct data; }
 EX shared_ptr<custom_parameter> param_ccolor(ccolor::data*& val, const parameter_names& n) {
   shared_ptr<custom_parameter> u ( new custom_parameter );
   u->setup(n);
-  u->custom_viewer = [] (char key) {};
+  u->custom_viewer = [] (key_type key) {};
   u->custom_value = [&val] { for(int i=0; i<isize(ccolor::all); i++) if(ccolor::all[i] == val) return i; return -1; };
   u->last_value = u->custom_value();
   u->custom_affect = [&val] (void *v) { return &val == v; };
@@ -3511,6 +3746,9 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   ->set_sets([] { dialog::bound_low(1); })
   ->set_reaction([] { if(game_active) { stop_game(); start_game(); } });
 
+  param_enum(warn_before_killing_friends, "warn_before_killing_friends", 2)
+  ->editable({{"OFF", "never warn"}, {"TAME_BOMBERBIRDS", "warn only for Tame Bomberbirds"}, {"ON", "always warn"}}, "warn before killing friendly monsters", 'W');
+
   param_i(curse_percentage, "curse_percentage")->editable(0, 100, 1,
     "curse percentage",
     "The percentage of towers in Cursed Walls mode to be manned by Canyon Hags", 'R')
@@ -3532,6 +3770,8 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     else
       addMessage(XLAT("Save the config to always use %1.", scorefile));
     });
+
+  param_i(tour::tour_value, "tval");
 
   param_ccolor(ccolor::which, "pattern");
   param_b(ccolor::live_canvas, "live_canvas")
@@ -3564,6 +3804,80 @@ EX void switchcolor(unsigned int& c, unsigned int* cs) {
 double cc_footphase;
 int lmousex, lmousey;
 
+EX void pick_player_shape() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("Choose character"));
+  charstyle& cs = getcs();
+  for(int i=0; i<pshGUARD; i++) {
+    dialog::addBoolItem(XLAT(playershapes[i].name), i == (cs.charid>>1), 'a'+i);
+    if((i == pshPrincess && !princess::everSaved) ||
+       (i == pshRatling && hiitemsMax(itCoral) < 25) ||
+       (i == pshSkeleton && hiitemsMax(itPalace) < 25) ||
+       (i == pshHyperbug && hiitemsMax(itRoyalJelly) < 25)
+      ) dialog::lastItem().value = "(locked)";
+    dialog::add_action([i, &cs] {
+      if(i == pshPrincess) {
+        if(!princess::everSaved && !autocheat && !unlock_all) {
+          addMessage(XLAT("Save %the1 first!", moPrincess));
+          return;
+          }
+        }
+      if(i == pshRatling) {
+        if(hiitemsMax(itCoral) < 25 && !unlock_all && !autocheat) {
+          addMessage(XLAT("Collect 25 %1 to unlock first!", itCoral));
+          return;
+          }
+        }
+      if(i == pshSkeleton) {
+        if(hiitemsMax(itPalace) < 25 && !unlock_all && !autocheat) {
+          addMessage(XLAT("Collect 25 %1 to unlock first!", itPalace));
+          return;
+          }
+        }
+      if(i == pshHyperbug) {
+        if(hiitemsMax(itRoyalJelly) < 25 && !unlock_all && !autocheat) {
+          addMessage(XLAT("Collect 25 %1 to unlock first!", itRoyalJelly));
+          return;
+          }
+        }
+      cs.charid = (cs.charid & 1) | (i << 1);
+      });
+    }
+  dialog::addSelItem("variant", XLAT((cs.charid & 1) ? "female" : "male"), 'x');
+  dialog::add_action([&cs] { cs.charid ^= 1; });
+  dialog::addBack();
+  dialog::display();
+  }
+
+EX void save_customchar(charstyle& cs, const string& fname) {
+  FILE *f = fopen(fname.c_str(), "wt");
+  if(!f) throw hstream_exception();
+  fprintf(f, "%x\n", VERNUM_HEX);
+  fprintf(f, "%d %d\n%08x %08x %08x %08x %08x %08x %08x %08x %08x\n",
+    cs.charid, cs.lefthanded,
+    cs.skincolor, cs.haircolor, cs.dresscolor, cs.swordcolor, cs.dresscolor2, cs.uicolor, cs.eyecolor, cs.bowcolor, cs.bowcolor2);
+  fprintf(f, "HyperRogue " VER " custom character file\n");
+  fprintf(f, "Colors are: skin, hair, dress, sword, dress2, ui, eye, bow, bow2\n");
+  fclose(f);
+  }
+
+EX void load_customchar(charstyle& cs, const string& fname) {
+  FILE *f = fopen(fname.c_str(), "rt");
+  if(!f) throw hstream_exception();
+  unsigned int vernum;
+  if(!fscanf(f, "%x", &vernum)) throw hstream_exception();
+  int lh;
+  if(!fscanf(f, "%d %d\n%08x %08x %08x %08x %08x %08x %08x %08x %08x\n",
+    &cs.charid, &lh,
+    &cs.skincolor, &cs.haircolor, &cs.dresscolor, &cs.swordcolor, &cs.dresscolor2, &cs.uicolor, &cs.eyecolor, &cs.bowcolor, &cs.bowcolor2))
+    throw hstream_exception();
+  cs.lefthanded = lh;
+  fclose(f);
+  }
+
+EX string charfile = "custom.hch";
+
 EX void showCustomizeChar() {
 
   cc_footphase += hypot(mousex - lmousex, mousey - lmousey);
@@ -3575,6 +3889,7 @@ EX void showCustomizeChar() {
   
   if(shmup::on || multi::players) multi::cpid = multi::cpid_edit % multi::players;
   charstyle& cs = getcs();
+  auto id = ePlayershape(cs.charid >> 1);
   
   dialog::addSelItem(XLAT("character"), csname(cs), 'g');
   dialog::addColorItem(XLAT("skin color"), cs.skincolor, 's');
@@ -3586,9 +3901,9 @@ EX void showCustomizeChar() {
     dialog::addColorItem(XLAT("bowstring color"), cs.bowcolor2, 'c');
     }
   
-  if(cs.charid >= 1) dialog::addColorItem(XLAT("dress color"), cs.dresscolor, 'd');
+  if(id != pshRogue || cs.charid == 1) dialog::addColorItem(XLAT("dress color"), cs.dresscolor, 'd');
   else dialog::addBreak(100);
-  if(cs.charid == 3) dialog::addColorItem(XLAT("dress color II"), cs.dresscolor2, 'f');
+  if(cs.charid == 3 || id == pshRatling) dialog::addColorItem(XLAT("dress color II"), cs.dresscolor2, 'f');
   else dialog::addBreak(100);
   
   dialog::addColorItem(XLAT("movement color"), cs.uicolor, 'u');
@@ -3597,9 +3912,19 @@ EX void showCustomizeChar() {
   
   if(numplayers() > 1) dialog::addSelItem(XLAT("player"), its(multi::cpid+1), 'a');
 
-  dialog::addBoolItem(XLAT("left-handed"), cs.lefthanded, 'l');
+  dialog::addBoolItem_action(XLAT("left-handed"), cs.lefthanded, 'l');
   
   dialog::addBreak(50);
+  dialog::addItem("save", 'S');
+  dialog::add_action([&cs] {
+    dialog::openFileDialog(charfile, XLAT("character file to save:"), ".hch",
+      [&cs] { try { save_customchar(cs, charfile); return true; } catch(hstream_exception&) { addMessage("Failed to save!"); return false; } });
+    });
+  dialog::addItem("load", 'L');
+  dialog::add_action([&cs] {
+    dialog::openFileDialog(charfile, XLAT("character file to load:"), ".hch",
+      [&cs] { try { load_customchar(cs, charfile); return true; } catch(hstream_exception&) { addMessage("Failed to load!"); return false; } });
+    });
   dialog::addBack();
   dialog::display();
   
@@ -3609,7 +3934,7 @@ EX void showCustomizeChar() {
   flat_model_enabler fme;
 
   initquickqueue();
-  shiftmatrix V = atscreenpos(vid.xres/2, firsty, scale);
+  shiftmatrix V = atscreenpos(dialog::dcenter, firsty, scale);
   double alpha = atan2(mousex - vid.xres/2, mousey - firsty) - 90._deg;
   V = V * spin(alpha);
   drawMonsterType(moPlayer, NULL, V, 0, cc_footphase / scale, NOCOLOR);
@@ -3622,11 +3947,7 @@ EX void showCustomizeChar() {
     charstyle& cs = getcs();
     bool cat = cs.charid >= 4;
     if(uni == 'a') { multi::cpid_edit++; multi::cpid_edit %= 60; }
-    else if(uni == 'g') {
-      cs.charid++;
-      if(cs.charid == 2 && !princess::everSaved && !autocheat) cs.charid = 4;
-      cs.charid %= 12;
-      }
+    else if(uni == 'g') pushScreen(pick_player_shape);
     else if(uni == 'p') vid.samegender = !vid.samegender;
     else if(uni == 's') switchcolor(cs.skincolor, cat ? haircolors : skincolors);
     else if(uni == 'h') switchcolor(cs.haircolor, haircolors);
@@ -3635,7 +3956,6 @@ EX void showCustomizeChar() {
     else if(uni == 'f') switchcolor(cs.dresscolor2, dresscolors2);
     else if(uni == 'u') switchcolor(cs.uicolor, eyecolors);
     else if(uni == 'e') switchcolor(cs.eyecolor, eyecolors);
-    else if(uni == 'l') cs.lefthanded = !cs.lefthanded;
     else if(uni == 'b') switchcolor(cs.bowcolor, swordcolors);
     else if(uni == 'c') switchcolor(cs.bowcolor2, eyecolors);
     else if(doexiton(sym, uni)) popScreen();
@@ -3684,23 +4004,41 @@ EX void edit_color_table(colortable& ct, const reaction_t& r IS(reaction_t()), b
   dialog::display();
   }
 
-EX void show_color_dialog() {
-  cmode = sm::SIDE | sm::DIALOG_STRICT_X;
+void color_handler(int sym, int uni) {
+  if(uni == '-') {
+    cell *c = mouseover;
+    if(!c) return;
+    else if(c == cwt.at) {
+      pushScreen(showCustomizeChar);
+      return;
+      }
+    else if(c->monst)
+      dialog::openColorDialog(minf[c->monst].color);
+    else if(c->item)
+      dialog::openColorDialog(iinf[c->item].color);
+    else if(auto tab = special_colortable_for(c)) { pushScreen([tab] { edit_color_table(*tab); }); return; }
+    else if(c->wall)
+      dialog::openColorDialog(winf[c->wall == waMineMine ? waMineUnknown : c->wall].color);
+    #if CAP_COMPLEX2
+    else if(c->land == laBrownian)
+      dialog::openColorDialog(brownian::get_color_edit(c->landparam));
+    #endif
+    else
+      dialog::openColorDialog(floorcolors[c->land]);
+    dialog::colorAlpha = false;
+    dialog::get_di().dialogflags |= sm::SIDE;
+    return;
+    }
+  else dialog::handleNavigation(sym, uni);
+  if(doexiton(sym, uni)) popScreen();
+  }
+
+EX void show_color_dialog_projection() {
+  cmode = sm::SIDE | sm::DIALOG_STRICT_X | sm::MAYDARK;
   getcstat = '-';
   gamescreen();
-  dialog::init(XLAT("colors & aura"));
 
-  dialog::addColorItem(XLAT("background"), addalpha(backcolor), 'b');
-  dialog::add_action([] () { dialog::openColorDialog(backcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
-  
-  if(WDIM == 2 && GDIM == 3 && hyperbolic)
-    dialog::addBoolItem_action(XLAT("cool fog effect"), context_fog, 'B');
-
-  dialog::addColorItem(XLAT("foreground"), addalpha(forecolor), 'f');
-  dialog::add_action([] () { dialog::openColorDialog(forecolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
-
-  dialog::addColorItem(XLAT("borders"), addalpha(bordcolor), 'o');
-  dialog::add_action([] () { dialog::openColorDialog(bordcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
+  dialog::init(XLAT("projection colors & aura"));
 
   dialog::addColorItem(XLAT("projection boundary"), ringcolor, 'r');
   dialog::add_action([] () { dialog::openColorDialog(ringcolor); dialog::get_di().dialogflags |= sm::SIDE; });
@@ -3711,12 +4049,6 @@ EX void show_color_dialog() {
   dialog::addColorItem(XLAT("projection background"), modelcolor, 'c');
   dialog::add_action([] () { dialog::openColorDialog(modelcolor); dialog::get_di().dialogflags |= sm::SIDE; });
 
-  dialog::addColorItem(XLAT("standard grid color"), stdgridcolor, 'g');
-  dialog::add_action([] () { vid.grid = true; dialog::openColorDialog(stdgridcolor); dialog::get_di().dialogflags |= sm::SIDE; });
-  
-  dialog::addSelItem(XLAT("grid width multiplier"), fts(vid.multiplier_grid), 'G');
-  dialog::add_action([] () { dialog::editNumber(vid.multiplier_grid, 0, 10, 1, 1, XLAT("grid width multiplier"), ""); });
-
   dialog::addSelItem(XLAT("brightness behind the sphere"), fts(backbrightness), 'i');
   dialog::add_action([] () { dialog::editNumber(backbrightness, 0, 1, .01, 0.25, XLAT("brightness behind the sphere"), 
     XLAT("In the orthogonal projection, objects on the other side of the sphere are drawn darker.")); dialog::bound_low(0); });
@@ -3724,9 +4056,35 @@ EX void show_color_dialog() {
   dialog::addColorItem(XLAT("projection period"), periodcolor, 'p');
   dialog::add_action([] () { dialog::openColorDialog(periodcolor); dialog::get_di().dialogflags |= sm::SIDE; });
 
-  dialog::addColorItem(XLAT("dialogs"), addalpha(dialog::dialogcolor), 'd');
-  dialog::add_action([] () { dialog::openColorDialog(dialog::dialogcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
-  dialog::addBoolItem_action(XLAT("higher contrast"), higher_contrast, 'h');
+  dialog::addBreak(50);
+
+  dialog::addSelItem(XLAT("aura brightness"), its(vid.aurastr), 'a');
+  dialog::add_action([] () { dialog::editNumber(vid.aurastr, 0, 256, 10, 128, XLAT("aura brightness"), ""); dialog::bound_low(0); });
+
+  dialog::addSelItem(XLAT("aura smoothening factor"), its(vid.aurasmoothen), 's');
+  dialog::add_action([] () { dialog::editNumber(vid.aurasmoothen, 1, 180, 1, 5, XLAT("aura smoothening factor"), ""); dialog::bound_low(1); });
+
+  dialog::addBreak(50);
+  dialog::addBack();
+  dialog::display();
+
+  keyhandler = color_handler;
+  }
+
+EX void show_color_dialog_game() {
+  cmode = sm::SIDE | sm::DIALOG_STRICT_X;
+  getcstat = '-';
+  gamescreen();
+
+  dialog::init(XLAT("game colors"));
+
+  add_edit(vid.grid);
+
+  dialog::addColorItem(XLAT("standard grid color"), stdgridcolor, 'g');
+  dialog::add_action([] () { vid.grid = true; dialog::openColorDialog(stdgridcolor); dialog::get_di().dialogflags |= sm::SIDE; });
+
+  dialog::addSelItem(XLAT("grid width multiplier"), fts(vid.multiplier_grid), 'G');
+  dialog::add_action([] () { dialog::editNumber(vid.multiplier_grid, 0, 10, 1, 1, XLAT("grid width multiplier"), ""); });
 
   dialog::addBreak(50);
   if(specialland == laCanvas && ccolor::which->ctab.size()) {
@@ -3762,15 +4120,44 @@ EX void show_color_dialog() {
     dialog::addBoolItem_action(XLAT("Galápagos shading"), tortoise::shading_enabled, 'T');
     }
 
-  dialog::addInfo(XLAT("colors of some game objects can be edited by clicking them."));
+  dialog::addBoolItem_action(XLAT("higher contrast"), higher_contrast, 'h');
+
+  dialog::addInfo(XLAT("colors of some game objects"));
+  dialog::addInfo(dialog::never_keys() ? XLAT("can be edited by touching them.") : XLAT("can be edited by clicking them."));
   
   dialog::addBreak(50);
+  dialog::addBack();
+  dialog::display();
 
-  dialog::addSelItem(XLAT("aura brightness"), its(vid.aurastr), 'a');
-  dialog::add_action([] () { dialog::editNumber(vid.aurastr, 0, 256, 10, 128, XLAT("aura brightness"), ""); dialog::bound_low(0); });
+  keyhandler = color_handler;
+  }
 
-  dialog::addSelItem(XLAT("aura smoothening factor"), its(vid.aurasmoothen), 's');
-  dialog::add_action([] () { dialog::editNumber(vid.aurasmoothen, 1, 180, 1, 5, XLAT("aura smoothening factor"), ""); dialog::bound_low(1); });  
+EX void show_color_dialog() {
+  cmode = sm::SIDE | sm::DIALOG_STRICT_X | sm::MAYDARK;
+  getcstat = '-';
+  gamescreen();
+  dialog::init(XLAT("colors & aura"));
+
+  dialog::addColorItem(XLAT("background"), addalpha(backcolor), 'b');
+  dialog::add_action([] () { dialog::openColorDialog(backcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
+
+  if(WDIM == 2 && GDIM == 3 && hyperbolic)
+    dialog::addBoolItem_action(XLAT("cool fog effect"), context_fog, 'B');
+
+  dialog::addColorItem(XLAT("foreground"), addalpha(forecolor), 'f');
+  dialog::add_action([] () { dialog::openColorDialog(forecolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
+
+  dialog::addColorItem(XLAT("borders"), addalpha(bordcolor), 'o');
+  dialog::add_action([] () { dialog::openColorDialog(bordcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
+
+  dialog::addColorItem(XLAT("dialogs"), addalpha(dialog::dialogcolor), 'd');
+  dialog::add_action([] () { dialog::openColorDialog(dialog::dialogcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
+
+  dialog::addItem(XLAT("projection colors & aura"), 'p');
+  dialog::add_action_push(show_color_dialog_projection);
+
+  dialog::addItem(XLAT("grid & game colors"), 'g');
+  dialog::add_action_push(show_color_dialog_game);
 
   dialog::addBreak(50);
   dialog::addBack();
@@ -3804,10 +4191,16 @@ EX void show_color_dialog() {
     else dialog::handleNavigation(sym, uni);
     if(doexiton(sym, uni)) popScreen();
     };
+
+  keyhandler = color_handler;
   }
 
 #if CAP_CONFIG
+EX bool allow_reset_config = true;
+
 EX void resetConfigMenu() {
+  cmode = sm::VR_MENU | sm::NOSCR;
+  gamescreen();
   dialog::init(XLAT("reset all configuration"));
   dialog::addInfo("Are you sure?");
   dialog::addItem("yes, and delete the config file", 'd');
@@ -3820,7 +4213,7 @@ EX void resetConfigMenu() {
 
     if(uni == 'd') { 
       resetConfig();
-      unlink(conffile);
+      unlink(conffile.c_str());
       popScreen();
       }
     else if(uni == 'y') {
@@ -3914,7 +4307,10 @@ EX void configureMouse() {
 #if ISMOBILE
   dialog::addBoolItem(XLAT("targetting ranged Orbs long-click only"), (vid.shifttarget&2), 'i');
 #else
-  dialog::addBoolItem(XLAT("targetting ranged Orbs Shift+click only"), (vid.shifttarget&1), 'i');
+  if(dialog::never_keys())
+    dialog::addBoolItem(XLAT("automatically target ranged Orbs by touch"), !(vid.shifttarget&1), 'i');
+  else
+    dialog::addBoolItem(XLAT("targetting ranged Orbs Shift+click only"), (vid.shifttarget&1), 'i');
 #endif
   dialog::add_action([] {vid.shifttarget = vid.shifttarget^3; });    
 
@@ -3922,11 +4318,13 @@ EX void configureMouse() {
   dialog::addBoolItem_action(XLAT("quick mouse"), vid.quickmouse, 'M');
   #endif
 
+  add_edit(drag_sensitivity);
+
   dialog::addSelItem(XLAT("move by clicking on compass"), its(vid.mobilecompasssize), 'C');
   dialog::add_action([] {
     dialog::editNumber(vid.mobilecompasssize, 0, 100, 10, 20, XLAT("compass size"), XLAT("0 to disable"));
     // we need to check the moves
-    dialog::get_di().reaction = checkmove;
+    dialog::get_di().reaction = [] { checkmove(false); };
     dialog::bound_low(0);
     });
 
@@ -3973,7 +4371,7 @@ EX void add_edit_ptr(void *val) {
   if(found != 1) println(hlog, "found = ", found);
   }
 
-EX void add_edit_ptr(void *val, char key) {
+EX void add_edit_ptr(void *val, key_type key) {
   int found = 0;
   for(auto& fs: params) {
     fs.second->check_change();
@@ -3988,7 +4386,7 @@ template<class T> void add_edit(T& val) {
   add_edit_ptr(&val);
   }
 
-template<class T> void add_edit(T& val, char key) {
+template<class T> void add_edit(T& val, key_type key) {
   add_edit_ptr(&val, key);
   }
 #endif
@@ -3998,7 +4396,6 @@ EX void find_parameter() {
   gamescreen();
 
   dialog::init(XLAT("find a setting"));
-  if(dialog::infix != "") mouseovers = dialog::infix;
 
   dialog::start_list(900, 900, '1');
 
@@ -4016,13 +4413,20 @@ EX void find_parameter() {
   dialog::end_list();
 
   dialog::addBreak(100);
-  dialog::addInfo(XLAT("press letters to search"));
+  add_edit(dialog::onscreen_keyboard);
+
+  if(dialog::onscreen_keyboard) dialog::setting_keyboard();
+
   dialog::addSelItem(XLAT("matching items"), its(found), 0);
+
+  dialog::addBack();
   dialog::display();
+
+  if(dialog::infix != "") mouseovers = dialog::infix;
 
   keyhandler = [] (int sym, int uni) {
     dialog::handleNavigation(sym, uni);
-    if(dialog::editInfix(uni)) dialog::list_skip = 0;
+    if(dialog::editInfix(sym, uni)) dialog::list_skip = 0;
     else if(doexiton(sym, uni)) popScreen();
     };
   }
@@ -4135,8 +4539,10 @@ EX void showSettings() {
   dialog::addItem(XLAT("save the current config"), 's');
   dialog::add_action(saveConfig);
 
-  dialog::addItem(XLAT("reset all configuration"), 'R');
-  dialog::add_action_push(resetConfigMenu);
+  if(allow_reset_config) {
+    dialog::addItem(XLAT("reset all configuration"), 'R');
+    dialog::add_action_push(resetConfigMenu);
+    }
 #endif  
   
   if(getcstat == 's') mouseovers = XLAT("Config file: %1", conffile);
@@ -4419,6 +4825,13 @@ EX int read_config_args() {
     string s = args();
     set_char_by_name(cs, s);
     }
+  else if(argis("-char-multi")) {
+    shift();
+    auto& cs = multi::scs[gmod(argi(), 7)];
+    shift();
+    string s = args();
+    set_char_by_name(cs, s);
+    }
   else return 1;
   return 0;
   }
@@ -4469,10 +4882,19 @@ EX void set_char_by_name(charstyle& cs, const string& s) {
     cs.eyecolor = 0x500040FF;
     cs.swordcolor = 0x808080FF;
     }
+  else if(s == "felix") {
+    cs.charid = 12;
+    cs.skincolor = 0xD0D0D0FF;
+    cs.haircolor = 0xF0F0F0FF;
+    cs.dresscolor =0xF0F0F0FF;
+    cs.eyecolor = 0xFF0000FF;
+    cs.swordcolor = 0x808080FF;
+    }
   else {
     cs.charid = atoi(s.c_str());
-    cs.lefthanded = cs.charid >= 10;
-    cs.charid %= 10;
+    cs.lefthanded = cs.charid >= 100;
+    cs.charid %= 100;
+    cs.charid %= (2 * pshGUARD);
     }
   }
 
@@ -4555,6 +4977,11 @@ template<class T, class U> void lps_add(local_parameter_set& lps, T&val, U nvalu
     }
   if(found != 1) println(hlog, lps.label, " saver not found");
   }
+
+template<class T> void lps_add(local_parameter_set& lps, T&val) {
+  lps_add(lps, val, val);
+  }
+
 #endif
 
 vector<void*> lps_of_type;

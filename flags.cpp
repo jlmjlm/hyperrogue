@@ -214,7 +214,7 @@ EX bool isFlying(eMonster m) {
   }
 
 EX bool survivesChasm(eMonster m) {
-  return isFlying(m);
+  return isFlying(m) || isAnyIvy(m);
   }
 
 EX bool ignoresPlates(eMonster m) {
@@ -260,10 +260,6 @@ EX bool haveRangedOrb() {
     items[itRevolver] || items[itOrbStunning] || items[itStrongWind] ||
     items[itOrbDomination] || items[itOrbNature] || items[itOrbDash] ||
     items[itOrbMorph] || items[itOrbPhasing];
-  }
-
-EX bool isFriendlyGhost(eMonster m) {
-  return m == moFriendlyGhost || (markEmpathy(itOrbAether) && isFriendly(m));
   }
 
 EX bool isGhostAether(eMonster m) {
@@ -368,7 +364,7 @@ EX spatial_info get_spatial_info(cell *c) {
     return spatial_info{SIDE::RED2, SIDE::RED2, F(RED1) | F(RED2) | F(FLOOR) | F(WATERLEVEL) | F(SHALLOW) | F(DEEP), 2};
   if(slev == 3)
     return spatial_info{SIDE::RED3, SIDE::RED3, F(RED1) | F(RED2) | F(RED3) | F(FLOOR) | F(WATERLEVEL) | F(SHALLOW) | F(DEEP), 3};
-  if(highwall(c) && !conegraph(c) && c->wall != waRose)
+  if(highwall(c) && !conegraph(c) && c->wall != waRose && c->wall != waClosedGate)
     return spatial_info{SIDE::WALL, SIDE::WALL, F(WALL) | F(FLOOR) | F(WATERLEVEL) | F(SHALLOW) | F(DEEP), 0};
   return spatial_info{SIDE::FLOOR, SIDE::FLOOR, F(FLOOR) | F(WATERLEVEL) | F(SHALLOW) | F(DEEP), 0};
   #undef F
@@ -411,6 +407,15 @@ EX bool isDie(eMonster m) {
 
 EX bool isDie(eWall w) {
   return among(w, waRichDie, waHappyDie);
+  }
+
+EX bool looks_like_player(eMonster m) {
+  return among(m, moPlayer, moMimic, moIllusion, moShadow);
+  }
+
+EX int halfvine_direction(cell *c) {
+  for(int t=0; t<c->type; t++) if(c->move(t) && c->move(t)->wall == c->wall) return t;
+  return -1;
   }
 
 }

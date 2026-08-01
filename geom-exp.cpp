@@ -207,7 +207,7 @@ EX void ge_land_selection() {
     dialog::lastItem().color = linf[l].color;
     dialog::lastItem().value += validclasses[land_validity(l).quality_level];
     dialog::add_action([l] {
-      if(landvisited[l]) dialog::do_if_confirmed(dual::mayboth([l] {
+      if(landvisited[l] || unlock_all) dialog::do_if_confirmed(dual::mayboth([l] {
         stop_game_and_switch_mode(tactic::on ? rg::tactic : rg::nothing);
         firstland = specialland = l;
         if(l == laCanvas || l == laAsteroids || (land_validity(l).flags & lv::switch_to_single))
@@ -235,7 +235,7 @@ EX void ge_land_selection() {
   keyhandler = [] (int sym, int uni) {
     dialog::handleNavigation(sym, uni);
     
-    if(dialog::editInfix(uni)) dialog::list_skip = 0;
+    if(dialog::editInfix(sym, uni)) dialog::list_skip = 0;
     else if(doexiton(sym, uni)) popScreen();
     };
   }
@@ -459,6 +459,13 @@ EX string dim_name() {
   return " (" + its(WDIM) + "D)";
   }
 
+EX bool is_highly_symmetric(eGeometry g) {
+  if(among(g, gFieldQuotient, gBolza, gKleinQuartic, gBolza2, gMacbeath, gSeifertWeber, gHomologySphere, gSeifertCover)) return true;
+  if(quotient && among(g, gArnoldCat, gNil)) return true;
+  if(mhybrid) return PIU(is_highly_symmetric(g));
+  return false;
+  }
+
 #if CAP_THREAD && MAXMDIM >= 4
 EX void showQuotientConfig3() {
 
@@ -615,7 +622,7 @@ EX void select_quotient_screen() {
   }
 
 EX void select_quotient() {
-  if(meuclid && !aperiodic && !arcm::in() && !reg3::cubes_reg3 && !(cgflags & qFRACTAL)) {
+  if(meuclid && !aperiodic && !arcm::in() && !reg3::cubes_reg3 && !(cgflags & qFRACTAL) && !arb::in()) {
     euc::prepare_torus3();
     pushScreen(euc::show_torus3);
     }
@@ -633,6 +640,8 @@ EX void select_quotient() {
     pushScreen(product::show_config);
   else if(mtwisted)
     hybrid::configure_period();
+  else if(arb::in())
+    pushScreen(arbiquotient::show_dialog);
   else {
     vector<eGeometry> choices;
     for(int i=0; i<isize(ginf); i++) if(same_tiling(eGeometry(i))) choices.push_back(eGeometry(i));
@@ -667,7 +676,7 @@ EX string full_geometry_name() {
 void action_change_variation() {
   if(0) ;
   #if CAP_ARCM
-  else if(arcm::in()) arcm::next_variation();
+  else if(arcm::in_or_converted()) arcm::next_variation();
   #endif
   #if MAXMDIM >= 4
   else if(reg3::in() || geometry == gCubeTiling) reg3::configure_variation();
@@ -818,7 +827,12 @@ EX geometry_data compute_geometry_data() {
     case gMacbeath:
       gd.euler = -12;
       break;
-    
+
+    case gArbitrary:
+      gd.worldsize = isize(currentmap->allcells());
+      gd.euler = UNKNOWN;
+      break;
+
     default: 
       gd.worldsize = isize(currentmap->allcells());
       println(hlog, "warning: Euler characteristics unknown, worldsize = ", gd.worldsize);
@@ -851,7 +865,10 @@ EX geometry_data compute_geometry_data() {
   if(gd.euler < 0 && !closed_manifold)
     gd.worldsize = -gd.worldsize;
 
-  string spf = its(ts);
+  if(arb::in()) gd.worldsize = isize(currentmap->allcells());
+
+  auto& spf = gd.spf;
+  spf = its(ts);
   if(0) ;
   #if CAP_ARCM
   else if(arcm::in()) {
@@ -951,6 +968,7 @@ EX geometry_data compute_geometry_data() {
 
   if(WDIM == 3) gd.euler = 0;
   gd.demigenus = 2 - gd.euler;
+  if(gd.euler == UNKNOWN) gd.demigenus = UNKNOWN;
 
   return gd;
   }
@@ -969,6 +987,16 @@ EX void showEuclideanMenu() {
   gamescreen();
 
   dialog::init(XLAT("experiment with geometry"));
+
+  dynamicval<eGeometry> d1(geometry, geometry);
+  dynamicval<eVariation> d2(variation, variation);
+
+  bool converted = false;
+  if(arb::convert::in() && rulegen::auto_rulegen) {
+    converted = true;
+    geometry = arb::convert::base_geometry;
+    variation = arb::convert::base_variation;
+    }
 
   dialog::addSelItem(XLAT("geometry"), geometry_name(), 'd');
   dialog::add_action([] { pushScreen(ge_select_tiling); pushScreen(ge_select_filter); });
@@ -1003,7 +1031,7 @@ EX void showEuclideanMenu() {
     }
   #endif
   
-  if(fake::available()) {
+  if(fake::available() && !converted) {
     dialog::addItem(XLAT("fake curvature"), '4');
     
     dialog::add_action([] {
@@ -1177,13 +1205,15 @@ EX void showEuclideanMenu() {
   dialog::addSelItem(XLAT("size of the world"), gd.size_str, '3');
   add_size_action();
 
+  if(currentmap->get_backmap()) add_edit(precision_policy);
+
   if(closed_manifold) {
-    dialog::addSelItem(XLAT("Euler characteristics"), its(gd.euler), 0);
+    dialog::addSelItem(XLAT("Euler characteristics"), gd.euler == UNKNOWN ? "?" : its(gd.euler), 0);
     if(WDIM == 3) ;
     else if(nonorientable)
-      dialog::addSelItem(XLAT("demigenus"), its(gd.demigenus), 0);
+      dialog::addSelItem(XLAT("demigenus"), gd.demigenus == UNKNOWN ? "?" : its(gd.demigenus), 0);
     else
-      dialog::addSelItem(XLAT("genus"), its(gd.demigenus/2), 0);
+      dialog::addSelItem(XLAT("genus"), gd.demigenus == UNKNOWN ? "?" : its(gd.demigenus/2), 0);
     }
   else dialog::addBreak(200);
   
@@ -1210,18 +1240,30 @@ EX eGeometry readGeo(const string& ss) {
   return gNormal;
   }
 
+EX map<unsigned, string> solution_cache;
+
 EX void field_quotient_3d(int p, unsigned hash) {
   check_cgi();
   cgi.require_basics();
   stop_game_and_switch_mode(rg::nothing);
   fieldpattern::field_from_current();
   set_geometry(gFieldQuotient);
-  for(;; p++) { 
-    println(hlog, "trying p = ", p);
-    currfp.Prime = p; currfp.force_hash = hash;
-    if(!currfp.solve()) break;
+  auto& cache = solution_cache[hash];
+  if(cache == "") {
+    for(;; p++) {
+      println(hlog, "trying p = ", p);
+      currfp.Prime = p; currfp.force_hash = hash;
+      if(!currfp.solve()) break;
+      }
+    shstream outs;
+    hwrite_fpattern(outs, currfp);
+    cache = outs.s;
     }
-  println(hlog, "set prime = ", currfp.Prime);
+  else {
+    println(hlog, "using the cached solution");
+    shstream ins(cache);
+    hread_fpattern(ins, currfp);
+    }
   }
 
 EX void field_quotient_3d(string code) {
@@ -1394,7 +1436,7 @@ int read_geom_args() {
     }
   #endif
   else if(argis("-d:quotient")) 
-    launch_dialog(showQuotientConfig);
+    launch_dialog(WDIM == 2 ? showQuotientConfig : showQuotientConfig3);
   else if(argis("-uqf")) 
     fieldpattern::use_quotient_fp = true;
   #endif

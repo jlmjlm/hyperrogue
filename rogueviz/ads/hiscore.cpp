@@ -1,3 +1,6 @@
+// Relative Hell: high score lists
+// Copyright (C) 2022-2025 Zeno Rogue, see '../../hyper.cpp' for details
+
 namespace hr {
 
 namespace ads_game {
@@ -19,7 +22,6 @@ void fill_gamedata() {
   char buf[128]; strftime(buf, 128, "%c", localtime(&timer)); cur.timerend = buf;
   cur.seconds = int(timer - timerstart);
   for(int a=0; a<3; a++) cur.scores[a] = pdata.score[a];
-  if(main_rock) cur.scores[0] = current.shift;
   shstream hs;
   print(hs, main_rock ? "2 " : "1 ");
   print(hs, DS_(simspeed), " ", DS_(accel), " ", DS_(how_much_invincibility), " ", vid.creature_scale, " ", DS_(missile_rapidity));
@@ -93,7 +95,7 @@ void load_hiscores() {
   string s;
   while(!feof(f.f)) {
     s = scanline_noblank(f);
-    if(s == "Relative Hell 1.0") {
+    if(s == "Relative Hell 1.0" || s == "Relative Hell 1.1") {
       gamedata gd;
       gd.myname = scanline_noblank(f);
       gd.timerstart = scanline_noblank(f);
@@ -110,7 +112,7 @@ void load_hiscores() {
 int hi_sort_by = 3;
 
 void hiscore_menu() {
-  emptyscreen();
+  cmode = sm::VR_MENU | sm::NOSCR; gamescreen();
   dialog::init("High scores");
   fill_gamedata();
   vector<gamedata*> v;
@@ -130,6 +132,7 @@ void hiscore_menu() {
   for(auto ad: v) {
     dialog::addSelItem(ad->myname + " (" + ad->deathreason + ")", main_rock ? fts(getval(ad)) : its(getval(ad)), dialog::list_fake_key++);
     dialog::add_action_push([ad] {
+      cmode = sm::VR_MENU;
       emptyscreen();
       dialog::init(ad->myname);
       if(!main_rock) {

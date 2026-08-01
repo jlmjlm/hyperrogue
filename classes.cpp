@@ -711,6 +711,7 @@ EX vector<landtacinfo> land_tac = {
   {laDice, 5, 2}, {laCursed, 5, 2},
   
   {laCrossroads, 10, 1}, {laCrossroads2, 10, 1}, {laCrossroads3, 10, 1}, {laCrossroads4, 10, 1}, {laCrossroads5, 5, 2},
+  {laCrossroads6, 10, 1}, {laMasterCrossroads, 10, 1},
   
   {laCamelot, 1, 100},
   {laWildWest, 10, 1},
@@ -1034,7 +1035,7 @@ enum eModel : int {
   // 39..48
   mdPoorMan, mdPanini, mdRetroCraig, mdRetroLittrow, mdRetroHammer, mdThreePoint, mdLiePerspective, mdLieOrthogonal, mdRelPerspective, mdRelOrthogonal,
   // 49..53
-  mdHorocyclicEqa, mdConformalSquare, mdFisheye2, mdPolar,
+  mdHorocyclicEqa, mdConformalSquare, mdFisheye2, mdPolar, mdConformalEgg,
   // 54..
   mdGUARD, mdPixel, mdHyperboloidFlat, mdPolynomial, mdManual
   };
@@ -1100,6 +1101,7 @@ EX vector<modelinfo> mdinf = {
   {X3("conformal square"), mf::orientation | mf::broken | mf::transition},
   {X3("variant fisheye"), 0},
   {X3("polar coordinates"), mf::orientation},
+  {X3("conformal egg"), mf::orientation | mf::transition},
   {X3("guard"), mf::technical},
   {X3("pixel"), mf::technical},
   {X3("hypflat"), mf::technical},

@@ -63,7 +63,7 @@ EX always_false in;
       }
     }
   
-  char* stylestr(color_t fill, color_t stroke, ld width=1) {
+  char* stylestr(color_t fill, color_t stroke, ld width=1, string extrastyle = "") {
     fixgamma(fill);
     fixgamma(stroke);
     static char buf[600];
@@ -78,10 +78,11 @@ EX always_false in;
       else fill = 0xFFFFFFFF;
       }
     
-    snprintf(buf, 600, "style=\"stroke:#%06x;stroke-opacity:%.3" PLDF ";stroke-width:%" PLDF "px;fill:#%06x;fill-opacity:%.3" PLDF "\"",
+    snprintf(buf, 600, "style=\"stroke:#%06x;stroke-opacity:%.3" PLDF ";stroke-width:%" PLDF "px;fill:#%06x;fill-opacity:%.3" PLDF "%s\"",
       (stroke>>8) & 0xFFFFFF, cta(stroke),
       width/divby,
-      (fill>>8) & 0xFFFFFF, cta(fill)
+      (fill>>8) & 0xFFFFFF, cta(fill),
+      extrastyle.c_str()
       );
     return buf;
     }
@@ -106,6 +107,8 @@ EX always_false in;
     }
 
   string font = "Times";
+  string fontstyle = "";
+  string tspan = "";
   
   ld text_width_multiplier = 1/40.;
   int min_text = 3;
@@ -144,8 +147,10 @@ EX always_false in;
         "end", "' ");
       if(!uselatex)
         print(f, "font-family='", font, "' font-size='", coord(size), "' ");
+      if(tspan != "") str2 =
+        "<tspan style=\"" + tspan + "\">" + str2 + "</tspan>";
       print(f, 
-        stylestr(col, frame ? 0x0000000FF : 0, (1<<get_sightrange())*dfc*text_width_multiplier), 
+        stylestr(col, frame ? 0x0000000FF : 0, (1<<get_sightrange())*dfc*text_width_multiplier, fontstyle),
         ">", str2, "</text>");
       stopstring();
       println(f);
@@ -219,6 +224,14 @@ int read_args() {
     // note: use '-svgfont latex' to produce text output as: \myfont{size}{text}
     // (this is helpful with Inkscape's PDF+TeX output feature; define \myfont yourself)
     }
+  else if(argis("-svgtspan")) {
+    shift(); svg::tspan = args();
+    }
+  else if(argis("-svgfontstyle")) {
+    shift(); svg::fontstyle = args();
+    // note: use '-svgfont latex' to produce text output as: \myfont{size}{text}
+    // (this is helpful with Inkscape's PDF+TeX output feature; define \myfont yourself)
+    }
   else if(argis("-svggamma")) {
     shift_arg_formula(shot::gamma);
     }
@@ -227,7 +240,7 @@ int read_args() {
     }
   else if(argis("-svgshot")) {
     PHASE(3); shift(); start_game();
-    printf("saving SVG screenshot to %s\n", argcs());
+    if(debug_info) printf("saving SVG screenshot to %s\n", argcs());
     shot::format = shot::screenshot_format::svg;
     shot::take(argcs());
     }
@@ -802,7 +815,7 @@ EX void take(string fname, const function<void()>& what IS(default_screenshot_co
   dynamicval<bool> v2(inHighQual, true);
   dynamicval<bool> v6(auraNOGL, true);
   dynamicval<videopar> v(vid, vid);
-  dynamicval<int> v7(cmode, 0);
+  dynamicval<flagtype> v7(cmode, 0);
 
   vid.smart_range_detail *= multiplier;
   darken = 0;
@@ -844,7 +857,7 @@ int png_read_args() {
   using namespace arg;
   if(argis("-pngshot")) {
     PHASE(3); shift(); start_game();
-    printf("saving PNG screenshot to %s\n", argcs());
+    if(debug_info) printf("saving PNG screenshot to %s\n", argcs());
     format = screenshot_format::png;
     shot::take(argcs());
     }
@@ -911,13 +924,13 @@ int png_read_args() {
   #if CAP_WRL
   else if(argis("-modelshot")) {
     PHASE(3); shift(); start_game();
-    printf("saving WRL model to %s\n", argcs());
+    if(debug_info) printf("saving WRL model to %s\n", argcs());
     shot::format = screenshot_format::wrl; wrl::print = false;
     shot::take(argcs());
     }
   else if(argis("-printshot")) {
     PHASE(3); shift(); start_game();
-    printf("saving 3D printable model to %s\n", argcs());
+    if(debug_info) printf("saving 3D printable model to %s\n", argcs());
     shot::format = screenshot_format::wrl; wrl::print = true;
     shot::take(argcs());
     }
@@ -1081,6 +1094,8 @@ EX void menu() {
         dialog::add_action([] { centering = eCentering::edge; fullcenter(); });
         dialog::addBoolItem(XLAT("vertex"), centering == eCentering::vertex, 'V');
         dialog::add_action([] { centering = eCentering::vertex; fullcenter(); });
+        dialog::addItem(XLAT("exhaustive list of viewpoints"), 'L');
+        dialog::add_action(generate_viewpoints);
         };
       });
     }
@@ -1114,6 +1129,69 @@ EX void menu() {
     });
   dialog::addBack();
   dialog::display();
+  }
+
+EX vector<cellwalker> viewpoints;
+
+EX set<size_t> ids_seen;
+
+EX size_t get_id(cell *c) {
+  if(is_highly_symmetric(geometry)) return shvid(c);
+  if(closed_manifold) return (size_t) c;
+  return shvid(c);
+  }
+
+EX int num_directions(cell *c) {
+  vector<int> nid;
+  for(int i=0; i<c->type; i++) nid.push_back(get_id(c->cmove(i)));
+  for(int a=1; a<c->type; a++) {
+    bool ok = true;
+    for(int b=a; b<c->type; b++) if(nid[b] != nid[b-a]) ok = false;
+    if(ok) return a;
+    }
+  return c->type;
+  }
+
+int viewpoint_id;
+
+EX void generate_viewpoints() {
+  vector<cellwalker> vqueue;
+  viewpoints.clear();
+  vqueue.clear();
+  ids_seen.clear();
+  auto enqueue = [&] (cellwalker cw) {
+    auto id = get_id(cw.at);
+    if(ids_seen.count(id)) return;
+    ids_seen.insert(id);
+    vqueue.push_back(cw);
+    };
+  enqueue(cwt);
+  for(int i=0; i<isize(vqueue); i++) {
+    cellwalker cw = vqueue[i];
+    int num = num_directions(cw.at);
+    for(int j=0; j<num; j++) {
+      cellwalker cw1 = cw + j;
+      viewpoints.push_back(cw1);
+      enqueue(cw1+wstep);
+      }
+    }
+  if(viewpoints.empty()) {
+    addMessage("No viewpoints found.");
+    return;
+    }
+  viewpoint_id = 0;
+  dialog::editNumber(viewpoint_id, 0, isize(viewpoints) * 3, 1, 1, XLAT("viewpoints"),
+    XLAT("You can pick the viewpoint."));
+  dialog::get_di().reaction = [] {
+    auto bak = cwt;
+    auto v = viewpoint_id;
+    if(gmod(v, 3) == 0) centering = eCentering::face;
+    if(gmod(v, 3) == 1) centering = eCentering::edge;
+    if(gmod(v, 3) == 2) centering = eCentering::vertex;
+    cwt = viewpoints[gmod(v/3, isize(viewpoints))];
+    fullcenter();
+    cwt = bak;
+    };
   }
 
 EX }
@@ -1150,7 +1228,6 @@ cell *rotation_center;
 transmatrix rotation_center_View;
 
 EX void ma_reaction() {
-  println(hlog, "ma_reaction called");
   if(ma == maCircle) start_game();
   rotation_center = centerover;
   rotation_center_View = View;
@@ -1209,13 +1286,19 @@ EX void get_parameter_animation(parameter *p, string &s) {
 
 EX void animate_parameter(ld &x, string f) {
   auto par = find_param(&x);
-  if(!par) { println(hlog, "parameter not animatable"); return; }
+  if(!par) {
+    if(debug_warnings) println(hlog, "parameter not animatable");
+    return;
+    }
   deanimate(par);
   aps.emplace_back(animated_parameter{par, f});
   }
 
 EX void animate_parameter(parameter *par, string f) {
-  if(!par) { println(hlog, "parameter not animatable"); return; }
+  if(!par) {
+    if(debug_warnings) println(hlog, "parameter not animatable");
+    return;
+    }
   deanimate(par);
   aps.emplace_back(animated_parameter{par, f});
   }
@@ -1321,9 +1404,9 @@ EX void apply() {
       reflect_view();
       rotate_view(rot_inverse(movement_angle.get()));
       if(GDIM == 2)
-        View = bt::parabolic(parabolic_length * t / period) * View;
+        rotate_view(bt::parabolic(parabolic_length * t / period));
       else
-        View = bt::parabolic3(parabolic_length * t / period, 0) * View;
+        rotate_view(bt::parabolic3(parabolic_length * t / period, 0));
       rotate_view(movement_angle.get());
       moved();
       break;
@@ -1332,7 +1415,7 @@ EX void apply() {
       rotate_view(rot_inverse(movement_angle.get()));
       centerover = rotation_center;
       ld alpha = circle_spins * TAU * ticks / period;
-      View = spin(-cos_auto(circle_radius)*alpha) * xpush(circle_radius) * spin(alpha) * rotation_center_View;
+      rotate_view(spin(-cos_auto(circle_radius)*alpha) * xpush(circle_radius) * spin(alpha) * rotation_center_View * inverse(View));
       rotate_view(movement_angle.get());
       moved();
       break;
@@ -1402,7 +1485,8 @@ EX bool record_animation_of(reaction_t content) {
   for(int i=0; i<noframes; i++) {
     record_frame_id = i;
     if(i < min_frame || i > max_frame) continue;
-    println(hlog, "record frame ",i, "/", noframes, " of ", videofile);
+    if(debug_progress)
+      println(hlog, "record frame ",i, "/", noframes, " of ", videofile);
     callhooks(hooks_record_anim, i, noframes);
     int newticks = i * period / noframes;
     if(time_formula != "-") {
@@ -1413,7 +1497,8 @@ EX bool record_animation_of(reaction_t content) {
         newticks = ep.iparse();
         }
       catch(hr_parse_exception& e) {
-        println(hlog, "warning: failed to parse time_formula, ", e.s);
+        if(debug_warnings)
+          println(hlog, "warning: failed to parse time_formula, ", e.s);
         }
       }
     cmode = (env_shmup ? sm::NORMAL : 0);
@@ -1458,7 +1543,6 @@ EX bool record_video(string fname IS(videofile), bool_reaction_t rec IS(record_a
     addMessage(hr::format("Error: %s", strerror(errno)));
     return false;
     }
-  println(hlog, "tab = ", tab);
   
   int pid = fork();
   if(pid == 0) {
@@ -1782,6 +1866,7 @@ auto animhook = addHook(hooks_frame, 100, display_animation)
     param_f(env_volcano, "env_volcano");
     param_b(wallopt, "wallopt");
     param_b(clearup, "anim_clearup");
+    param_b(env_shmup, "anim_shmup");
     param_color(circle_display_color, "circle_display_color", true);
     param_enum(anims::ma, parameter_names("ma", "movement_animation"), maNone)
     -> editable({{"none", ""}, {"translation", ""}, {"rotation", ""}, {"circle", ""}, {"parabolic", ""}, {"translation+rotation", ""}}, "movement animation", 'a')

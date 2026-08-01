@@ -84,8 +84,7 @@ EX namespace sn {
   
   void tabled_inverses::load() {
     if(loaded) return;
-    FILE *f = fopen(fname.c_str(), "rb");
-    if(!f) f = fopen((rsrcdir + fname).c_str(), "rb");
+    FILE *f = fopen(find_file(fname).c_str(), "rb");
     if(!f) { addMessage(XLAT("geodesic table missing")); pmodel = mdPerspective; return; }
     hr::ignore(fread(&PRECX, 4, 1, f));
     hr::ignore(fread(&PRECY, 4, 1, f));
@@ -1478,14 +1477,17 @@ EX namespace hybrid {
 
         disc_quotient = abs(cycle_discrepancy(final));
 
-        if(debugflags & DF_GEOM) for(cell *c: ac) for(int i=0; i<c->type; i++) {
-          cellwalker cw(c, i);
-          if(cycle_discrepancy(cw)) println(hlog, cw, " ", cycle_discrepancy(cw));
-          }
-        if(debugflags & DF_GEOM) for(cell *c: ac) for(int i=0; i<c->type; i++) {
-          auto err = get_shift(cellwalker(c, i)) + get_shift(cellwalker(c, i)+wstep);
-          if(err)
-            println(hlog, "two-side error: ", err, " on ", cellwalker(c, i));
+        if(debug_geometry) {
+          indenter_finish in("fix_bounded_cycles");
+          for(cell *c: ac) for(int i=0; i<c->type; i++) {
+            cellwalker cw(c, i);
+            if(cycle_discrepancy(cw)) println(hlog, cw, " ", cycle_discrepancy(cw));
+            }
+          for(cell *c: ac) for(int i=0; i<c->type; i++) {
+            auto err = get_shift(cellwalker(c, i)) + get_shift(cellwalker(c, i)+wstep);
+            if(err)
+              println(hlog, "two-side error: ", err, " on ", cellwalker(c, i));
+            }
           }
         });
       }
@@ -1684,7 +1686,7 @@ EX namespace hybrid {
         });
       return spin(alpha) * twist::uxpush(tf) * twist::uypush(he) * twist::uzpush(lev) * C0;
       #else
-      throw hr_exception();
+      throw hr_exception("get_corner but MAXMDIM<4");
       #endif
       }
     }

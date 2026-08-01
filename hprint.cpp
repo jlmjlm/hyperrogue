@@ -10,27 +10,6 @@ namespace hr {
 
 EX FILE *debugfile;
 
-#if HDR
-#define DF_INIT              1 // always display these
-#define DF_MSG               2 // always display these
-#define DF_WARN              4 // always display these
-#define DF_ERROR             8 // always display these
-#define DF_STEAM            16
-#define DF_GRAPH            32
-#define DF_TURN             64
-#define DF_FIELD           128
-#define DF_GEOM            256
-#define DF_MEMORY          512
-#define DF_TIME           1024 // a flag to display timestamps
-#define DF_GP             2048
-#define DF_POLY           4096
-#define DF_LOG            8192
-#define DF_VERTEX        16384
-#define DF_KEYS "imwesxufgbtoplv"
-#endif
-
-EX int debugflags = DF_INIT | DF_ERROR | DF_WARN | DF_MSG | DF_TIME | DF_LOG;
-
 EX string s0;
 
 EX string its(int i) { return hr::format("%d", i); }
@@ -284,9 +263,11 @@ struct logger : hstream {
   void flush() override { fflush(stdout); }
   };
 
-extern logger hlog;
-template<class... T> void println_log(T... t) { println(hlog, t...); }
-template<class... T> void print_log(T... t) { print(hlog, t...); }
+extern logger *hlog_ptr;
+#define hlog (*hlog_ptr)
+
+template<class... T> void hprintln(T... t) { println(hlog, t...); }
+template<class... T> void hprint(T... t) { print(hlog, t...); }
 
 #ifdef __GNUC__
 __attribute__((__format__ (__printf__, 1, 2)))
@@ -321,15 +302,23 @@ struct indenter_finish : indenter {
     indenter tmp(-2);
     println(hlog, s);
     }
+  explicit indenter_finish(bool b, string s): indenter(b ? 2 : 0) {
+    if(b) {
+      indenter tmp(-2);
+      println(hlog, s);
+      }
+    }
   ~indenter_finish() { if(hlog.indentation != ind.backup) println(hlog, "(done)"); }
   };
 
 #endif
 
+EX debugflag debug_stamps = {"stamps", true};
+
 void logger::write_char(char c) { 
   if(doindent) { 
     doindent = false; 
-    if(debugflags & DF_TIME) { 
+    if(debug_stamps) {
       string s = get_stamp(); 
       if(s != "") { for(char c: s) special_log(c); special_log(' '); }
       }
@@ -418,8 +407,6 @@ EX string itsh(unsigned long long i) {
   if(i1) return itsh(i1) + itsh8(i0);
   else return itsh(i0);
   }
-
-EX logger hlog;
 
 // kz: utility for printing
 // if it is close to 0, assume it is floating errors
@@ -538,9 +525,9 @@ EX string as_nice_cstring(string o) {
 #define DEBB0(r,x)
 #define DEBBI(r,x)
 #else
-#define DEBB(r,x) { if(debugflags & (r)) { println_log x; } }
-#define DEBB0(r,x) { if(debugflags & (r)) { print_log x; } }
-#define DEBBI(r,x) { if(debugflags & (r)) { println_log x; } } indenter_finish _debbi(debugflags & (r));
+#define DEBB(r,x) { if(r) { hprintln x; } }
+#define DEBB0(r,x) { if(r) { hprint x; } }
+#define DEBBI(r,x) { if(r) { hprintln x; } } indenter_finish _debbi(r);
 #endif
 #endif
 
@@ -585,5 +572,43 @@ EX void rate_limited_error(const string& s, const string& t IS("")) {
     println(hlog, s, t);
     }
   }
+
+#if HDR
+struct progressbar {
+  string name;
+  static constexpr int PBSIZE = 64;
+  int step = -1, total, drawat = 0, count = -1, tstart;
+
+  void operator ++ (int) {
+    step++;
+    while(step >= drawat && total) {
+      fflush(stdout);
+      count++;
+      drawat = (total * (count+(long long) 1)) / PBSIZE;
+      fprintf(stderr, "%s [", get_stamp().c_str());
+      for(int k=0; k<count; k++) fprintf(stderr, "#");
+      for(int k=count; k<64; k++) fprintf(stderr, "-");
+      fprintf(stderr, "] %s\x1b[K\r", name.c_str());
+      fflush(stderr);
+      }
+    }
+
+  ~progressbar() {
+    fflush(stdout); fprintf(stderr, "\x1b[K"); fflush(stderr);
+    }
+
+  int clear_time() {
+    fflush(stdout); fprintf(stderr, "\x1b[K"); fflush(stderr);
+    return SDL_GetTicks() - tstart;
+    }
+
+  progressbar(int t, string n) : name(n) { total = t; (*this)++; tstart = SDL_GetTicks(); }
+  };
+
+#endif
+
+logger actual_hlog;
+
+logger *hlog_ptr = &actual_hlog;
 
 }

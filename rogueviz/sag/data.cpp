@@ -2,6 +2,7 @@
 // Copyright (C) 2011-24 Zeno Rogue, see 'hyper.cpp' for details
 
 #include "../rogueviz.h"
+#include "../embeddings/embeddings.h"
 
 namespace rogueviz {
 namespace sag {
@@ -24,7 +25,6 @@ ld hub_penalty;
 string hub_filename;
 vector<int> hubval;
 
-vector<edgeinfo> sagedges;  
 vector<vector<int>> edges_yes, edges_no;
 vector<vector<pair<int, double>>> edge_weights;
 
@@ -35,15 +35,67 @@ ld edgepower=1, edgemul=1;
 void init();
 void compute_cost();
 
+bool colorpartite;
+
+bool take(int i, int j) {
+  if(colorpartite) return vdata[i].cp != vdata[j].cp;
+  return i != j;
+  }
+
+edgetype *ensure_sag_edge() {
+  if(!sag_edge) sag_edge = add_edgetype("SAG edge");
+  return sag_edge;
+  }
+
+vector<int> qon, qsf;
+
+void save_sag_solution(const fhstream& f);
+
+struct sag_embedding : public rogueviz::embeddings::tiled_embedding {
+
+  virtual string name() override { return "SAG"; }
+
+  pair<cell*, hyperpoint> as_location(int id) override {
+
+    ld rad = .25 * cgi.scalefactor;
+    if(isize(subcell_points) > 1) rad /= pow(isize(subcell_points), WDIM);
+
+    int ci = sag::sagid[id];
+    hyperpoint h = C0;
+
+    if(allow_doubles && qon.size() && qon[ci] > 1) h =
+      spin(TAU*qsf[ci] / qon[ci]) * xpush0(rad * (qon[ci]-1) / qon[ci]);
+
+    if(isize(subcell_points) > 1)
+      h = rgpushxto0(subcell_points[sagcells[ci].second]) * h;
+
+    return { sagcells[ci].first, h };
+    }
+
+  ld distance(int i, int j) override {
+    return sagdist[sagid[i]][sagid[j]];
+    }
+
+  ld zero_distance(int i) override {
+    return sagdist[sagid[i]][0];
+    }
+
+  void save(fhstream& f) override {
+    if(!(state & SS_DATA)) throw hr_exception("save_sag_solution with no data");
+    for(int i=0; i<isize(sagid); i++)
+    println(f, vdata[i].name, ";", sagid[i]);
+    }
+  };
+
 void prepare_graph() {
   int DN = isize(sagid);
-  println(hlog, "prepare_graph with DN = ", DN);
+  DEBBI(debug_init_sag, ("prepare_graph with DN = ", DN));
 
   set<pair<int, int>> alledges;
-  for(auto e: sagedges) {
-    if(e.i == e.j) continue;
-    alledges.emplace(e.i, e.j);
-    alledges.emplace(e.j, e.i);
+  for(auto e: edgeinfos) {
+    if(e->i == e->j) continue;
+    alledges.emplace(e->i, e->j);
+    alledges.emplace(e->j, e->i);
     }
   
   edges_yes.clear(); edges_yes.resize(DN);
@@ -51,7 +103,7 @@ void prepare_graph() {
 
   fixed_position.clear(); fixed_position.resize(DN);
   
-  for(int i=0; i<DN; i++) for(int j=0; j<DN; j++) if(i != j) {
+  for(int i=0; i<DN; i++) for(int j=0; j<DN; j++) if(take(i, j)) {
     if(alledges.count({i, j}))
       edges_yes[i].push_back(j);
     else
@@ -59,11 +111,11 @@ void prepare_graph() {
     }          
 
   edge_weights.clear(); edge_weights.resize(DN);
-  for(auto& e: sagedges) {
-    if(e.i == e.j) continue;
-    e.weight2 = pow((double) e.weight, (double) edgepower) * edgemul;
-    edge_weights[e.i].emplace_back(e.j, e.weight2);
-    edge_weights[e.j].emplace_back(e.i, e.weight2);
+  for(auto& e: edgeinfos) {
+    if(e->i == e->j) continue;
+    e->weight2 = pow((double) e->weight, (double) edgepower) * edgemul;
+    edge_weights[e->i].emplace_back(e->j, e->weight2);
+    edge_weights[e->j].emplace_back(e->i, e->weight2);
     }
 
   sagnode.clear();
@@ -77,24 +129,13 @@ void set_inverse();
 
 void place_correctly() {
   int DN = isize(sagid);
-  vector<int> qon(isize(sagcells), 0);
-  for(int i=0; i<DN; i++) qon[sagid[i]]++;
-  vector<int> qsf(isize(sagcells), 0);
-
-  ld rad = .25 * cgi.scalefactor;
-  if(isize(subcell_points) > 1) rad /= pow(isize(subcell_points), WDIM);
-
+  qon.clear(); qon.resize(isize(sagcells), 0);
+  qsf.clear(); qsf.resize(isize(sagcells), 0);
   for(int i=0; i<DN; i++) {
-    int ci = sag::sagid[i];
-    vdata[i].m->base = sagcells[ci].first;
-    vdata[i].m->at = Id;
-
-    if(allow_doubles) vdata[i].m->at = 
-      spin(TAU*(qsf[ci]++) / qon[ci]) * xpush(rad * (qon[ci]-1) / qon[ci]);
-
-    if(isize(subcell_points) > 1)
-      vdata[i].m->at = rgpushxto0(subcell_points[sagcells[ci].second]) * vdata[i].m->at;
+    qsf[i] = qon[sagid[i]];
+    qon[sagid[i]]++;
     }
+  enable_embedding(make_shared<sag_embedding>());
   }
 
 bool visualization_active;
@@ -112,7 +153,6 @@ void create_viz() {
   state |= SS_GRAPH;
 
   if(!vact) for(int i=0; i<DN; i++) vdata[i].data = 0;
-  if(!vact) for(auto& e: sagedges) addedge0(e.i, e.j, &e);
 
   if(sagcells[0].first == nullptr) return;
 
@@ -120,33 +160,30 @@ void create_viz() {
   if(!vact) for(int i=0; i<DN; i++) {
     vertexdata& vd = vdata[i];
     vd.cp = colorpair(dftcolor);
-
-    rogueviz::createViz(i, sagcells[sagid[i]].first, Id);
+    vd.be(sagcells[sagid[i]].first, Id);
     }
 
   place_correctly();
-  if(!vact) storeall();
-  if(vact) shmup::fixStorage();
   set_inverse();
   vact = true;  
   }
 
 /** save the SAG solution (sagid) */
 void save_sag_solution(const string& fname) {
-  if(!(state & SS_DATA)) throw hr_exception("save_sag_solution with no data");
-  FILE *f = fopen(fname.c_str(), "wt");
-  if(!f) throw hr_exception("failed to save SAG solution");
-  for(int i=0; i<isize(sagid); i++)
-    fprintf(f, "%s;%d\n", vdata[i].name.c_str(), sagid[i]);
-  fclose(f);
+  DEBBI(debug_init_sag, ("Saving the sag solution to: ", fname));
+  fhstream f(fname, "wt");
+  if(!f.f) return file_error(fname);
+  sag_embedding e;
+  e.save(f);
   }
 
 /** load the SAG solution (sagid) */
 void load_sag_solution(const string& fname) {
   if(!(state & SS_DATA)) throw hr_exception("load_sag_solution with no data");
-  printf("Loading the sag from: %s\n", fname.c_str());
+  if(fname == "-") throw hr_exception("load_sag_solution from RogueViz not implemented");
+  DEBBI(debug_init_sag, ("Loading the sag solution from: ", fname));
   FILE *sf = fopen(fname.c_str(), "rt");
-  if(!sf) throw hr_exception("failed to load SAG solution");
+  if(!sf) return file_error(fname);
   int SN = isize(sagcells);
   if(sf) while(true) {
     string lab;
@@ -177,10 +214,12 @@ void load_sag_solution(const string& fname) {
 
 void load_sag_solution_basic(const string& fname) {
   if(!(state & SS_DATA)) throw hr_exception("load_sag_solution_basic with no data");
+  DEBBI(debug_init_sag, ("Loading the sag solution (basic) from: ", fname));
   FILE *f = fopen(fname.c_str(), "rt");
-  for(auto& i: sagid) if(fscanf(f, "%d", &i) < 1) throw hr_exception("read error in load_sag_solution_basic");
+  if(!f) return file_error(fname);
+  for(auto& i: sagid) if(fscanf(f, "%d", &i) < 1) return file_format_error(fname);
   fclose(f);
-  println(hlog, "loaded sagid = ", sagid);
+  if(debug_init_sag) println(hlog, "loaded sagid = ", sagid);
 
   prepare_graph();
   create_viz();
@@ -205,12 +244,14 @@ void after_data() {
 void read_weighted(const char *fname) {
 
   if(state & SS_DATA) return;
+  DEBBI(debug_init_sag, ("Loading the weighted daga for sag from: ", fname));
   state |= SS_WEIGHTED;
+  rogueviz::init(RV_GRAPH | RV_WHICHWEIGHT | RV_AUTO_MAXWEIGHT | RV_HAVE_WEIGHT);
   init_cells();
 
   maxweight = 0;
   fhstream f(fname, "rt");
-  if(!f.f) throw hr_exception("readsag_weighted: failed to open");
+  if(!f.f) return file_error(fname);
 
   while(!feof(f.f)) {
     string l1, l2;
@@ -230,59 +271,19 @@ void read_weighted(const char *fname) {
       }
     ld wei;
     if(!scan(f, wei)) continue;
-    edgeinfo ei(sag_edge);
-    ei.i = getid(l1);
-    ei.j = getid(l2);
-    ei.weight = wei;
-    sagedges.push_back(ei);
+    addedge(getid(l1), getid(l2), wei, ensure_sag_edge());
     }
 
   after:
-  println(hlog, "weighted graph ", fname, " read successfully");
   after_data();
   }
 
-/** load edges, in  */
-void read_unweighted(const char *fname) {
-
-  if(state & SS_DATA) return;
-  init_cells();  
-
-  fhstream f(fname, "rt");
-  if(!f.f) throw hr_exception("readsag_weighted: failed to open");
-
-  scanline(f);
-  set<pair<int, int> > edges;
-  
-  int all = 0, good = 0;
-  while(!feof(f.f)) {        
-    string l1 = scan<string>(f);
-    string l2 = scan<string>(f);
-    if(l1 == "") continue;
-    if(l2 == "") continue;
-    edgeinfo ei(sag_edge);
-    ei.i = getid(l1);
-    ei.j = getid(l2);
-    if(ei.i > ei.j) swap(ei.i, ei.j);
-    all++;
-    if(edges.count({ei.i, ei.j})) continue;
-    good++;
-    edges.emplace(ei.i, ei.j);
-    ei.weight = 1;
-    sagedges.push_back(ei);
-    }
-
-  println(hlog, "unweighted graph ", fname, " read successfully");
-  println(hlog, "N = ", isize(vdata), " edges = ", good, "/", all);
-  after_data();
-  }
-  
 void read_hubs(const string& fname) {
   if(!(state & SS_DATA)) throw hr_exception("read_hubs with no data");
+  DEBBI(debug_init_sag, ("Loading the hub daga for sag from: ", fname));
   hubval.resize(isize(vdata), -1);
   fhstream f(fname, "rt");
-  if(!f.f) { printf("Failed to open hub file: %s\n", fname.c_str()); exit(1); }
-  println(hlog, "loading hubs: ", fname);
+  if(!f.f) return file_error(fname);
   while(!feof(f.f)) {
     string l1, l2;
     while(true) {
@@ -301,7 +302,7 @@ void read_hubs(const string& fname) {
       }
     if(!id_known(l1)) {
       printf("label unknown: %s\n", l1.c_str());
-      exit(1);
+      throw hr_exception("unknown label in read_hubs");
       }
     hubval[getid(l1)] = atoi(l2.c_str());
     }
@@ -309,6 +310,8 @@ void read_hubs(const string& fname) {
 
 void generate_fake_data(int n, int m) {
   if(state & SS_DATA) return;
+  DEBBI(debug_init_sag, ("Generating fake data ", tie(n, m)));
+  rogueviz::init(RV_GRAPH | RV_WHICHWEIGHT | RV_AUTO_MAXWEIGHT | RV_HAVE_WEIGHT);
   init_cells();
   state |= SS_WEIGHTED;
 
@@ -318,19 +321,13 @@ void generate_fake_data(int n, int m) {
   if(m > n || m < 0) throw hr_exception("generate_fake_data parameters incorrect");
   sagid.resize(m);
   int DN = isize(sagid);
-  vdata.resize(DN);
+  resize_vertices(DN);
   for(int i=0; i<DN; i++)
     vdata[i].name = its(i) + "@" + its(sagid[i]);
 
-  sag_edge = add_edgetype("SAG edge");
   for(int i=0; i<DN; i++)
-  for(int j=i+1; j<DN; j++) {
-    edgeinfo ei(sag_edge);
-    ei.i = i;
-    ei.j = j;
-    ei.weight = 1. / sagdist[sagid[i]][sagid[j]];
-    sagedges.push_back(ei);
-    }
+  for(int j=i+1; j<DN; j++) 
+    addedge(i, j, 1. / sagdist[sagid[i]][sagid[j]], ensure_sag_edge());
 
   after_data();
 
@@ -338,8 +335,55 @@ void generate_fake_data(int n, int m) {
     color_t col = ccolor::formula(sagcells[sagid[i]].first);
     col <<= 8;
     col |= 0xFF;
+    vdata[i].cp.color1 = col;
+    vdata[i].cp.color2 = 0;
+    vdata[i].cp.shade = 0;
+    }
+  }
+
+/** Generate an unweighted graph, with edges determined by logistic. Prepare with -sagrt <R> <T> first */
+void generate_unweighted(int DN) {
+
+  if(state & SS_DATA) return;
+  init_cells();
+
+  int N = isize(sagcells);
+
+  sagid.resize(DN);
+  for(int i=0; i<DN; i++) sagid[i] = hrand(N);
+
+  // todo : what if not allow_doubles?
+
+  resize_vertices(DN);
+  for(int i=0; i<DN; i++)
+    vdata[i].name = its(i) + "@" + its(sagid[i]);
+
+  vector<int> colors;
+
+  if(colorpartite) {
+    colors.resize(DN);
+    for(int i=0; i<DN; i++) colors[i] = hrand(2);
+    }
+
+  for(int i=0; i<DN; i++)
+  for(int j=i+1; j<DN; j++) {
+    if(colorpartite && colors[i] == colors[j]) continue;
+    ld d = sagdist[sagid[i]][sagid[j]];
+    ld prob = yes_for(d);
+    if(chance(prob)) addedge(i, j, 1, ensure_sag_edge());
+    }
+
+  create_viz();
+  for(int i=0; i<DN; i++) {
+    color_t col =
+      colorpartite
+      ? rainbow_color(.5, colors[i] * 1./2)
+      : ccolor::formula(sagcells[sagid[i]].first);
+    col <<= 8;
+    col |= 0xFF;
     vdata[i].cp.color1 = vdata[i].cp.color2 = col;
     }
+  prepare_graph();
   }
 
 int data_read_args() {
@@ -364,9 +408,14 @@ int data_read_args() {
     PHASE(3); 
     shift(); sag::read_weighted(argcs());
     }
-  else if(argis("-sag-unweighted")) {
+  else if(argis("-sag-init")) {
     PHASE(3); 
-    shift(); sag::read_unweighted(argcs());
+    init_cells();
+    after_data();
+    }
+  else if(argis("-sag-generate-unweighted")) {
+    PHASE(3);
+    shift(); sag::generate_unweighted(argi());
     }
   else if(argis("-saghubs")) {
     PHASE(3); 
@@ -409,6 +458,10 @@ int data_read_args() {
     create_viz();
     }
 
+  else if(argis("-sag-colorpartite")) {
+    colorpartite = true;
+    if(state & SS_DATA) prepare_graph();
+    }
 
   else return 1;  
 #endif

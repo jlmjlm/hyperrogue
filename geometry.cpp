@@ -8,6 +8,8 @@
 #include "hyper.h"
 namespace hr {
 
+EX debugflag debug_geometry = {"geometry"};
+
 #if HDR
 struct usershapelayer {
   vector<hyperpoint> list;
@@ -167,6 +169,10 @@ enum class ePipeEnd {sharp, ball};
 
 struct embedding_method;
 
+struct length_adjusted_shapes {
+  hpcshape shIBranch;
+  };
+
 /** basic geometry parameters */
 struct geometry_information {
 
@@ -293,7 +299,7 @@ hpcshape
   shFigurine, shTreat, shSmallTreat,
   shElementalShard,
   // shBranch, 
-  shIBranch, shTentacle, shTentacleX, shILeaf[3], 
+  shILeaf[3],
   shMovestar,
   shWolf, shYeti, shDemon, shGDemon, shEagle, shGargoyleWings, shGargoyleBody,
   shFoxTail1, shFoxTail2,
@@ -384,14 +390,21 @@ hpcshape
 
   hpcshape shSpaceship, shMissile, shSpaceshipBase, shSpaceshipCockpit, shSpaceshipGun, shSpaceshipEngine;
 
-  hpcshape shChristmasLight;
+  hpcshape shChristmasLight, shSmallPike;
 
-  hpcshape shReserved[9];
+  hpcshape shBunnyBody, shBunnyHead, shBunnyEar, shBunnyTail;
+
+  hpcshape shDonkeyHead, shDonkeyEar, shDonkeyEye, shDonkeyNose, shDonkeyNose1;
+
+  hpcshape shReserved[16];
   
   int orb_inner_ring; //< for shDisk* shapes, the number of vertices in the inner ring
   int res1, res2;
 
   map<int, hpcshape> shPipe;
+
+  length_adjusted_shapes lash_default;
+  map<int, length_adjusted_shapes> lash;
 
   vector<hpcshape> shPlainWall3D, shWireframe3D, shWall3D, shMiniWall3D;
   vector<hyperpoint> walltester;
@@ -472,6 +485,7 @@ hpcshape
   void prepare_compute3();
   void prepare_shapes();
   void prepare_usershapes();
+  void generate_faces();
 
   void hpcpush(hyperpoint h);
   void hpc_connect_ideal(hyperpoint a, hyperpoint b);
@@ -481,9 +495,11 @@ hpcshape
   void initPolyForGL();
   void extra_vertices();
   transmatrix ddi(int a, ld x);
-  void drawTentacle(hpcshape &h, ld rad, ld var, ld divby);
+  void drawTentacle(ld rad, ld var, ld divby, ld tlength);
   hyperpoint hpxyzsc(double x, double y, double z);
   hyperpoint turtlevertex(int u, double x, double y, double z);
+
+  length_adjusted_shapes& get_lash(ld len);
   
   void bshape(hpcshape& sh, PPR prio);
   void finishshape();
@@ -553,6 +569,7 @@ hpcshape
     int area;
     int pshid[3][8][GOLDBERG_LIMIT][GOLDBERG_LIMIT][8];
     vector<array<int, 5>> id_to_params;
+    map<vector<int>, int> field_data;
     };
   shared_ptr<gpdata_t> gpdata = nullptr;
   #endif
@@ -615,9 +632,26 @@ EX bool special_fake() {
   return fake::in() && (BITRUNCATED || (GOLDBERG && S3 == 4 && gp::param.first == 1 && gp::param.second == 1) || (UNRECTIFIED && gp::param.first == 1 && gp::param.second == 1));
   }
 
+EX hookset<bool(geometry_information*)> hooks_generate_faces;
+
+void geometry_information::generate_faces() {
+  if(callhandlers(false, hooks_generate_faces, this)) return;
+  #if MAXMDIM >= 4
+  else if(reg3::in()) reg3::generate();
+  else if(euc::in(3)) euc::generate();
+  #if CAP_SOLV
+  else if(sn::in()) sn::create_faces();
+  #endif
+  #if CAP_BT
+  else if(bt::in()) bt::create_faces();
+  #endif
+  else if(nil && !mtwisted) nilv::create_faces();
+  #endif
+  }
+
 void geometry_information::prepare_basics() {
 
-  DEBBI(DF_INIT | DF_POLY | DF_GEOM, ("prepare_basics"));
+  indenter_finish dif(debug_geometry, "prepare_basics");
   
   hexshift = 0;
 
@@ -630,6 +664,12 @@ void geometry_information::prepare_basics() {
   heptshape = nullptr;
 
   xp_order = 0;
+
+  if(arcm::in()) {
+    auto& ac = arcm::current_or_fake();
+    if(fake::in_ext()) ac = arcm::current;
+    ac.compute_geometry();
+    }
   
   emb = make_embed();
   bool geuclid = euclid;
@@ -731,7 +771,11 @@ void geometry_information::prepare_basics() {
     int s6 = BITRUNCATED ? S3*2 : S3;
     vals.emplace_back(S7, unrect ? 0 : BITRUNCATED ? fake::around / 3 : fake::around / 2);
     vals.emplace_back(s6, unrect ? fake::around : BITRUNCATED ? fake::around * 2 / 3 : fake::around / 2);
+    #if CAP_ARCM
     ld edgelength = euclid ? 1 : arcm::compute_edgelength(vals);
+    #else
+    ld edgelength = 1;
+    #endif
 
     // circumradius and inradius, for S7 and S6 shapes
     auto c7 = asin_auto(sin_auto(edgelength/2) / sin(M_PI / S7));
@@ -751,9 +795,9 @@ void geometry_information::prepare_basics() {
     if(BITRUNCATED) plevel_twisted = (M_PI - 2 * alpha6 - alpha7) * fake::around * 2;
     }
   
-  DEBB(DF_GEOM | DF_POLY,
-    (hr::format("S7=%d S6=%d hexf = " LDF" hcross = " LDF" tessf = " LDF" hexshift = " LDF " hexhex = " LDF " hexv = " LDF "\n", S7, S6, hexf, hcrossf, tessf, hexshift, 
-    hexhexdist, hexvdist)));  
+  if(debug_geometry) println(hlog,
+    hr::format("S7=%d S6=%d hexf = " LDF" hcross = " LDF" tessf = " LDF" hexshift = " LDF " hexhex = " LDF " hexv = " LDF "\n", S7, S6, hexf, hcrossf, tessf, hexshift, 
+    hexhexdist, hexvdist));
   
   hybrid_finish:
   
@@ -779,17 +823,8 @@ void geometry_information::prepare_basics() {
   if(geometry == gHoroRec || kite::in() || sol || nil || nih) hexvdist = rhexf = .5, tessf = .5, scalefactor = .5, crossf = hcrossf7/2;
   if(bt::in()) scalefactor *= min<ld>(vid.binary_width, 1), crossf *= min<ld>(vid.binary_width, 1);
   #endif
-  #if MAXMDIM >= 4
-  if(reg3::in()) reg3::generate();
-  if(euc::in(3)) euc::generate();
-  #if CAP_SOLV
-  else if(sn::in()) sn::create_faces();
-  #endif
-  #if CAP_BT
-  else if(bt::in()) bt::create_faces();
-  #endif
-  else if(nil && !mtwisted) nilv::create_faces();
-  #endif
+  
+  generate_faces();
   
   scalefactor = crossf / hcrossf7;
   orbsize = crossf;
@@ -801,7 +836,6 @@ void geometry_information::prepare_basics() {
     geometry = gFake;
     ld our = xpush0(hcrossf)[0] / xpush0(hcrossf)[GDIM];
     fake::scale = our / orig;
-    // if(debugflags & DF_GEOM) 
     }
 
   if(fake::in() && WDIM == 3) {
@@ -888,7 +922,8 @@ void geometry_information::prepare_basics() {
       if(inv) psl_steps = 2 * S3;
       if(single_step < 0) single_step = -single_step;
       }
-    DEBB(DF_GEOM | DF_POLY, ("steps = ", psl_steps, " / ", single_step));
+
+    if(debug_geometry) println(hlog, "steps = ", psl_steps, " / ", single_step);
     plevel = M_PI * single_step / psl_steps;
     if(hybrid::underlying == gFake) {
       auto s3 = fake::around;
@@ -906,7 +941,9 @@ void geometry_information::prepare_basics() {
     }
   if(mtwisted && underlying_euclid) {
     single_step = 1;
+    #if CAP_ARCM
     if(ug == gArchimedean) plevel = arcm::current_or_fake().dual_tile_area();
+    #endif
     if(ug == gEuclid && PURE) plevel = sqrt(3)/4.;
     if(ug == gEuclidSquare && PURE) plevel = 1;
     if(ug == gEuclidSquare && BITRUNCATED) plevel = 0.25;
@@ -952,6 +989,27 @@ void geometry_information::prepare_basics() {
 
 EX purehookset hooks_swapdim;
 
+#if HDR
+extern struct dim_listener *dl_list;
+
+struct dim_listener {
+  dim_listener *next, **prev;
+  dim_listener() {
+    if(dl_list) dl_list->prev = &next;
+    next = dl_list;
+    dl_list = this;
+    prev = &dl_list;
+    }
+  ~dim_listener() {
+    if(next) next->prev = prev;
+    *prev = next;
+    }
+  virtual void on_dim_change() {}
+  };
+#endif
+
+dim_listener *dl_list;
+
 EX hookset<void(geometry_information*)> hooks_scalefactor;
 
 EX namespace geom3 {
@@ -968,17 +1026,17 @@ EX namespace geom3 {
     return tanh(abslev) / tanh(vid.camera);
     }
   
-  ld projection_to_abslev(ld proj) {
+  EX ld projection_to_abslev(ld proj) {
     if(sphere || euclid) return proj-vid.camera;
     // tanh(abslev) / tanh(camera) = proj
     return atanh(proj * tanh(vid.camera));
     }
   
-  ld lev_to_projection(ld lev) {
+  EX ld lev_to_projection(ld lev) {
     return abslev_to_projection(vid.depth - lev);
     }
   
-  ld projection_to_factor(ld proj) {
+  EX ld projection_to_factor(ld proj) {
     return lev_to_projection(0) / proj;
     }
   
@@ -1035,7 +1093,7 @@ EX namespace geom3 {
   
   void geometry_information::prepare_compute3() {
     using namespace geom3;
-    DEBBI(DF_INIT | DF_POLY | DF_GEOM, ("geom3::compute"));
+    indenter_finish dig(debug_geometry, "prepare_compute3");
     // tanh(depth) / tanh(camera) == pconf.alpha
     
     if(GDIM == 3 || flipped || changing_embedded_settings);
@@ -1176,7 +1234,7 @@ EX namespace geom3 {
     swapmatrix_view(NLP, View);
     swapmatrix_view(NLP, current_display->which_copy);
     callhooks(hooks_swapdim);
-    for(auto m: allmaps) m->on_dim_change();
+    auto dl = dl_list; while(dl) { dl->on_dim_change(); dl = dl->next; }
     }
 
   #if MAXMDIM >= 4
@@ -1419,8 +1477,8 @@ EX void check_cgi() {
   if(mhybrid) hybrid::underlying_cgip->timestamp = ntimestamp;
   if(fake::in() || (mhybrid && PIU(fake::in()))) fake::underlying_cgip->timestamp = ntimestamp;
   #if CAP_ARCM
-  if(arcm::alt_cgip[0]) arcm::alt_cgip[0]->timestamp = ntimestamp;
-  if(arcm::alt_cgip[1]) arcm::alt_cgip[1]->timestamp = ntimestamp;
+  if(arcm::bm.alt_cgip[0]) arcm::bm.alt_cgip[0]->timestamp = ntimestamp;
+  if(arcm::bm.alt_cgip[1]) arcm::bm.alt_cgip[1]->timestamp = ntimestamp;
   #endif
   
   int limit = 3;
@@ -1430,7 +1488,8 @@ EX void check_cgi() {
     for(auto& t: cgis) if(!t.second.use_count) timestamps.emplace_back(-t.second.timestamp, t.first);
     sort(timestamps.begin(), timestamps.end());
     while(isize(timestamps) > limit && timestamps.back().first != -ntimestamp) {
-      DEBB(DF_GEOM, ("erasing geometry ", timestamps.back().second));
+      if(debug_geometry)
+        println(hlog, "erasing geometry ", timestamps.back().second);
       cgis.erase(timestamps.back().second);
       timestamps.pop_back();
       }

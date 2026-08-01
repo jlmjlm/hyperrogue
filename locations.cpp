@@ -22,6 +22,43 @@ extern int cellcount, heptacount;
 #define NOBARRIERS 127
 #define NOBARRIERS2 125
 
+using cell_content_list = struct cell_content*;
+
+namespace shmup { struct monster; }
+
+struct cell_content {
+  cell_content *next;
+  cell_content_list *last;
+  virtual shmup::monster *as_monster() { return nullptr; }
+
+  void remove_from_list() {
+    if(last) { last[0] = next; if(next) next->last = last; next = nullptr; last = nullptr; }
+    }
+
+  void add_to_list(cell_content_list& l) {
+    remove_from_list();
+    next = l; if(l) l->last = &next;
+    last = &l; l = this;
+    }
+
+  int refs;
+  cell_content() { refs = 1; next = nullptr; last = nullptr; }
+
+  virtual ~cell_content() {
+    remove_from_list();
+    }
+
+  void unref() {
+    refs--;
+    if(!refs) delete this;
+    }
+
+  void unlist_and_unref() { remove_from_list(); unref(); }
+  virtual void draw(struct celldrawer& cd) {}
+  };
+
+#define FOR_LIST(it, ml) for(cell_content *it = (ml); it; it = it->next)
+
 /** \brief Cell information for the game. struct cell builds on this */
 struct gcell {
 
@@ -98,11 +135,14 @@ struct gcell {
   #ifdef CELLID
   int cellid;
   #endif
+
+  cell_content_list contents;
   
   gcell() {
     #ifdef CELLID
-    cellid = cellcount;  
+    cellid = cellcount;
     #endif
+    contents = nullptr;
     }
   };
 
@@ -413,6 +453,16 @@ struct manual_celllister {
     return true;
     }
 
+  /** \brief remove a cell from the list */
+  bool remove(cell *c) {
+    if(!listed(c)) return false;
+    int i = c->listindex;
+    c->listindex = tmps[i];
+    tmps.erase(tmps.begin() + i);
+    lst.erase(lst.begin() + i);
+    return true;
+    }
+
   ~manual_celllister() {     
     for(int i=0; i<isize(lst); i++) lst[i]->listindex = tmps[i];
     }  
@@ -465,6 +515,23 @@ inline cellwalker operator+ (heptspin hs, cth_t) { return cellwalker(hs.at->c7, 
 #endif
 
 EX bool proper(cell *c, int d) { return d >= 0 && d < c->type; }
+
+/** return b-a, as in, a number x such that a+x == b. */
+EX int cwdiff(cellwalker b, cellwalker a) {
+  return a.mirrored ? a.spin - b.spin : b.spin - a.spin;
+  }
+
+/** like cwdiff but normalize to [0..type-1) */
+EX int cwdiff_fixed(cellwalker b, cellwalker a) {
+  return gmod(cwdiff(b, a), b.at->type);
+  }
+
+/** return c+(b-a) */
+EX cellwalker cw_add_diff(cellwalker c, cellwalker b, cellwalker a) {
+  c += cwdiff(b, a);
+  if(a.mirrored != b.mirrored) c += wmirror;
+  return c;
+  }
 
 #if HDR
 

@@ -160,7 +160,7 @@ EX namespace yendor {
     cell *actualKey;
     bool found;
     bool foundOrb;
-    int howfar;
+    int howfar, howfar_back;
     bignum age;
     yendorinfo() { actualKey = NULL; }
     cell* key() { return path[YDIST-1]; }
@@ -257,6 +257,7 @@ EX namespace yendor {
 
       nyi.found = false;
       nyi.foundOrb = false;
+      nyi.howfar_back = 999;
   
       for(int i=1; i<YDIST; i++) {
         setdist(nyi.path[i], 7, nyi.path[i-1]);
@@ -405,6 +406,10 @@ EX namespace yendor {
     if(yii < isize(yi)) {
       for(int i=0; i<YDIST; i++) if(yi[yii].path[i]->cpdist <= 7) {
         if(i > yi[yii].howfar) yi[yii].howfar = i;
+        if(yi[yii].found && i < yi[yii].howfar_back) {
+          yi[yii].howfar_back = i;
+          update_lastexplore();
+          }
         path = true;
         }
       }
@@ -709,7 +714,7 @@ EX namespace yendor {
     }) + addHook(hooks_removecells, 0, [] () {
     eliminate_if(yendor::yi, [] (yendorinfo& i) {
       for(int j=0; j<YDIST; j++) if(is_cell_removed(i.path[j])) {
-        DEBB(DF_MEMORY, ("removing a Yendor"));
+        DEBB(debug_memory, ("removing a Yendor"));
         if(&yi[yii] == &i) yii = NOYENDOR;
         return true;
         }
@@ -725,6 +730,7 @@ EX namespace tactic {
   EX int id;
   
   map<modecode_t, array<int, landtypes>> recordsum;
+  map<modecode_t, array<int, landtypes>> recordrun;
   map<modecode_t, array<array<int, MAXTAC>, landtypes> > lsc;
   
   eLand lasttactic;
@@ -778,6 +784,7 @@ EX namespace tactic {
     int csum = 0;
     for(int i=0; i<t; i++) if(lsc[xc][land][i] > 0) csum += lsc[xc][land][i];
     if(csum > recordsum[xc][land]) recordsum[xc][land] = csum;
+    if(score > recordrun[xc][land]) recordrun[xc][land] = score;
     }
 
   EX void record() {
@@ -823,6 +830,8 @@ EX namespace tactic {
     uploadScoreCode(4, LB_PURE_TACTICS_COOP);
     }
   
+  EX bool minimal_mode = false;
+
   EX void showMenu() {
 
     flagtype xc = modecode();
@@ -850,13 +859,21 @@ EX namespace tactic {
     }
     
     int nl = isize(landlist);
-
     int nlm = nl;
-    int ofs = dialog::infix != "" ? 0 : dialog::handlePage(nl, nlm, (nl+1)/2);
-            
+
+    int ofs = 0;
+    int numpages = 1;
+
+    if(dialog::infix == "") {
+      numpages = (nl-1) / lands_per_page + 1;
+
+      if(numpages > 1)
+         ofs += dialog::handlePage(nl, nlm, lands_per_page, numpages);
+      }
+
     int vf = nlm ? min((vid.yres-4*vid.fsize) / (nlm+1), vid.xres/40) : vid.xres/40;
     
-    int xr = vid.xres / 64;
+    int xr = min(vid.xres / 64, vf);
     
     if(on) record(specialland, items[treasureType(specialland)]);
     
@@ -864,7 +881,30 @@ EX namespace tactic {
     
     map<int, int> land_for;
 
-    for(int i=0; i<nl; i++) {
+    if(minimal_mode) for(int i=0; i<isize(landlist); i++) {
+      eLand l = landlist[i];
+      int y0 = 2 * vid.fsize + (i % nl+1) * vf;
+      int x0 = vid.xres * (i / nl) / numpages;
+
+      color_t col;
+
+      bool unlocked = tacticUnlocked(l);
+      col = linf[l].color;
+
+      int keyhere = 1000 + i;
+      land_for[keyhere] = i;
+
+      if(displayfrZH(x0 + xr, y0, 1, vf - 4, XLAT1(linf[l].name), col, 0) && unlocked)
+        getcstat = keyhere;
+
+      string sco = its(recordrun[xc][l]);
+      if(!unlocked) sco = "L";
+
+      if(displayfrZH(x0 + (vid.xres / numpages) - xr, y0, 1, vf - 4, sco, col, 16) && unlocked) getcstat = keyhere;
+      if(recordrun[xc][l] >= 50) displayfrZH(x0 + (vid.xres / numpages) - xr, y0, 1, vf - 4, "*", 0xFFD500, 0);
+      }
+
+    else for(int i=0; i<nl; i++) {
       int i1 = i + ofs;
       eLand l = landlist[i1];
 
@@ -909,7 +949,7 @@ EX namespace tactic {
         }
       }
     
-    dialog::displayPageButtons(3, dialog::infix == "");
+    dialog::display_bottom_buttons(numpages, dialog::DB_BACK | dialog::DB_HELP | dialog::DB_EXIT | (minimal_mode ? dialog::DB_MINIMAL_OFF : dialog::DB_MINIMAL));
 
     uploadScore();
     if(on) unrecord(specialland);
@@ -926,7 +966,7 @@ EX namespace tactic {
       displayScore(scorehere, xr * 50);
       }
      
-    keyhandler = [land_for] (int sym, int uni) {
+    keyhandler = [land_for, numpages] (int sym, int uni) {
       if(land_for.count(uni)) {
         eLand ll = landlist[land_for.at(uni)];
         dialog::do_if_confirmed([ll] {
@@ -936,13 +976,10 @@ EX namespace tactic {
           });
         }
       else if(uni == '0') {
-        if(tactic::on) {
-          stop_game();          
-          firstland = laIce;
-          restart_game(rg::tactic);
-          }
+        if(tactic::on) restart_game(rg::tactic);
         else popScreen();
         }
+      else if(uni == '4') minimal_mode = !minimal_mode;
 
       else if(sym == SDLK_F1) gotoHelp(
         "In the pure tactics mode, you concentrate on a specific land. "
@@ -967,8 +1004,8 @@ EX namespace tactic {
         
         "Good luck, and have fun!"
         );
-      else if(dialog::infix == "" && dialog::handlePageButtons(uni)) ;
-      else if(dialog::editInfix(uni)) dialog::list_skip = 0;
+      else if(dialog::infix == "" && dialog::handlePageButtons(sym, uni, true, numpages)) ;
+      else if(dialog::editInfix(sym, uni)) dialog::list_skip = 0;
       else if(doexiton(sym, uni)) popScreen();
       };
     }
@@ -976,7 +1013,8 @@ EX namespace tactic {
   EX void start() {
     dialog::infix = "";
     popScreenAll();
-    pushScreen(tactic::showMenu);
+    if(tactic::on) restart_game(rg::tactic);
+    else pushScreen(tactic::showMenu);
     }
 EX }
 
@@ -1054,6 +1092,11 @@ EX void save_mode_data(hstream& f) {
         }
       }
     }
+  if(lineofsight != los::none || lineofsightAt >= PURELOS_LEVEL) {
+    f.write<char>(9);
+    f.write<char>((char) lineofsight);
+    f.write<char>(lineofsightAt >= PURELOS_LEVEL);
+    }
   }
 
 EX eLandStructure get_default_land_structure() {
@@ -1083,6 +1126,8 @@ EX void other_settings_default() {
   horodisk_from = -2;
   randomwalk_size = 10;
   landscape_div = 25;
+  lineofsight = los::none;
+  lineofsightAt = 0;
   }
 
 EX void load_mode_data_with_zero(hstream& f) {
@@ -1158,6 +1203,11 @@ EX void load_mode_data_with_zero(hstream& f) {
           custom_land_ptm_mult[i] = f.get<char>();
           }
         break;
+        }
+
+      case 9: {
+        lineofsight = (los) f.get<char>();
+        lineofsightAt = f.get<char>() ? PURELOS_LEVEL : 0;
         }
 
       default:
@@ -1394,7 +1444,7 @@ EX namespace peace {
 
     if(true) {
       dialog::addBreak(100);
-      dialog::addBoolItem(XLAT("puzzles"), otherpuzzles, '1');
+      dialog::addBoolItem(XLAT("puzzles"), otherpuzzles && !explore_other, '1');
       dialog::add_action([] { otherpuzzles = true; explore_other = false; });
       dialog::addBoolItem(XLAT("exploration"), explore_other, '2');
       dialog::add_action([] { otherpuzzles = true; explore_other = true; });
@@ -1467,8 +1517,11 @@ EX namespace peace {
       });
     dialog::addItem(XLAT("Return to the normal game"), '0');
     dialog::add_action([] {
-      stop_game();
-      if(peace::on) stop_game_and_switch_mode(rg::peace);
+      if(peace::on) {
+        stop_game();
+        if(peace::on) stop_game_and_switch_mode(rg::peace);
+        start_game();
+        }
       });
 
     dialog::addBack();    
@@ -1502,7 +1555,7 @@ void mode_screen_for_current() {
     else gotoHelp(yendor::chelp);
     });
 
-  dialog::addSelItem(XLAT("Pure Tactics Mode"), its(tactic::compute_tscore(mc)), 't');
+  dialog::addSelItem(XLAT("pure tactics mode"), its(tactic::compute_tscore(mc)), 't');
   dialog::add_action(tactic::start);
 
   dialog::addBreak(100);

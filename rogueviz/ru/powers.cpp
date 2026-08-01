@@ -28,20 +28,122 @@ power& power::be_weapon() {
   picked_up = [this] (int x) { qty_owned += x; qty_filled = max(qty_filled, x);  };
   auto gn = get_name; get_name = [gn, this] {
     string s = addqof(gn(), this);
-    for(auto& [m, qty]: mods) {
-      if(m == mod::burning) s = "flaming " + s;
-      if(m == mod::freezing) s = "freezing " + s;
-      }
+    for(auto& md: mods) md.change_name(s);
     return s;
     };
   auto gc = get_color; get_color = [gc, this] {
     auto col = gc();
-    for(auto& [m, qty]: mods) {
-      if(m == mod::burning) col = gradient(0xFFFF00FF, 0xFF0000FF, -1, sin(ticks/100), 1);
-      if(m == mod::freezing) col = 0x8080FFFF;
-      }
+    for(auto& md: mods) md.change_color(col);
     return col;
     };
+  return self;
+  }
+
+power& power::be_armor(const vector<vector<string>>& v) {
+  flags |= ARMOR;
+  picked_up = [this] (int x) { qty_owned += x; qty_filled = max(qty_filled, x);  };
+
+  auto gn = get_name; get_name = [gn, this] {
+    string s = gn();
+    s += " [" + its(qty_filled) + "]";
+    if(flags & ACTIVE) s += " (worn)";
+    if(qty_owned > qty_filled) s += " (+" + its(qty_owned - qty_filled) + ")";
+    return s;
+    };
+
+  auto gd = get_desc;
+  get_desc = [this, gd, v] () -> string {
+    auto desc = gd();
+    std::mt19937 armorgen;
+    armorgen.seed(m.gameseed ^ v[0][0][0] ^ (v[1][0][0] << 8));
+    println(hlog, "after armorgen");
+    vector<int> qty(v.size(), 0);
+    for(int i=0; i<qty_filled; i++) {
+      if(i < 2) qty[i]++;
+      else qty[armorgen() % v.size()]++;
+      }
+    println(hlog, "qty = ", qty);
+    desc += "\n\n";
+    desc += "This outfit consists of ";
+    int total = 0; for(auto q: qty) if(q) total++;
+    println(hlog, "total = ", total);
+    int index = 0;
+    int aindex = 0;
+    for(auto& q: qty) {
+      auto& vi = v[aindex++];
+      println(hlog, "vi = ", vi, " q = ", q);
+      if(!q) continue;
+      index++;
+      if(index && index == total) desc += " and ";
+      else if(index > 1) desc += ", ";
+      if(q <= isize(vi)) desc += vi[q-1];
+      else if(vi.back().substr(0, 2) == "a ") desc += "a +" + its(q - isize(vi)) + " " + vi.back().substr(2);
+      else if(vi.back().substr(0, 3) == "an ") desc += "an +" + its(q - isize(vi)) + " " + vi.back().substr(3);
+      else desc += "+" + its(q - isize(vi)) + " " + vi.back();
+      }
+    desc += ".\n";
+    if(qty_owned == qty_filled + 1)
+      desc += "\nYou have also found another piece that must be tailored to fit your size.";
+    else if(qty_owned > qty_filled)
+      desc += "\nYou have also found " + its(qty_owned - qty_filled) +" pieces that must be tailored to fit your size.";
+    return desc;
+    };
+
+  auto ac = act;
+  act = [this, gn, ac] (data& d) {
+    if(d.keystate == 1) {
+      if(!m.is_stable)
+        addMessage("You need to be on stable footing to redress.");
+      else if(d.p->flags & ACTIVE) {
+        addMessage("You start removing your " + gn() + ".");
+        d.p->flags &=~ ACTIVE;
+        int len = game_fps * 1.5;
+        m.dresstime += len;
+
+        for(auto fac: {1, -1}) {
+          m.effects.emplace_back();
+          auto& e = m.effects.back();
+          e.p = this;
+          e.when = gframeid;
+          e.facing = fac;
+          e.length = len;
+          e.cf = [len] (color_t& col, int t) {
+            auto& alpha = part(col, 0);
+            alpha *= ((len-t) * 1. / len);
+            };
+          e.f = [fac, len] (int t) { return m.get_pixel_bbox_at(xy{m.where.x + fac * (t * 1. / len) * m.dsiz().x, m.where.y}); };
+          }
+        }
+      else {
+        power *wearing_what = nullptr;
+        for(auto& p: powers) if((p.flags & ACTIVE) && (p.flags & ARMOR)) wearing_what = &p;
+        if(wearing_what)
+          addMessage("You have to remove your " + wearing_what->name + " first.");
+        else {
+          d.p->flags |= ACTIVE;
+          addMessage("You start putting on your " + gn() + ".");
+          int len = game_fps * 2;
+          m.dresstime += len;
+
+          for(auto fac: {1, -1}) {
+            m.effects.emplace_back();
+            auto& e = m.effects.back();
+            e.p = this;
+            e.when = gframeid;
+            e.facing = fac;
+            e.length = len;
+            e.cf = [len] (color_t& col, int t) {
+              auto& alpha = part(col, 0);
+              alpha *= (t * 1. / len);
+              };
+            e.f = [fac, len] (int t) { return m.get_pixel_bbox_at(xy{m.where.x + fac * ((len - t) * 1. / len) * m.dsiz().x, m.where.y}); };
+            }
+          }
+        }
+      }
+    ac(d);
+    };
+
   return self;
   }
 
@@ -50,33 +152,15 @@ power& power::be_resource(string s) {
   return self;
   }
 
-using flavor = pair<string, color_t>;
 int next_potion, next_jewelry;
-
-vector<flavor> jewelry_colors = {
-  {"steel", 0xA0A0C0FF},
-  {"amethyst", 0xC060C0FF},
-  {"ruby", 0xC06060FF},
-  {"sapphire", 0x6060C0FF},
-  {"emerald", 0x60C060FF},
-  };
-
-vector<flavor> potion_colors = {
-  {"bubbling", 0xC0C0C0FF},
-  {"golden", 0xFFD500FF},
-  {"red", 0xC00000FF},
-  {"blue", 0x0000C0FF},
-  {"green", 0x00C000FF},
-  {"white", 0xFFFFFFFF},
-  {"black", 0x303030FF},
-  };
 
 power& power::be_jewelry(string jtype, string xdesc) {
   int nj = next_jewelry++;
+  reshuffle = [this, nj] { fl = jewelry_colors[nj]; };
   picked_up = [this] (int x) { qty_owned += x; qty_filled = max(qty_filled, x);  };
-  get_color = [nj] { return jewelry_colors[nj].second; };
-  get_name = [nj, this, jtype] {
-    string fname = jewelry_colors[nj].first + " " + jtype;
+  get_color = [this] { return fl.col; };
+  get_name = [this, jtype] {
+    string fname = fl.name + " " + jtype;
     if(flags & IDENTIFIED) fname = fname + " of " + name;
     fname = addqof(fname, this);
     return fname;
@@ -107,14 +191,22 @@ power& power::be_wearable(string wear_effect, string remove_effect, string worn)
   return self;
   }
 
+string replace_weapon(string s, power *wpn) {
+  while(true) {
+    auto w = s.find("[weapon]");
+    if(w == string::npos) return s;
+    s.replace(w, 8, wpn->get_name());
+    }
+  }
+
 power& power::be_potion() {
   int np = next_potion++;
   picked_up = [this] (int x) { qty_owned += x; qty_filled = max(qty_filled, x);  };
-  get_color = [np] { return potion_colors[np].second; };
+  get_color = [this] { return fl.col; };
   refill = [this] { qty_filled = qty_owned; };
-  reshuffle = [this] { random_flavor = rand() % 5040; flags &=~ IDENTIFIED; };
-  get_name = [np, this] {
-    string fname = potion_colors[np].first + " potion";
+  reshuffle = [this, np] { fl = potion_colors[np]; flags &=~ IDENTIFIED; };
+  get_name = [this] {
+    string fname = fl.name + " potion";
     if(flags & (PARTIAL | IDENTIFIED)) fname = fname + " of " + name;
     int insq = 0;
     if(flags & IDENTIFIED)
@@ -136,7 +228,7 @@ power& power::be_potion() {
       auto desc = gd();
       if(flags & IDENTIFIED)
         for(auto& e: randeffs)
-          desc += e->desc;
+          desc += replace_weapon(e->desc, e->which_weapon);
       return desc;
       }
     };
@@ -144,18 +236,26 @@ power& power::be_potion() {
   }
 
 void random_potion_act(data& d) {
-  if(d.p->qty_filled == d.p->qty_owned) d.p->flags &=~ ACTIVE;
+  if(d.p->qty_filled == d.p->qty_owned) d.p->active_in_rooms.clear();
+  d.p->flags &=~ ACTIVE;
+  if(d.p->active_in_rooms.count(current_room)) d.p->flags |= ACTIVE;
   if(d.keystate == 1 && !(d.p->flags & ACTIVE)) {
+    d.flags &=~ DO_NOT_DRINK;
+    for(auto& e: d.p->randeffs) e->unact(d);
+    if(d.flags & DO_NOT_DRINK) return;
     if(d.p->qty_filled == 0) {
       addMessage("You have no more " + d.p->get_name());
       return;
       }
     addMessage("You drink the " + d.p->get_name());
     for(auto& e: d.p->randeffs) {
-      if(e->effect != "") addMessage(e->effect);
+      if(e->effect != "") {
+        addMessage(replace_weapon(e->effect, e->which_weapon));
+        }
       d.re = e; d.mode = rev::start;
       e->act(d);
       }
+    d.p->active_in_rooms.insert(current_room);
     d.p->flags |= (ACTIVE | PARTIAL | IDENTIFIED);
     d.p->qty_filled--;
     }
@@ -185,11 +285,12 @@ void power::init() {
   reshuffle = [this] {};
   }
 
-power& gen_power(int key, string name, string desc, string glyph, color_t color, powerfun pf) {
+power& gen_power(int key, int shifted, string name, string desc, string glyph, color_t color, powerfun pf) {
   powers.emplace_back();
   auto& p = powers.back();
-  p.key = key;
+  p.key = key; p.shifted = shifted;
   p.name = name;
+  p.id = unspace(name);
   p.desc = desc;
   p.glyph = glyph;
   p.color = color;
@@ -201,17 +302,16 @@ power& gen_power(int key, string name, string desc, string glyph, color_t color,
 power *extra_life;
 int gold_id;
 power *dexmode;
+power *fire_power, *ice_power, *thief_power;
 
 void power_death_revert(power& p) {
-  int q0 = p.qty_filled;
-  int q1 = p.qty_owned;
-  add_revert(death_revert, [&p, q0, q1] { p.qty_filled = q0; p.qty_owned = q1; });
+  add_revert(death_revert, {"ITEM", p.id, its(p.qty_filled), its(p.qty_owned)});
   }
 
 void gen_powers() {
   powers.reserve(100);
 
-  extra_life = &gen_power('1', "Extra Life",
+  extra_life = &gen_power('1', 0, "Extra Life",
     "You are really proud of this potion, which, after you die, will let you return to the moment of time when you drank it. "
     "Unfortunately it still requires an ingredient found only in the magical fountains of the Dungeons of Alchemy.\n\n"
     "You can only drink this potion when at a magical fountain. To protect yourself from dying permanently, when you drink it, "
@@ -237,14 +337,18 @@ void gen_powers() {
 
           if(m.experience >= 50) {
             auto g = std::make_unique<ghost>();
-            g->where = w; g->hp = hp; g->xp = m.experience/2; m.experience -= g->xp; g->postfix();
+            g->id = "GHOST";
+            g->extra_invinc = 2 * game_fps;
+            g->where = w; g->ghost_hp = hp; g->ghost_xp = m.experience/2; m.experience -= g->ghost_xp;
+            g->hs(fountain_resetter);
             cr->entities.emplace_back(std::move(g));
             }
 
-          auto bones = std::make_unique<item>();
+          auto bones = std::make_unique<ghost_item>();
+          bones->id = "BONES";
           bones->qty = 10;
           bones->where = stable_where;
-          bones->id = gold_id;
+          bones->p = &powers[gold_id];
           bones->pickup_message = "You got it back.";
           stable_room->entities.emplace_back(std::move(bones));
           }
@@ -255,7 +359,7 @@ void gen_powers() {
         else if(!on_fountain)
           addMessage("For safety, you can only drink " + d.p->get_name() + " at the Magic Fountain.");
         else {
-          fountain_room = current_room; fountain_where = m.where;
+          fountain_room = current_room; fountain_where = m.where; death_revert = {};
           addMessage("You drink the " + d.p->get_name() + " and you feel that nothing will stop you now!");
           d.p->flags |= ACTIVE;
           }
@@ -264,19 +368,23 @@ void gen_powers() {
     ).is_starting().be_potion().while_dead();
   extra_life->qty_filled = 0;
 
-  gen_power('d', "move right",
+  gen_power('d', 0, "move right",
     "A special power of human beings, and most other animals, that they earn early in their life.",
     ">", 0xFF0000FF,
-    [] (data& d) { if(d.keystate & 1) d.dx += 1; }
+    [] (data& d) {
+      if(d.keystate & 1) d.dx += (m.dresstime ? 0.2 : 1);
+      }
     ).is_starting(),
 
-  gen_power('a', "move left",
+  gen_power('a', 0, "move left",
     "Moving to the right was a mistake? If so, this special power can be used to ignore the consequences. In most cases, at least...",
     "<", 0xFF0000FF,
-    [] (data& d) { if(d.keystate & 1) d.dx -= 1; }
+    [] (data& d) {
+      if(d.keystate & 1) d.dx -= (m.dresstime ? 0.2 : 1);
+      }
     ).is_starting(),
 
-  gen_power('w', "jump",
+  gen_power('w', 0, "jump",
     "This power can be used to reach higher parts of the world. Its power is quite limited compared to move left and right, but "
     "you expect to find some ways to make it more powerful.",
     "^", 0xFF0000FF,
@@ -284,12 +392,13 @@ void gen_powers() {
       if(d.keystate & 1) {
         bool can_jump = m.on_floor;
         if(gframeid <= m.on_floor_when + m.current.coyote_time) can_jump = true;
+        if(m.dresstime) can_jump = false;
         if(can_jump) m.vel.y = m.zero_vel.y-(non_hyperbolic ? 3 : 5) * d.d * d.modv, m.on_floor_when = -1000;
         }
       }
     ).is_starting(),
 
-  gen_power('s', "fall",
+  gen_power('s', 0, "fall",
     "If you are on a platform, this ability can be used to drop down.",
     "v", 0xFF0000FF,
     [] (data& d) {
@@ -297,7 +406,7 @@ void gen_powers() {
       }
     ).is_starting(),
 
-  gen_power('p', "pause",
+  gen_power('p', 0, "pause",
     "Becoming an alchemist requires intelligence: thinking quickly to react to surprising effects of experiments. "
     "To reflect this, you can use this power at any time to give yourself more time to think about the situation.",
     "-", 0xFF0000FF,
@@ -305,51 +414,54 @@ void gen_powers() {
       if(d.keystate == 1) cmode = (cmode == mode::paused ? mode::playing : mode::paused);
       }).is_starting().while_paused(),
 
-  dexmode = &gen_power('c', "chill time",
+  dexmode = &gen_power('c', 0, "chill time",
     "Concentrate to make the timing of your moves perfect.\n\n"
     "From the player's point of view, this makes the game run slower.\n\nThe higher your Dexterity, the slower the game becomes.",
     "-", 0xFF0000FF,
     [] (data& d) {
       }).is_starting().while_paused().be_wearable("You concentrate.", "You calm down.", " (on)"),
 
-  gen_power(' ', "dagger",
+  gen_power('a', 1, "heavy armor",
+    "This kind of armor reduces the amount of damage you take from hits.",
+     "]", 0xC0C0C0FF,
+    [] (data& d) {}).be_armor({{"a chain shirt", "plate armor"}, {"an iron cap", "an iron helmet"}, {"an iron gorget"}, {"bracers"}, {"gauntlets"}, {"iron-shod boots"}, {"greaves"}}),
+
+  thief_power = &gen_power('t', 1, "thief garments",
+    "This outfit makes it harder for enemies to notice or hit you.",
+     "]", 0xC08000FF,
+    [] (data& d) {}).be_armor({{"a leather vest"}, {"a hood"}, {"comfortable boots", "muffled boots", "boots of dodging"}, {"a cloak", "chameleon cloak"}, {"leather gloves"}, {"leather pants"}}),
+
+  gen_power('w', 1, "wizard attire",
+    "This outfit provides a magical aura that prevents you from taking damage. However, eventually, "
+    "with lots of attacks, the aura will lose its power. You need to spend some time without being attacked to "
+    "regenerate it.",
+     "]", 0x0080C0FF,
+    [] (data& d) {}).be_armor({{"a simple magic robe", "embroidered robe"}, {"a wizard hat"}, {"runed boots", "silk runed boots"}, {"runed gloves", "silk runed gloves"}, {"a silver circlet", "a golden circlet"}}),
+
+  gen_power('d', 1, "druid outfit",
+    "This outfit reduces the damage you take from hits, makes it harder for enemies to hit you, and also provides some magical aura protection.",
+     "]", 0x40C040FF,
+    [] (data& d) {}).be_armor({{"a light fur", "a heavy fur"}, {"a horned cap", "a horned helmet"}, {"enchanted cloak"}, {"furry gloves", "beast gloves"}, {"furry boots"}, {"bracers"}}),
+
+  gen_power(' ', 0, "dagger",
     "This sharp dagger is very useful during the preparation of alchemical ingredients, but it works as a basic weapon too.",
     ")", 0xFFFFFFFF,
     [] (data& d) {
       if(d.keystate != 1) return;
-      m.attack_facing = m.facing; m.attack_when = gframeid;
-      auto pb = m.get_pixel_bbox_at(xy{m.where.x + m.attack_facing * m.dsiz().x, m.where.y});
-      auto bb = pixel_to_block(pb);
-      for(auto& e: current_room->entities)
-        if(e->existing && intersect(e->get_pixel_bbox(), pb)) {
-          int sav = e->invinc_end;
-          e->attacked((m.current.stats[stat::str] + 1) * 3 / 2);
-          for(auto& [m, qty]: d.p->mods) {
-            if(m == mod::burning) { e->invinc_end = sav; e->attacked(qty); }
-            if(m == mod::freezing) { e->invinc_end = sav; e->attacked(qty); }
-            }
-          }
-      for(int y=bb.miny; y<bb.maxy; y++)
-      for(int x=bb.minx; x<bb.maxx; x++) {
-        int b = current_room->at(x, y);
-        if(b == wDoor) {
-          current_room->replace_block_frev(x, y, wSmashedDoor);
-          addMessage("You smash the door!");
-          }
-        for(auto& [m, qty]: d.p->mods) {
-          if(m == mod::burning && b == wWoodWall) {
-            current_room->replace_block_frev(x, y, wAir);
-            addMessage("You burn the wall!");
-            }
-          if(m == mod::freezing && b == wWater) {
-            current_room->replace_block_frev(x, y, wFrozen);
-            addMessage("You freeze the water!");
-            }
-          }
-        }
+      for(auto fac: {1, -1})
+        m.launch_attack(d.p, fac, [fac] (int t) { return m.get_pixel_bbox_at(xy{m.where.x + fac * (1-0.01 * t) * m.dsiz().x, m.where.y}); });
       }).be_weapon(),
 
-  gen_power('o', "strange blue crystal ball", "You feel an urge to look into it.",
+  gen_power('x', 0, "axe",
+    "This axe is very sharp and strong! It could even destroy heavy doors.",
+    ")", 0xFFFFFFFF,
+    [] (data& d) {
+      if(d.keystate != 1) return;
+      int fac = m.facing;
+      m.launch_attack(d.p, fac, [fac] (int t) { return m.get_pixel_bbox_at(xy{m.where.x + fac * (1-0.01 * t) * m.dsiz().x, m.where.y}, 2, 2); });
+      }).be_weapon().add_flags(WEAPON_AXE),
+
+  gen_power('o', 0, "strange blue crystal ball", "You feel an urge to look into it.",
     "o", 0x00FF00FF,
     [] (data& d) {
       if(d.keystate != 1) return;
@@ -360,7 +472,7 @@ void gen_powers() {
           "parts of the world you have seen so far. This artifact is rumored to have been actually created by Beltrami, but "
           "it was bought and presented to people by the famous wizard Poincaré, and people thought it was Poincaré's creation."),
 
-  gen_power('b', "strange cyan crystal ball", "You feel an urge to look into it.",
+  gen_power('b', 0, "strange cyan crystal ball", "You feel an urge to look into it.",
     "o", 0x00FFFFFF,
     [] (data& d) {
       if(d.keystate != 1) return;
@@ -371,7 +483,7 @@ void gen_powers() {
           "but will let you easily map the parts of the world you have seen so far. Contrary to Poincaré's ball, straight lines are "
           "mapped faithfully."),
 
-  gen_power('c', "furry ring",
+  gen_power('c', 1, "furry ring",
     "This strange ring is too small to put on your finger, but maybe you could put it on your small toe?",
     "=", 0xe1cbbeFF,
     [] (data& d) {
@@ -384,7 +496,7 @@ void gen_powers() {
     ).identified_name("Toe Ring of the Coyote", "This ring, worn on a toe, will let you still jump after running off a platform. Just make sure that you run off with the foot that you are wearing this ring on!")
     .be_wearable("You put the % on your toe.", "You remove the % from your toe.");
 
-  gen_power('g', "Golden Shoelaces",
+  gen_power('g', 0, "Golden Shoelaces",
     "These shoelaces might bind you into place or give you freedom... or they could just be mundane shoelaces for rich people... one way to tell.",
     "=", 0xFFD500FF,
     [] (data& d) {
@@ -416,7 +528,7 @@ void gen_powers() {
     ).identified_name("Golden Shoelaces", "Normally you cannot control your jumps while you are flying. These shoelaces allow you some control over your jumps.")
     .be_wearable("You put the Golden Shoelaces on your boots.", "You remove the Golden Shoelaces on your boots.");
 
-  gen_power('r', "strength",
+  gen_power('s', 1, "strength",
     "Wearing this ring will raise your strength.",
     "=", 0xC04040FF,
     [] (data& d) {
@@ -428,7 +540,7 @@ void gen_powers() {
     ).be_jewelry("ring", "You need to wear this ring to know what it does.")
      .be_wearable("You put the % on your finger. You feel stronger!", "You remove the %. You feel weaker..."),
 
-  gen_power('j', "toughness",
+  gen_power('u', 1, "toughness",
     "Wearing this ring will raise your toughness.",
     "=", 0xC04040FF,
     [] (data& d) {
@@ -440,7 +552,7 @@ void gen_powers() {
     ).be_jewelry("ring", "You need to wear this ring to know what it does.")
      .be_wearable("You put the % on your finger. You feel tougher!", "You remove the %. You feel weaker..."),
 
-  gen_power('y', "wisdom",
+  gen_power('i', 1, "wisdom",
     "Wearing this ring will raise your wisdom.",
     "=", 0xC04040FF,
     [] (data& d) {
@@ -452,7 +564,7 @@ void gen_powers() {
     ).be_jewelry("ring", "You need to wear this ring to know what it does.")
      .be_wearable("You put the % on your finger. You feel wiser!", "You remove the %. You feel stupid..."),
 
-  gen_power('x', "dexterity",
+  gen_power('d', 1, "dexterity",
     "Wearing this ring will raise your dexterity.",
     "=", 0xC04040FF,
     [] (data& d) {
@@ -464,37 +576,37 @@ void gen_powers() {
     ).be_jewelry("ring", "You need to wear this ring to know what it does.")
      .be_wearable("You put the % on your finger. You feel better with bows!", "You remove the %. You feel worse with bows..."),
 
-  gen_power('2', "health",
+  gen_power('2', 0, "health",
     "This will cure your wounds, in some way.",
     "!", 0xFFFF00FF,
     random_potion_act
     ).be_potion(),
 
-  gen_power('3', "reach",
+  gen_power('3', 0, "reach",
     "This will let you reach heights, in some way.",
     "!", 0xFFFF00FF,
     random_potion_act
     ).be_potion(),
 
-  gen_power('4', "fire",
+  fire_power = &gen_power('4', 0, "fire",
     "This will let you produce fire, in some way.",
     "!", 0xFFFF00FF,
     random_potion_act
     ).be_potion(),
 
-  gen_power('5', "polymorph",
+  gen_power('5', 0, "polymorph",
     "This will let you change into a small creature.",
     "!", 0xFFFF00FF,
     random_potion_act
     ).be_potion(),
 
-  gen_power('6', "the thief",
+  gen_power('6', 0, "the thief",
     "This will let you bypass trapped areas, in some way.",
     "!", 0xFFFF00FF,
     random_potion_act
     ).be_potion(),
 
-  gen_power('7', "mystery",
+  gen_power('7', 0, "mystery",
     "A potion with some random effect.",
     "!", 0xFFFF00FF,
     random_potion_act
@@ -502,7 +614,7 @@ void gen_powers() {
 
   gold_id = isize(powers);
 
-  gen_power('t', "gold",
+  gen_power('t', 0, "gold",
     "For some weird reason, people love gold, and they will give you anything if you give them enough gold.\n\n"
     "This can be used to buy things in shops. "
     "Just stand on the item, press the hotkey, go to the shopkeeper, and press the hotkey again.\n\n"
@@ -510,9 +622,9 @@ void gen_powers() {
     "$", 0xFFD500FF,
     [] (data& d) {
       if(d.keystate == 1) {
-        trader *tr;
+        trader *tr = nullptr;
         for(auto& e: current_room->entities) if(auto t = e->as_trader()) tr = t;
-        bool on_trader = intersect(tr->get_pixel_bbox(), m.get_pixel_bbox());
+        bool on_trader = tr && intersect(tr->get_pixel_bbox(), m.get_pixel_bbox());
         bool done_something = false;
         for(int it: {0, 1})
         for(auto& e: current_room->entities) if(auto si = e->as_shopitem()) {
@@ -520,46 +632,46 @@ void gen_powers() {
           if(it == 0 && on && si->existing && !si->bought) {
             done_something = true;
             addMessage(si->pickup_message);
-            power_death_revert(powers[si->id]);
-            powers[si->id].qty_owned += si->qty;  powers[si->id].qty_filled += si->qty1;
-            add_revert(death_revert, [si] { si->existing = true; });
+            power_death_revert(*si->p);
+            si->p->qty_owned += si->qty;  si->p->qty_filled += si->qty1;
+            add_revert(death_revert, {"EXIST", si->id});
             si->existing = false;
             }
           else if(it == 0 && on && si->existing && si->bought) {
             done_something = true;
             addMessage("You get some gold.");
-            power_death_revert(powers[gold_id]);
+            power_death_revert(*si->p);
             powers[gold_id].qty_owned += si->price;  powers[gold_id].qty_filled += si->price;
-            add_revert(death_revert, [si] { si->existing = true; });
+            add_revert(death_revert, {"EXIST", si->id});
             si->existing = false;
             }
           else if((it ? !done_something : on) && !si->existing && !si->bought) {
             done_something = true;
             addMessage("You rethink your purchase.");
-            power_death_revert(powers[si->id]);
-            powers[si->id].qty_owned -= si->qty;  powers[si->id].qty_filled -= si->qty1;
-            add_revert(death_revert, [si] { si->existing = false; });
+            power_death_revert(*si->p);
+            si->p->qty_owned -= si->qty;  si->p->qty_filled -= si->qty1;
+            add_revert(death_revert, {"UNEXIST", si->id});
             si->existing = true;
             }
           else if((it ? !done_something : on) && !si->existing && si->bought) {
             done_something = true;
             addMessage("You rethink your actions.");
-            power_death_revert(powers[gold_id]);
+            power_death_revert(*si->p);
             powers[gold_id].qty_owned -= si->price;  powers[gold_id].qty_filled -= si->price;
-            add_revert(death_revert, [si] { si->existing = false; });
+            add_revert(death_revert, {"UNEXIST", si->id});
             si->existing = true;
             }
           else if(it == 0 && on_trader && !si->existing && d.p->qty_owned >= si->price) {
             done_something = true;
-            addMessage("You buy the " + powers[si->id].get_name() + ".");
-            power_death_revert(powers[gold_id]);
+            addMessage("You buy the " + si->p->get_name() + ".");
+            power_death_revert(*si->p);
             powers[gold_id].qty_owned -= si->price;  powers[gold_id].qty_filled -= si->price;
             si->existing = true; si->bought = true;
-            add_revert(death_revert, [si] { si->existing = false; si->bought = false; });
+            add_revert(death_revert, {"UNBOUGHT", si->id});
             }
           else if(it == 0 && on_trader && !si->existing && !si->bought) {
             done_something = true;
-            addMessage("You have not enough gold to buy the " + powers[si->id].get_name() + ".");
+            addMessage("You have not enough gold to buy the " + si->p->get_name() + ".");
             }
           }
         if(!done_something) addMessage("You count your gold. You have " + its(d.p->qty_owned) + " gold.");
@@ -570,16 +682,24 @@ void gen_powers() {
   };
 
 void handle_powers(data& d) {
+  int page = 0;
+  #if SDLVER >= 2
+  if(keyheld(SDL_SCANCODE_LSHIFT) || keyheld(SDL_SCANCODE_RSHIFT)) page = 1;
+  #else
+  if(keyheld(SDLK_LSHIFT) || keyheld(SDLK_RSHIFT)) page = 1;
+  #endif
   for(auto& p: powers) {
     if(!p.qty_owned) continue;
     d.keystate = 0;
-    if(keyheld(p.key)) d.keystate |= 1;
-    if(keywasheld(p.key)) d.keystate |= 2;
+    if(keyheld(p.key) && p.shifted == page) d.keystate |= 1;
+    if(keywasheld(p.key) && p.shifted == page) d.keystate |= 2;
+    if(&p == m.use_next_turn) d.keystate |= 1;
     d.p = &p;
     if(cmode == mode::paused) p.paused_act(d);
     else if(!m.existing) p.dead_act(d);
     else p.act(d);
     }
+  m.use_next_turn = nullptr;
   }
 
 void draw_inventory_frame() {
@@ -591,36 +711,68 @@ void draw_inventory_frame() {
   quickqueue();
   }
 
+int inventory_page;
+
+void assign_key_screen(power& p, int page) {
+  render_the_map();
+  draw_inventory_frame();
+  dialog::init(p.get_name(), p.get_color() >> 8);
+  dialog::addItem("press a key to redefine", SDLK_ESCAPE);
+  dialog::display();
+  dialog::addBack();
+  keyhandler = [&p, page] (int sym, int uni) {
+    if(sym == 0) return;
+    if(sym == 'v') return;
+    if(sym == SDLK_LSHIFT || sym == SDLK_RSHIFT) return;
+    if(sym == SDLK_ESCAPE) return popScreen();
+    for(auto& p1: powers) if(tie(p1.key, p1.shifted) == tie(sym, page)) tie(p1.key, p1.shifted) = tie(p.key, p.shifted);
+    p.key = sym; p.shifted = page;
+    popScreen(); popScreen(); inventory_page = page;
+    };
+  }
+
 void draw_inventory() {
   render_the_map();
   draw_inventory_frame();
   dialog::init();
   int next_y = 48;
+  int column = 0;
   int st = vid.fsize * 1.2;
   displaystr(32, next_y, 0, vid.fsize, "Your inventory:", 0xC0C0C0, 0);
+  string s;
+  if(inventory_page == 0) s = "normal";
+  if(inventory_page == 1) s = "hold Shift to use";
+  if(displaystr(32 + vid.xres/2, next_y, 0, vid.fsize, "(v) page: " + s, 0xC0C0C0, 0)) getcstat = 'v';
   next_y += st * 1.5;
-  for(auto& p: powers) if(p.qty_owned) {
+  for(auto& p: powers) if(p.qty_owned && p.shifted == inventory_page) {
     string key = p.key == ' ' ? "␣" : dialog::keyname(p.key);
-    if(displaystr(100, next_y, 0, vid.fsize, key, p.get_color() >> 8, 16)) getcstat = p.key;
-    if(displaystr(130, next_y, 0, vid.fsize, p.get_glyph(), p.get_color() >> 8, 8)) getcstat = p.key;
-    if(displaystr(160, next_y, 0, vid.fsize, p.get_name(), p.get_color() >> 8, 0)) getcstat = p.key;
+    if(displaystr(column + 100, next_y, 0, vid.fsize, key, p.get_color() >> 8, 16)) getcstat = p.key;
+    if(displaystr(column + 130, next_y, 0, vid.fsize, p.get_glyph(), p.get_color() >> 8, 8)) getcstat = p.key;
+    if(displaystr(column + 160, next_y, 0, vid.fsize, p.get_name(), p.get_color() >> 8, 0)) getcstat = p.key;
     next_y += st;
+    if(next_y >= vid.yres - 48) { next_y = 48 + st * 1.5; column = vid.xres/2; }
     dialog::add_key_action(p.key, [&p] { pushScreen([&p] {
       render_the_map();
       draw_inventory_frame();
       dialog::init(p.get_name(), p.get_color() >> 8);
       dialog::addHelp(p.get_desc());
-      dialog::addItem("press a key to redefine", SDLK_ESCAPE);
+
+      dialog::addItem("return to inventory", SDLK_ESCAPE);
+      dialog::add_action(popScreen);
+
+      dialog::addItem("use this item", SDLK_RETURN);
+      dialog::add_action([&p] { popScreen(); popScreen(); cmode = mode::playing; m.use_next_turn = &p; });
+
+      dialog::addItem("assign key", 'v');
+      dialog::add_action_push([&p] { assign_key_screen(p, 0); });
+
+      dialog::addItem("assign key (shifted)", 'V');
+      dialog::add_action_push([&p] { assign_key_screen(p, 1); });
+
       dialog::display();
-      dialog::addBack();
-      keyhandler = [&p] (int sym, int uni) {
-        if(sym == 0) return;
-        if(sym == SDLK_ESCAPE) return popScreen();
-        for(auto& p1: powers) if(p1.key == sym) p1.key = p.key;
-        p.key = sym;
-        };
       }); });
     }
+  dialog::add_key_action('v', [] { inventory_page = inventory_page ^ 1; });
   }
 
 void shuffle_all() {
@@ -634,7 +786,12 @@ void shuffle_all() {
 
 power& find_power(string name) {
   for(auto& p: powers) if(p.name == name) return p;
-  throw hr_exception("unknown power");
+  throw hr_name_error("unknown power");
+  }
+
+power& find_power_by_id(string id) {
+  for(auto& p: powers) if(p.id == id) return p;
+  throw hr_name_error("unknown power");
   }
 
 }

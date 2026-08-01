@@ -1,3 +1,6 @@
+// Relative Hell: help
+// Copyright (C) 2022-2025 Zeno Rogue, see '../../hyper.cpp' for details
+
 namespace hr {
 namespace ads_game {
 
@@ -107,7 +110,7 @@ int generate_mouseovers() {
   if(!paused) {
     int v = -1;
     for(int i=0; i<multi::SCANCODES; i++) if(multi::scfg_default.keyaction[i] == 16+pcPause) v = i;
-    if(v >= 0) mouseovers = "press " + dialog::keyname(v) + " to pause";
+    if(v >= 0) mouseovers = "press " + SDL12(dialog::keyname(v), string(SDL_GetScancodeName(SDL_Scancode(v)))) + " to pause";
     return 1;
     }
 

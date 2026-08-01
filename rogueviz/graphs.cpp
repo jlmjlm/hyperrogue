@@ -133,7 +133,20 @@ colorpair parse(string s) {
     #endif
     }
   auto pos = s.find(":");
-  if(pos != string::npos) {
+  auto pos2 = s.find("::");
+  if(pos2 != string::npos && pos != string::npos) {
+    cp.color1 = parse1(s.substr(0, pos));
+    cp.shade = s[pos+1];
+    cp.color2 = parse1(s.substr(pos+2, pos2 - pos-2));
+    cp.border_type = s[pos2+2];
+    cp.color_border = parse1(s.substr(pos2+3));
+    }
+  else if(pos2 != string::npos) {
+    cp.color1 = cp.color2 = parse1(s.substr(0, pos));
+    cp.border_type = s[pos2+2];
+    cp.color_border = parse1(s.substr(pos2+3));
+    }
+  else if(pos != string::npos) {
     cp.color1 = parse1(s.substr(0, pos));
     cp.shade = s[pos+1];
     cp.color2 = parse1(s.substr(pos+2));
@@ -147,6 +160,19 @@ colorpair parse(string s) {
 
 vector<vertexdata> vdata;
 
+vertexdata& add_vertex() {
+  int id = isize(vdata);
+  vdata.emplace_back();
+  auto& vd = vdata.back();
+  vd.id = id;
+  return vd;
+  }
+
+void resize_vertices(int N) {
+  while(isize(vdata) > N) { vdata.back().be_nowhere(); vdata.pop_back(); }
+  while(isize(vdata) < N) add_vertex();
+  }
+
 map<string, int> labeler;
 
 bool id_known(const string& s) {
@@ -155,12 +181,9 @@ bool id_known(const string& s) {
 
 int getid(const string& s) {
   if(labeler.count(s)) return labeler[s];
-  else {
-    int id = isize(vdata);
-    vdata.resize(isize(vdata) + 1);
-    vdata[id].name = s;
-    return labeler[s] = id;
-    }
+  auto& vd = add_vertex();
+  vd.name = s;
+  return labeler[s] = vd.id;
   }
 
 int getnewid(string s) {
@@ -168,19 +191,34 @@ int getnewid(string s) {
   return getid(s);
   }
   
-void addedge0(int i, int j, edgeinfo *ei) {
-  vdata[i].edges.push_back(make_pair(j, ei));
-  vdata[j].edges.push_back(make_pair(i, ei));
+void clear_extenders(edgeinfo *ei);
+void redo_extenders(edgeinfo *ei);
+
+void vertexdata::be_nowhere() {
+  if(m) {
+    m->dead = true;
+    m->unlist_and_unref();
+    m = nullptr;
+    }
+  for(auto& ei: edges)
+    clear_extenders(ei.second);
   }
 
-void createViz(int id, cell *c, transmatrix at) {
-  vertexdata& vd(vdata[id]);
-  vd.m = new shmup::monster;
-  vd.m->pid = id;
-  vd.m->type = moRogueviz;
-  vd.m->base = c;
-  vd.m->at = at;
-  vd.m->isVirtual = false;
+ld extenders_over = 4;
+int extender_levels = 3;
+int rv_quality = 4;
+
+void vertexdata::be(cell *c, transmatrix at) {
+  if(!m) m = new shmup::monster;
+  m->pid = id;
+  m->type = moRogueviz;
+  m->base = c;
+  m->at = at;
+  m->isVirtual = false;
+  if(rv_quality >= 3) virtualRebase(m);
+  if(rv_quality >= 2) m->store();
+  for(auto& ei: edges) ei.second->orig = nullptr;
+  if(rv_quality >= 4) for(auto& ei: edges) redo_extenders(ei.second);
   }
 
 void notimpl() {
@@ -199,46 +237,56 @@ hyperpoint where(int i, cell *base) {
     }
   }
 
-void addedge(int i, int j, edgeinfo *ei) {
-  cell *base = 
-    confusingGeometry() ? vdata[i].m->base : currentmap->gamestart();
-  hyperpoint hi = where(i, base);
-  hyperpoint hj = where(j, base);
+void add_extenders(edgeinfo *ei, cell *base, hyperpoint hi, hyperpoint hj, int lev) {
+  if(lev <= 0) return;
   double d = hdist(hi, hj);
-  if(d >= 4) {
-    hyperpoint h = mid(hi, hj);
-    int id = isize(vdata);
-    vdata.resize(id+1);
-    vertexdata& vd(vdata[id]);
-    vd.cp = colorpair(0x400000FF);
-    vd.virt = ei;
-    
-    createViz(id, base, rgpushxto0(h));
-    vd.m->no_targetting = true;
-    
-    addedge(i, id, ei);
-    addedge(id, j, ei);
-    virtualRebase(vdata[i].m);
-    }
-  else addedge0(i, j, ei);
+  if(d < extenders_over) return;
+
+  hyperpoint h = mid(hi, hj);
+
+  add_extenders(ei, base, hi, h, lev - 1);
+
+  auto m = new shmup::monster;
+  m->pid = ei->edge_id;
+  m->type = moRoguevizExtender;
+  m->base = base; m->at = rgpushxto0(h);
+  m->no_targetting = true;
+  virtualRebase(m);
+  m->store();
+  ei->extenders.push_back(m);
+
+  add_extenders(ei, base, h, hj, lev - 1);
+  }
+
+void clear_extenders(edgeinfo *ei) {
+  for(auto e: ei->extenders) e->dead = true;
+  ei->extenders.clear();
+  }
+
+void redo_extenders(edgeinfo *ei) {
+  clear_extenders(ei);
+
+  if(rv_quality < 4 || !vdata[ei->i].m || !vdata[ei->j].m) return;
+
+  int i = ei->i, j = ei->j;
+  cell *base = confusingGeometry() ? vdata[i].m->base : currentmap->gamestart();
+
+  add_extenders(ei, base, where(i, base), where(j, base), extender_levels);
   }
 
 vector<edgeinfo*> edgeinfos;
 
-void addedge(int i, int j, double wei, bool subdiv, edgetype *t) {
+void addedge(int i, int j, double wei, edgetype *t) {
+  int eid = isize(edgeinfos);
   edgeinfo *ei = new edgeinfo(t);
   edgeinfos.push_back(ei);
   ei->i = i;
-  ei->j = j;
+  ei->j = j;  
   ei->weight = wei;
-  if(subdiv) addedge(i, j, ei);
-  else addedge0(i, j, ei);
-  }
-
-void storeall(int from) {
-  for(int i=from; i<isize(vdata); i++)
-    if(vdata[i].m)
-      vdata[i].m->store();
+  ei->edge_id = eid;
+  vdata[i].edges.push_back(make_pair(j, ei));
+  vdata[j].edges.push_back(make_pair(i, ei));
+  redo_extenders(ei);
   }
 
 colorpair dftcolor = 0x282828FF;
@@ -425,41 +473,68 @@ void queuedisk(const shiftmatrix& V, const colorpair& cp, bool legend, const str
     vertex_shape == 3 ? cgi.shSnowball :
     cgi.shDisk;
   
+  auto add_url = [&] {
+    if(url) queueaction(PPR::MONSTER_HEAD, [url] () { SVG_LINK(*url); });
+    };
+  auto del_url = [&] { if(url) queueaction(PPR::MONSTER_HEAD, [] { SVG_LINK(""); }); };
+
   if(vertex_shape == 0) ;
   else if(GDIM == 3 && among(cp.shade, 'b', 'f', 'g', 'B', 'F', 'G')) {
     V1 = V;
     }
   else if(GDIM == 3) {
     V1 = face_the_player(V);
-    if(url) queueaction(PPR::MONSTER_HEAD, [url] () { SVG_LINK(*url); });
+    add_url();
     queuepolyat(V1, sh, darken_a(cp.color1), PPR::MONSTER_HEAD);
-    if(url) queueaction(PPR::MONSTER_HEAD, [] () { SVG_LINK(""); });
+    del_url();
     V1 = V;
     }
   else if(rog3) {
     int p = poly_outline; poly_outline = OUTLINE_TRANS; 
     queuepolyat(V, sh, 0x80, PPR::MONSTER_SHADOW); 
     poly_outline = p; 
-    if(url) queueaction(PPR::MONSTER_HEAD, [url] () { SVG_LINK(*url); });
+    add_url();
     queuepolyat(V1 = orthogonal_move_fol(V, cgi.BODY), sh, darken_a(cp.color1), PPR::MONSTER_HEAD);
-    if(url) queueaction(PPR::MONSTER_HEAD, [] () { SVG_LINK(""); });
+    del_url();
     }
   else {
-    if(url) queueaction(PPR::MONSTER_HEAD, [url] () { SVG_LINK(*url); });
-    queuepoly(V1 = V, sh, darken_a(cp.color1));
-    if(url) queueaction(PPR::MONSTER_HEAD, [] () { SVG_LINK(""); });
+    add_url();
+    queuepolyat(V1 = V, sh, darken_a(cp.color1), PPR::MONSTER_HEAD);
+    del_url();
     }
   switch(cp.shade) {
-    case 't': queuepoly(V1, cgi.shDiskT, darken_a(cp.color2)); return;
-    case 's': queuepoly(V1, cgi.shDiskS, darken_a(cp.color2)); return;
-    case 'q': queuepoly(V1, cgi.shDiskSq, darken_a(cp.color2)); return;
-    case 'm': queuepoly(V1, cgi.shDiskM, darken_a(cp.color2)); return;
-    case 'b': queuepoly(V1, GDIM == 3 ? cgi.shAnimatedTinyEagle[wingphase(200)] : cgi.shTinyBird, darken_a(cp.color2)); return;
-    case 'f': queuepoly(V1, cgi.shTinyShark, darken_a(cp.color2)); return;
-    case 'g': queuepoly(V1, cgi.shMiniGhost, darken_a(cp.color2)); return;
-    case 'B': queuepoly(V1, GDIM == 3 ? cgi.shAnimatedEagle[wingphase(100)] : cgi.shEagle, darken_a(cp.color2)); return;
-    case 'F': queuepoly(V1, cgi.shShark, darken_a(cp.color2)); return;
-    case 'G': queuepoly(V1, cgi.shGhost, darken_a(cp.color2)); return;
+    case 't': queuepoly(V1, cgi.shDiskT, darken_a(cp.color2)); break;
+    case 's': queuepoly(V1, cgi.shDiskS, darken_a(cp.color2)); break;
+    case 'q': queuepoly(V1, cgi.shDiskSq, darken_a(cp.color2)); break;
+    case 'm': queuepoly(V1, cgi.shDiskM, darken_a(cp.color2)); break;
+    case 'h': queuepoly(V1, cgi.shHalfDisk, darken_a(cp.color2)); break;
+    case 'c': queuepoly(V1, cgi.shMoonDisk, darken_a(cp.color2)); break;
+    case 'S': queuepoly(V1, cgi.shDiskSegment, darken_a(cp.color2)); break;
+    case 'e': queuepoly(V1, cgi.shEccentricDisk, darken_a(cp.color2)); break;
+    case 'b': queuepoly(V1, GDIM == 3 ? cgi.shAnimatedTinyEagle[wingphase(200)] : cgi.shTinyBird, darken_a(cp.color2)); break;
+    case 'f': queuepoly(V1, cgi.shTinyShark, darken_a(cp.color2)); break;
+    case 'g': queuepoly(V1, cgi.shMiniGhost, darken_a(cp.color2)); break;
+    case 'B': queuepoly(V1, GDIM == 3 ? cgi.shAnimatedEagle[wingphase(100)] : cgi.shEagle, darken_a(cp.color2)); break;
+    case 'F': queuepoly(V1, cgi.shShark, darken_a(cp.color2)); break;
+    case 'G': queuepoly(V1, cgi.shGhost, darken_a(cp.color2)); break;
+    }
+  switch(cp.border_type) {
+    case 'r': queuepoly(V1, cgi.shRing, darken_a(cp.color_border)); break;
+    case 'o': {
+      for(int i=0; i<=360; i++) curvepoint(xspinpush0(i * 1._deg, cgi.orbsize * .25));
+      vid.linewidth *= 2;
+      queuecurve(V1, darken_a(cp.color_border), 0, PPR::ITEM);
+      vid.linewidth /= 2; break;
+      }
+    case 's': queuepoly(V1, cgi.shSpikedRing, darken_a(cp.color_border)); break;
+    case 't': queuepoly(V1, cgi.shTargetRing, darken_a(cp.color_border)); break;
+    case 'w': queuepoly(V1, cgi.shSawRing, darken_a(cp.color_border)); break;
+    case 'g': queuepoly(V1, cgi.shGearRing, darken_a(cp.color_border)); break;
+    case 'p': queuepoly(V1, cgi.shPeaceRing, darken_a(cp.color_border)); break;
+    case 'h': queuepoly(V1, cgi.shHeptaRing, darken_a(cp.color_border)); break;
+    case 'z': queuepoly(V1, cgi.shSpearRing, darken_a(cp.color_border)); break;
+    case 'l': queuepoly(V1, cgi.shLoveRing, darken_a(cp.color_border)); break;
+    case 'f': queuepoly(V1, cgi.shFrogRing, darken_a(cp.color_border)); break;
     }
   }
 
@@ -500,198 +575,206 @@ ld edgewidth = 1;
 
 bool highlight_target = true;
 
+void draw_edge(const shiftmatrix &V, cell *c, edgeinfo *ei) {
+
+  bool multidraw = quotient;
+
+  if(ei->lastdraw >= frameid && !multidraw) return;
+  ei->lastdraw = frameid;
+
+  vertexdata& vd1 = vdata[ei->i];
+  vertexdata& vd2 = vdata[ei->j];
+
+  int oi = ei->i, oj = ei->j;
+  bool hilite = false;
+  if(vdata[oi].special && vdata[oj].special && specialmark) hilite = true;
+  else if(svg::in || inHighQual || !highlight_target) hilite = false;
+  else if(vd1.m == shmup::mousetarget) hilite = true;
+  else if(vd2.m == shmup::mousetarget) hilite = true;
+  else if(shmup::lmousetarget && shmup::lmousetarget->pid == oi) hilite = true;
+  else if(shmup::lmousetarget && shmup::lmousetarget->pid == oj) hilite = true;
+
+  if(ei->weight < (hilite ? ei->type->visible_from_hi : ei->type->visible_from)) return;
+
+  dynamicval<ld> w(vid.linewidth, vid.linewidth * edgewidth);
+  
+  color_t col = (hilite ? ei->type->color_hi : ei->type->color);
+  auto& alpha = part(col, 0);
+  
+  if(vizflags & RV_AUTO_MAXWEIGHT) {
+    if(ei->weight2 > maxweight) maxweight = ei->weight2;
+    alpha *= pow(ei->weight2 / maxweight, ggamma);
+    }
+  
+  if(svg::in && alpha < 16) return;
+  
+  if(ISWEB) {
+    if(alpha >= 128) alpha |= 15;
+    else if(alpha >= 64) alpha |= 7;
+    else if(alpha >= 32) alpha |= 3;
+    else if(alpha >= 16) alpha |= 1;
+    }
+  
+  alpha >>= darken;
+
+  shiftmatrix gm1, gm2;
+  
+  bool use_brm = closed_manifold && isize(currentmap->allcells()) <= brm_limit;
+
+  if(use_brm) {
+    gm1 = V * memo_relative_matrix(vd1.m->base, c);
+    gm2 = gm1 * brm_get(vd1.m->base, tC0(vd1.m->at), vd2.m->base, tC0(vd2.m->at));
+    }
+  else if(multidraw || elliptic) {
+    gm1 = V * memo_relative_matrix(vd1.m->base, c);
+    gm2 = V * memo_relative_matrix(vd2.m->base, c);
+    }
+  else {
+    gm1 = ggmatrix(vd1.m->base);
+    gm2 = ggmatrix(vd2.m->base);
+    }
+  
+  shiftpoint h1 = gm1 * vd1.m->at * C0;
+  shiftpoint h2 = gm2 * vd2.m->at * C0;
+  
+  if(elliptic && hdist(h1, h2) > hdist(h1.h, centralsym * h2.h))
+    h2.h = centralsym * h2.h;
+  
+  if(multidraw) {
+    int code = int(h1[0]) + int(h1[1]) * 12789117 + int(h2[0]) * 126081253 + int(h2[1]) * 126891531;
+    int& lastdraw = drawn_edges[make_pair(ei, code)];
+    if(lastdraw == frameid) return;
+    lastdraw = frameid;
+    }
+
+  if((col >> 8) == (DEFAULT_COLOR >> 8)) {
+    col &= 0xFF;
+    col |= (forecolor << 8);
+    }
+  
+  if(callhandlers(false, hooks_alt_edges, ei, false)) ;
+
+  else if(sl2)
+    twist::queueline_correct(h1, h2, col, 2 + vid.linequality, PPR::STRUCT0);
+
+  else if(sol && !fat_edges)
+    sn::queueline_lie(h1, h2, col, 2 + vid.linequality, PPR::STRUCT0);
+
+  else if(pmodel && !fat_edges && !sol) {
+    queueline(h1, h2, col, 2 + vid.linequality).prio = PPR::STRUCT0;
+    }
+  else {
+    cell *center = multidraw ? c : centerover;
+  
+    if(!multidraw && ei->orig && ei->orig != center && celldistance(ei->orig, center) > 3) 
+      ei->orig = NULL;
+    if(!ei->orig) {
+      ei->orig = center; // cwt.at;
+      ei->prec.clear();
+      
+      const shiftmatrix& T = multidraw ? V : ggmatrix(ei->orig);
+      
+      if(callhandlers(false, hooks_alt_edges, ei, true)) ;
+      else if(fat_edges) {
+        ei->tinf.tvertices.clear();
+        shiftmatrix T1 = gm1 * vd1.m->at;
+        hyperpoint goal = inverse_shift(T1, h2);
+        transmatrix S = inverse_shift(T, gm1) * vd1.m->at * rspintox(goal);
+        ld d = hdist0(goal);
+        for(int a=0; a<360; a+=30) {
+          auto store = [&] (ld a, ld b) {
+            storevertex(ei->prec, S * cpush(0, b) * hr::cspin(1, 2, a * degree) * cpush(1, fat_edges) * C0);
+            ei->tinf.tvertices.push_back(glhr::makevertex(0,(3+cos(a * degree))/4,0));
+            };
+          store(a, 0);
+          store(a+30, 0);
+          store(a, d);
+          store(a+30, 0);
+          store(a, d);
+          store(a+30, d);
+          }
+        }
+      else 
+        storeline(ei->prec, inverse_shift(T, h1), inverse_shift(T, h2));
+      }
+    
+    if(ei->type->arrow_scale) {
+      auto T2 = gm2 * vd2.m->at;
+      auto T1 = gm1 * vd1.m->at;
+      auto T = inverse_shift(T1, T2);
+      auto X = rspintox(T * C0) * xpush(hdist(T1*C0, T2*C0)/2);
+      auto cs = cgi.scalefactor * ei->type->arrow_scale;
+      curvepoint(xpush0(0.1 * cs));
+      curvepoint(xpush(-0.1 * cs) * ypush0(0.05 * cs));
+      curvepoint(xpush(-0.1 * cs) * ypush0(-0.05 * cs));
+      curvepoint(xpush0(0.1 * cs));
+      queuecurve(gm1 * X, col, col, PPR::STRUCT0);
+      }
+
+    const shiftmatrix& T = multidraw ? V : ggmatrix(ei->orig);
+
+    queue_prec(T, ei, col);
+    if(elliptic) queue_prec(ggmatrix(ei->orig) * centralsym, ei, col);
+    }
+  }
+
 bool drawVertex(const shiftmatrix &V, cell *c, shmup::monster *m) {
   if(m->dead) return true;
+  if(m->type == moRoguevizExtender) {
+    draw_edge(V, c, edgeinfos[m->pid]);
+    return true;
+    }
   if(m->type != moRogueviz) return false;
+
   int i = m->pid;
   vertexdata& vd = vdata[i];
 
   if(vd.spillcolor != DEFAULT_COLOR) c->landparam = vd.spillcolor >> 8;
-  // bool ghilite = false;
-  
-  // if(vd.special && specialmark) ghilite = true;
   
   if(!gmatrix.count(m->base)) printf("base not in gmatrix\n");
 
-  int lid = shmup::lmousetarget ? shmup::lmousetarget->pid : -2;
-  
-  bool multidraw = quotient;
-  
-  bool use_brm = closed_manifold && isize(currentmap->allcells()) <= brm_limit;
-
   ld hi_weight = 0;
         
-  if(!lshiftclick) for(int j=0; j<isize(vd.edges); j++) {
-    edgeinfo *ei = vd.edges[j].second;
-    if(multidraw && ei->i != i) continue;
-    vertexdata& vd1 = vdata[ei->i];
-    vertexdata& vd2 = vdata[ei->j];
-
-    int oi = ei->i, oj = ei->j;
-    bool hilite = false;
-    if(vdata[oi].special && vdata[oj].special && specialmark) hilite = true;
-    else if(svg::in || inHighQual || !highlight_target) hilite = false;
-    else if(vd1.m == shmup::mousetarget) hilite = true;
-    else if(vd2.m == shmup::mousetarget) hilite = true;
-    else if(oi == lid || oj == lid) hilite = true;
-
-    if(ei->weight < (hilite ? ei->type->visible_from_hi : ei->type->visible_from)) continue;
-
-    if((vd1.m == shmup::mousetarget || vd2.m == shmup::mousetarget) && m != shmup::mousetarget)
-      hi_weight = ei->weight;
-
-    // if(hilite) ghilite = true;
-    
-    if(ei->lastdraw < frameid || multidraw) {
-      ei->lastdraw = frameid;
-      dynamicval<ld> w(vid.linewidth, vid.linewidth * edgewidth);
-      
-      color_t col = (hilite ? ei->type->color_hi : ei->type->color);
-      auto& alpha = part(col, 0);
-      
-      if(vizflags & RV_AUTO_MAXWEIGHT) {
-        if(ei->weight2 > maxweight) maxweight = ei->weight2;
-        alpha *= pow(ei->weight2 / maxweight, ggamma);
-        }
-      // if(hilite || hiliteclick) alpha = (alpha + 256) / 2;
-      
-      if(svg::in && alpha < 16) continue;
-      
-      if(ISWEB) {
-        if(alpha >= 128) alpha |= 15;
-        else if(alpha >= 64) alpha |= 7;
-        else if(alpha >= 32) alpha |= 3;
-        else if(alpha >= 16) alpha |= 1;
-        }
-      
-      alpha >>= darken;
-
-      shiftmatrix gm1, gm2;
-      
-      if(use_brm) {
-        gm1 = V * memo_relative_matrix(vd1.m->base, c);
-        gm2 = gm1 * brm_get(vd1.m->base, tC0(vd1.m->at), vd2.m->base, tC0(vd2.m->at));
-        }
-      else if(multidraw || elliptic) {
-        gm1 = V * memo_relative_matrix(vd1.m->base, c);
-        gm2 = V * memo_relative_matrix(vd2.m->base, c);
-        }
-      else {
-        gm1 = ggmatrix(vd1.m->base);
-        gm2 = ggmatrix(vd2.m->base);
-        }
-      
-      shiftpoint h1 = gm1 * vd1.m->at * C0;
-      shiftpoint h2 = gm2 * vd2.m->at * C0;
-      
-      if(elliptic && hdist(h1, h2) > hdist(h1.h, centralsym * h2.h))
-        h2.h = centralsym * h2.h;
-      
-      if(multidraw) {
-        int code = int(h1[0]) + int(h1[1]) * 12789117 + int(h2[0]) * 126081253 + int(h2[1]) * 126891531;
-        int& lastdraw = drawn_edges[make_pair(ei, code)];
-        if(lastdraw == frameid) continue;
-        lastdraw = frameid;
-        }
-
-      /* if(hdist0(h1) < .001 || hdist0(h2) < .001) {
-        printf("h1 = %s\n", display(h1));
-        printf("h2 = %s\n", display(h2));
-        display(m->at);
-        display(vd2.m->at);
-        display(V);
-        display(gmatrix[vd2.m->base]);
-        display(shmup::calc_gmatrix(vd2.m->base));
-        } */
-      
-      if((col >> 8) == (DEFAULT_COLOR >> 8)) {
-        col &= 0xFF;
-        col |= (forecolor << 8);
-        }
-      
-      if(callhandlers(false, hooks_alt_edges, ei, false)) ;
-
-      else if(sl2)
-        twist::queueline_correct(h1, h2, col, 2 + vid.linequality, PPR::STRUCT0);
-
-      else if(sol && !fat_edges)
-        sn::queueline_lie(h1, h2, col, 2 + vid.linequality, PPR::STRUCT0);
-
-      else if(pmodel && !fat_edges && !sol) {
-        queueline(h1, h2, col, 2 + vid.linequality).prio = PPR::STRUCT0;
-        }
-      else {
-        cell *center = multidraw ? c : centerover;
-      
-        if(!multidraw && ei->orig && ei->orig != center && celldistance(ei->orig, center) > 3) 
-          ei->orig = NULL;
-        if(!ei->orig) {
-          ei->orig = center; // cwt.at;
-          ei->prec.clear();
-          
-          const shiftmatrix& T = multidraw ? V : ggmatrix(ei->orig);
-          
-          if(callhandlers(false, hooks_alt_edges, ei, true)) ;
-          else if(fat_edges) {
-            ei->tinf.tvertices.clear();
-            shiftmatrix T1 = gm1 * vd1.m->at;
-            hyperpoint goal = inverse_shift(T1, h2);
-            transmatrix S = inverse_shift(T, gm1) * vd1.m->at * rspintox(goal);
-            ld d = hdist0(goal);
-            for(int a=0; a<360; a+=30) {
-              auto store = [&] (ld a, ld b) {
-                storevertex(ei->prec, S * cpush(0, b) * hr::cspin(1, 2, a * degree) * cpush(1, fat_edges) * C0);
-                ei->tinf.tvertices.push_back(glhr::makevertex(0,(3+cos(a * degree))/4,0));
-                };
-              store(a, 0);
-              store(a+30, 0);
-              store(a, d);
-              store(a+30, 0);
-              store(a, d);
-              store(a+30, d);
-              }
-            }
-          else 
-            storeline(ei->prec, inverse_shift(T, h1), inverse_shift(T, h2));
-          }
-        
-        const shiftmatrix& T = multidraw ? V : ggmatrix(ei->orig);
-
-        queue_prec(T, ei, col);
-        if(elliptic) queue_prec(ggmatrix(ei->orig) * centralsym, ei, col);
-        }
-      }
-/*
-    */
+  if(!lshiftclick) for(auto& e: vd.edges) {
+    draw_edge(V, c, e.second);
+    if(vdata[e.first].m == shmup::mousetarget)
+      hi_weight = e.second->weight;
     }
 
   string *url = nullptr; if(vd.urls.size()) url = &vd.urls[0];
 
-  if(!vd.virt) {
-    queuedisk(V * m->at, vd.cp, false, url, i);
-    }
-  
+  queuedisk(V * m->at, vd.cp, false, url, i);  
   
   if((showlabels || (show_edges && hi_weight)) && !darken) {
     bool doshow = true;
-    if((vizflags & RV_COMPRESS_LABELS) && i > 0 && !vd.virt) {
+    if((vizflags & RV_COMPRESS_LABELS) && i > 0) {
       vertexdata& vdp = vdata[vd.data];
       shiftpoint h2 = ggmatrix(vdp.m->base) * vdp.m->at * C0;
       if(hdist(h2, V * m->at * C0) < 0.1) doshow = false;
       }
     
     shiftpoint h = tC0(V * m->at);
-    shiftmatrix V2 = GDIM == 3 ? V * m->at : rgpushxto0(h) * ypush(cgi.scalefactor * labelshift); // todo-variation
-    if(doshow && !behindsphere(V2)) {
-      if(url) queueaction(PPR::MONSTER_HEAD, [url] () { SVG_LINK(*url); });
-      string s;
-      ld w = hi_weight;
-      if(vizflags & RV_INVERSE_WEIGHT) w = 1/w;
-      if(showlabels && show_edges && hi_weight) s = vd.name + " : " + fts(w);
-      else if(showlabels) s = vd.name;
-      else if(hi_weight) s = fts(w);
-      queuestr(V2, labelscale, s, forecolor, (svg::in || ISWEB) ? 0 : 1);
-      if(url) queueaction(PPR::MONSTER_HEAD, [] () { SVG_LINK(""); });
+
+    if(vd.title.size()) {
+      for(auto& t: vd.title) {
+        shiftmatrix V2 = rgpushxto0(h) * xpush(labelscale * t.x * 0.5) * ypush(labelscale * t.y * 0.5); // todo-variation
+        queuestr(V2, labelscale * t.size, t.text, forecolor, (svg::in || ISWEB) ? 0 : 1, t.align);
+        }
+      }
+
+    else {
+      shiftmatrix V2 = GDIM == 3 ? V * m->at : rgpushxto0(h) * ypush(cgi.scalefactor * labelshift); // todo-variation
+      if(doshow && !behindsphere(V2)) {
+        if(url) queueaction(PPR::MONSTER_HEAD, [url] () { SVG_LINK(*url); });
+        string s;
+        ld w = hi_weight;
+        if(vizflags & RV_INVERSE_WEIGHT) w = 1/w;
+        if(showlabels && show_edges && hi_weight) s = vd.name + " : " + fts(w);
+        else if(showlabels) s = vd.name;
+        else if(hi_weight) s = fts(w);
+        queuestr(V2, labelscale, s, forecolor, (svg::in || ISWEB) ? 0 : 1);
+        if(url) queueaction(PPR::MONSTER_HEAD, [] () { SVG_LINK(""); });
+        }
       }
     }
 
@@ -750,7 +833,7 @@ bool rogueviz_hud() {
     queuestr(int(x-rad), int(y), 0, rad*(svg::in?5:3)/4, t->name, legend_color, 0, 16);
     }
   
-  quickqueue();
+  quickqueue(); glflush();
   return true;
   }
 
@@ -856,6 +939,30 @@ void readcolor(const string& cfname) {
     }
   }
 
+void readtitles(const string& cfname) {
+  println(hlog, "reading titles from: ", cfname);
+  fhstream f(cfname, "rt");
+  string s;
+  while(!feof(f.f)) {
+    s = scanline_noblank(f);
+    if(s == "") continue;
+    auto id = getid(s);
+
+    while(true) {
+      s = scanline_noblank(f);
+      if(s == "") break;
+      if(s.substr(0, 5) == "INFO ") { vdata[id].infos.push_back(s.substr(5)); continue; }
+      else if(s.substr(0, 4) == "URL ") { vdata[id].urls.push_back(s.substr(4)); continue; }
+      else if(s.substr(0, 6) == "COLOR ") { vdata[id].cp = parse(s.substr(6)); continue; }
+      else if(s.substr(0, 7) == "RENAME ") { vdata[id].name = s.substr(7); continue; }
+      titleline tl; int pos;
+      sscanf(s.c_str(), "%lf%lf%lf%d %n", &tl.x, &tl.y, &tl.size, &tl.align, &pos);
+      tl.text = s.substr(pos);
+      vdata[id].title.push_back(tl);
+      }
+    }
+  }
+
 void graph_rv_hooks();
 
 void init(flagtype _vizflags) {
@@ -926,6 +1033,10 @@ int readArgs() {
   // read the color/legend file
   else if(argis("-color")) {
     PHASE(3); shift(); readcolor(args());
+    }
+  // read the titles
+  else if(argis("-rvtitles")) {
+    PHASE(3); shift(); readtitles(args());
     }
   else if(argis("-lab")) {
     showlabels = true;
@@ -1078,6 +1189,8 @@ void showVertexSearch() {
   for(int i=0; i<isize(vdata); i++) {
     string n = vdata[i].name;
     for(auto& u: vdata[i].infos) n += "||" + u;
+    for(auto& u: vdata[i].title) n += "||" + u.text;
+    for(auto& u: vdata[i].urls) n += "||" + u;
     if(n == "") continue;
     if(n[0] == '|') n = its(i) + n;
     dialog::vpush2(i, vdata[i].name, n);
@@ -1101,7 +1214,7 @@ void showVertexSearch() {
 
   keyhandler = [] (int sym, int uni) {
     dialog::handleNavigation(sym, uni);    
-    if(dialog::editInfix(uni)) dialog::list_skip = 0;
+    if(dialog::editInfix(sym, uni)) dialog::list_skip = 0;
     else if(doexiton(sym, uni)) popScreen();
     };
 
@@ -1175,6 +1288,10 @@ auto hooks  =
     param_f(edgewidth, "rvedgewidth");
     param_f(min_line_splits, "edgeminsplits");
     param_f(max_line_splits, "edgemaxsplits");
+
+    param_f(extenders_over, "extenders_over");
+    param_i(extender_levels, "extender_levels");
+    param_i(rv_quality, "rv_quality");
     }) +
  0;
 

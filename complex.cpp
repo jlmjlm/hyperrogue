@@ -170,7 +170,7 @@ EX namespace whirlwind {
       auto mi = movei(c, dfrom[0]);
       jdata.moves.push_back(mi.rev());
       cell *c2 = c->move(dfrom[0]);
-      if(!passable(c, c2, P_JUMP1)) return NULL;
+      if(!passable(c, c2, P_JUMP1 | P_ISPLAYER)) return NULL;
       if(player && i == 0 && !passable(c, c2, P_ISPLAYER)) return NULL;
       c = c2;
       }
@@ -430,6 +430,7 @@ EX namespace elec {
       drawLightning();
       for(int i=2; i<isize(charges); i++) if(charges[i].fire)
         affect(charges[i].c);
+      recompute_los = true;
       }
     }
   
@@ -653,7 +654,7 @@ struct info {
         addMessage(XLAT("Congratulations! Your score is %1.", its(i->value)));
         achievement_gain_once("PRINCESS2", rg::princess);
         if(!cheater) achievement_score(LB_PRINCESS, i->value);
-        LATE( showMissionScreen(); )
+        LATE( showMissionScreen(true); )
         }
       }
     if(i->princess->land == laDungeon && !saved && !nodungeon) {
@@ -843,6 +844,15 @@ EX namespace clearing {
       }
     }
   
+  bool goes_below(cell *c, int d, int steps) {
+    if(pseudohept(c)) return false;
+    if(celldistAlt(c) < d) return true;
+    if(celldistAlt(c) > d) return false;
+    if(steps == 0) return false;
+    forCellIdCM(c2, i, c) if(goes_below(c2, d, steps-1)) return true;
+    return false;
+    }
+
   int plantdir(cell *c) {
     if(have_alt(c))
       gen_alt_around(c);
@@ -878,7 +888,7 @@ EX namespace clearing {
         }
       }
     if(quseful == 1) return tuseful2;
-    if(quseful == 2) {
+    if(quseful == 2 && geometry == gNormal) {
       int i;
       if(tuseful == (1<<3)+(1<<5)) i = 3;
       if(tuseful == (1<<5)+(1<<1)) i = 5;
@@ -888,8 +898,12 @@ EX namespace clearing {
       if((d & 7) < 4) i = (i+2) % c->type;
       return i;
       }
-    printf("error in plantdir\n");
-    return 1;
+    for(int steps=0; steps<60; steps++)
+      forCellIdCM(c2, i2, c)
+        if(goes_below(c2, d, steps))
+          return i2;
+    println(hlog, "error in plantdir, quseful = ", quseful);
+    return -1;
     }
 
   vector<cell*> onpath;
@@ -932,7 +946,7 @@ EX namespace clearing {
     
     int steps = 0;
     
-    int ds;
+    int ds = 0; /* set to 0 to silence warning */
     
     int stepcount = 0;
     while(true) {
@@ -957,6 +971,7 @@ EX namespace clearing {
         steps++;
         onpath.push_back(c); pdir.push_back(d);
         // printf("c [%4d] %p -> %p\n", celldistAlt(c), c, c->move(d));
+        if(d == -1) break;
         c = c->move(d);
         }
       else {
@@ -1996,7 +2011,7 @@ EX namespace hive {
     for(int i=0; i<c->type; i++) {
       if(c->move(i) && c->move(i)->mpdist < c->mpdist) gdir = i;
       }
-    if(!gdir) return;
+    if(gdir == -1) return;
     cellwalker bf(c, gdir);
     int radius = 9;
     if(getDistLimit() <= 6) radius = 6;
@@ -2185,7 +2200,7 @@ EX namespace heat {
             int v = (windmap::at(ct) - windmap::at(c)) & 255;
             if(v > 128) v -= 256;
             if(v < windmap::NOWINDFROM && v > -windmap::NOWINDFROM)
-              hdiff = hdiff * (1 - v * 5. / windmap::NOWINDFROM);
+              hdiff = hdiff * (1 - v * 5 / windmap::NOWINDFROM);
             }
           #endif
 
@@ -2215,7 +2230,7 @@ EX namespace heat {
         addMessage(XLAT("%The1 melts away!", c->monst));
         fallMonster(c);
         }
-      if(c->wall == waIcewall && HEAT(c) > .4) 
+      if(c->wall == waIcewall && HEAT(c) > .4)
         drawParticles(c, MELTCOLOR, 4, 60),
         c->wall = waNone, kills[0]++;
       if(c->wall == waFrozenLake && HEAT(c) > (c->land == laCocytus ? .6 : .4)) 
@@ -2477,6 +2492,7 @@ EX void livecaves() {
 
   for(int i=0; i<dcs; i++) {
     cell *c = allcells[i];
+    auto old = c->wall;
     if(!doall && c->cpdist > gr+1) break;
     int hv = heatvals[i];
 
@@ -2506,6 +2522,8 @@ EX void livecaves() {
       if(hv < 0 && c->wall == waBoat) c->wall = waStrandedBoat;
       if(hv < 0 && c->wall == waSea) c->wall = waNone;
       }
+
+    if(c->wall != old) recompute_los = true;
     }
   
   for(int i=0; i<isize(bringlife); i++) {
@@ -2707,7 +2725,7 @@ EX namespace dragon {
       c->monst = moNone;
       if(checkOrb(who, itOrbUndeath)) 
         c->monst = moFriendlyGhost;
-      if(checkOrb(who, itOrbStone)) 
+      if(!do_not_touch_this_wall(c) && checkOrb(who, itOrbStone)) 
         c->wparam = m, c->wall = waPetrified;
       else if(c->wall == waFire) {
         if(delay) delay = false;
@@ -2979,13 +2997,13 @@ EX namespace kraken {
     if(checkOrb(who, itOrbUndeath)) c->monst = moFriendlyGhost;
     if(c->land == laKraken && !c->item) c->item = itKraken;
     kills[moKrakenH]++;
-    if(checkOrb(who, itOrbStone)) c->wall = waNone;
+    if(!do_not_touch_this_wall(c) && checkOrb(who, itOrbStone)) c->wall = waNone;
     forCellEx(c1, c) 
       if(c1->monst == moKrakenT) {
         changes.ccell(c1);        
         drawParticles(c, minf[moKrakenT].color, 16);
         c1->monst = moNone;
-        if(checkOrb(who, itOrbStone)) {
+        if(!do_not_touch_this_wall(c1) && checkOrb(who, itOrbStone)) {
           if(isWatery(c1))
             c1->wall = waNone;
           else
@@ -3580,9 +3598,9 @@ auto ccm = addHook(hooks_clearmemory, 0, [] () {
     eliminate_if(heat::offscreen_fire, is_cell_removed);
     eliminate_if(princess::infos, [] (princess::info*& i) { 
       if(is_cell_removed(i->princess) || is_cell_removed(i->prison)) { 
-        DEBB(DF_MEMORY, ("removing a princess"))
+        DEBB(debug_memory, ("removing a princess"))
         if(i->princess && !is_cell_removed(i->princess)) {
-          DEBB(DF_MEMORY, ("faking a princess"))
+          DEBB(debug_memory, ("faking a princess"))
           princess::newFakeInfo(i->princess);
           }
         delete i; 
@@ -3645,6 +3663,8 @@ EX namespace windmap {
       }
     }
 
+  EX int wind_failed = 0;
+
   EX void create() {
     if(disable_bigstuff) return;
     if(cgflags & qPORTALSPACE) return;
@@ -3658,12 +3678,7 @@ EX namespace windmap {
       // cw.spin = 0;
       neighbors.emplace_back();
       auto &v = neighbors.back();
-      if(NONSTDVAR && !sphere && !arcm::in() && !mhybrid && !INVERSE && WDIM == 2 && geometry != gOctTet3)
-        for(int l=0; l<S7; l++) {
-          v.push_back(getId(cw + cth + l + wstep + cth));
-          }
-      else
-        for(int l=0; l<cw.at->type; l++) v.push_back(getId(cw+l+wstep));
+      for(int l=0; l<cw.at->type; l++) v.push_back(getId(cw+l+wstep));
       }
     
     int N = isize(samples);
@@ -3692,9 +3707,15 @@ EX namespace windmap {
     vector<int> tocheck;
     for(int i=0; i<N; i++) tocheck.push_back(i);
     hrandom_shuffle(tocheck);
-    
+
+    wind_failed = 0;
+
     for(int a=0; a<isize(tocheck); a++) {
-      if(a >= 200*N) { printf("does not converge\n"); break; }
+      if(a >= 200*N) {
+        println(hlog, "does not converge");
+        wind_failed |= 1;
+        break;
+        }
       int bestval = 1000000000, best = 0;
       int i = tocheck[a];
       for(int k=0; k<256; k++) {
@@ -3722,9 +3743,11 @@ EX namespace windmap {
       tries++;
       if(tries < maxtries) goto tryagain;
       }
-    println(hlog, "windmap: tries = ", tries, " N = ", N);
-    if(tries >= maxtries && maxtries >= 20) {
-      addMessage("Failed to generate an interesting wind/lava pattern.");
+    if(debug_geometry) println(hlog, "windmap: tries = ", tries, " N = ", N);
+    if(tries >= maxtries) {
+      if(maxtries >= 20)
+        addMessage("Failed to generate an interesting wind/lava pattern.");
+      wind_failed |= 2;
       }
     else if(false) {
       printf("tocheck size = %d\n", isize(tocheck));

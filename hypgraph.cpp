@@ -29,13 +29,17 @@ EX void camrotate(ld& hx, ld& hy) {
   hx = p[0] / p[2], hy = p[1] / p[2];
   }
 
+/** Does the current model support 3D
+ *  Warning: since it depends on get_shader_flags(), you may need to current_display->set_all(0,0) for it to work correctly.
+ */
+
 EX bool non_spatial_model() {
   if(among(pmodel, mdRotatedHyperboles, mdJoukowsky, mdJoukowskyInverted, mdPolygonal, mdPolynomial))
     return true;
   if(pmodel == mdSpiral && euclid)
     return true;
   #if CAP_GL
-  return pmodel && vid.consider_shader_projection && (get_shader_flags() & SF_DIRECT);
+  return pmodel && vid.consider_shader_projection && (get_shader_flags() & SF_DIRECT) && (get_shader_flags() & SF_NONSPATIAL);
   #else
   return false;
   #endif
@@ -50,7 +54,7 @@ EX hyperpoint perspective_to_space(hyperpoint h, ld alpha IS(pconf.alpha), eGeom
   ld hr = hx*hx+hy*hy;
   if(LDIM == 3) hr += h[2]*h[2];
   
-  if(hr > .9999 && gc == gcHyperbolic) return Hypc;
+  if(hr >= 1 && gc == gcHyperbolic) return Hypc;
   
   ld A, B, C;
   
@@ -63,7 +67,7 @@ EX hyperpoint perspective_to_space(hyperpoint h, ld alpha IS(pconf.alpha), eGeom
   B /= A; C /= A;
   
   ld rootsign = 1;
-  if(gc == gcSphere && pconf.alpha > 1) rootsign = -1;
+  if(gc == gcSphere && alpha > 1) rootsign = -1;
   
   ld hz = B / 2 + rootsign * sqrt(C + B*B/4);
   
@@ -767,6 +771,23 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
       for(int d=0; d<GDIM; d++) ret[d] /= r;
       return;
       }
+
+    case mdConformalEgg: {
+      H /= H[GDIM] + 1;
+      models::scr_to_ori(H);
+
+      ld mul = pconf.model_transition / 9;
+
+      auto a = H[0], b = H[1];
+      auto A = a*a;
+      auto B = b*b;
+      ret[0] = a + a * (A - 3*B) * mul;
+      ret[1] = b + b * (3*A - B) * mul;
+
+      models::ori_to_scr(ret);
+      if(GDIM == 2) ret[2] = 0; if(MAXMDIM == 4) ret[3] = 1;
+      return;
+      }
     
     case mdHalfplane: {
       if(mproduct) {
@@ -1300,7 +1321,7 @@ EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
     #if MAXMDIM >= 4
       threepoint_projection(H, ret);
     #else
-      throw hr_exception();
+      throw hr_exception("three-point projection but MAXMDIM<4");
     #endif
       break;
     
@@ -2254,6 +2275,10 @@ EX vector<transmatrix*> move_affected_matrices(int flag) {
   return res;
   }
 
+EX void adjust_aspeed(ld& aspd, ld R) {
+  aspd *= euclid ? (2+3*R*R) : (1+R+(shmup::on?1:0));
+  }
+
 EX void centerpc(ld aspd) {
 
   if(subscreens::split([=] () {centerpc(aspd);})) return;
@@ -2302,7 +2327,6 @@ EX void centerpc(ld aspd) {
   
   if(ors::mode == 2 && vid.sspeed < 5) return;
   if(vid.sspeed >= 4.99) aspd = 1000;
-  DEBBI(DF_GRAPH, ("center pc"));
 
   auto mam = move_affected_matrices(0);
   for(auto pV: mam) ors::unrotate(*pV);
@@ -2337,7 +2361,7 @@ EX void centerpc(ld aspd) {
     }
   
   else {
-    aspd *= euclid ? (2+3*R*R) : (1+R+(shmup::on?1:0));
+    adjust_aspeed(aspd, R);
 
     if(R < aspd) fix_whichcopy_if_near();
     
@@ -2433,7 +2457,7 @@ void ballgeometry() {
   }
 
 EX void resetview() {
-  DEBBI(DF_GRAPH, ("reset view"));
+  indenter_finish dif(debug_graph, "resetview");
   // EUCLIDEAN
   decide_lpu();
   NLP = Id;
@@ -2476,7 +2500,6 @@ EX void resetview() {
   // SDL_LockSurface(s);
   // SDL_UnlockSurface(s);
   }
-
 
 EX void panning(shiftpoint hf0, shiftpoint ht0) {
   hyperpoint hf = hf0.h;
@@ -2851,15 +2874,17 @@ void queuestraight(hyperpoint X, int style, color_t lc, color_t fc, PPR p) {
     } */
   }
 
+#if HDR
 /** ball is written as cspin(0, 1, alpha) * cspin(2, 1, beta) * cspin(0, 2, gamma) */
 struct ball_deconstruct {
   ld alpha, beta, gamma;
   transmatrix talpha, tbeta, tgamma, igamma;
   ld cos_beta, sin_beta;
   };
+#endif
 
 /** create a ball_deconstruct object */
-ball_deconstruct deconstruct_ball() {
+EX ball_deconstruct deconstruct_ball() {
   // (0,1,0) -> (0, cos beta, sin beta) -> (sin alpha, cos beta * cos alpha, sin beta)
   hyperpoint h = pconf.ball() * point3(0, 1, 0);
   ball_deconstruct d;
@@ -2878,7 +2903,11 @@ ball_deconstruct deconstruct_ball() {
   return d;
   }
 
+EX hookset<bool(int)> hooks_draw_boundary;
+
 EX void draw_boundary(int w) {
+
+  if(callhandlers(false, hooks_draw_boundary, w)) return;
 
   if((nonisotropic || gproduct) && pmodel == mdDisk) {
     queuecircle(current_display->xcenter, current_display->ycenter, current_display->radius, ringcolor, PPR::OUTCIRCLE, modelcolor);

@@ -93,9 +93,10 @@ void compute_triangle_markers() {
 
   println(hlog, triangle_markers);
 
-  for(int i=0; i<isize(fif); i++) {
+  for(int i=0; i<isize(fif)-1; i++) {
     turns.push_back(triangle_markers[i+1] == 0 ? 90._deg : 0);
     }
+  turns.push_back(0);
   }
 
 string dotted(int i) {
@@ -166,7 +167,7 @@ bool fifteen3 = true;
 
 bool draw_fifteen(cell *c, const shiftmatrix& V) {
   hr::addaura(tC0(V), darkened(0x0000FF), 0);
-  lastexplore = turncount;
+  lastexplore = shmup::on ? shmup::curtime : turncount;
   if(!fif.count(c)) { c->land = laNone; c->wall = waChasm; c->item = itNone; c->monst = moNone; return false; }
   check_move();
     
@@ -585,7 +586,7 @@ void fifteen_menu() {
       pushScreen(fifteen_play);
       current_puzzle = &p;
       quitter = [] {
-        dialog::addItem("quit", 'Q');
+        dialog::addItem("quit", 'q');
         dialog::add_action([] { quitmainloop = true; });
         };
       });
@@ -639,7 +640,7 @@ auto fifteen_hook =
     param_b(fifteen3, "fifteen_3d")
     -> editable("3D Fifteen tile effects", '3');
     })
-+ addHook_slideshows(120, [] (tour::ss::slideshow_callback cb) {
++ addHook_slideshows(95, [] (tour::ss::slideshow_callback cb) {
 
     using namespace rogueviz::pres;
     static vector<slide> fifteen_slides;
@@ -682,7 +683,7 @@ auto fifteen_hook =
       add_end(fifteen_slides);
       }
 
-    cb(XLAT("variants of the fifteen puzzle"), &fifteen_slides[0], 'f');
+    cb(XLAT("Variants of the Fifteen Puzzle"), &fifteen_slides[0], 'f');
     });
 #endif
 

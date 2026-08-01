@@ -1395,6 +1395,27 @@ EX ld hdist(const shiftpoint& h1, const shiftpoint& h2) {
   return hdist(h1.h, unshift(h2, h1.shift));
   }
 
+EX ld precise_hdist(hyperpoint vi, hyperpoint vj) {
+  int n = MDIM-1;
+  hassert(n == 2 || n == 3);
+
+  ld da = acosh(vi[n]);
+  ld db = acosh(vj[n]);
+
+  ld rs = sqhypot_d(n, vi) * sqhypot_d(n, vj);
+  if(!rs) return da + db;
+
+  ld cosphi = 0;
+  for(int i=0; i<n; i++) cosphi += vi[i] * vj[i];
+  cosphi /= sqrt(rs);
+
+  ld co = sinh(da) * sinh(db) * (1 - cosphi);
+
+  ld v = cosh(da - db) + co;
+  if(v < 1) return 0;
+  return acosh(v);
+  }
+
 /** like orthogonal_move but fol may be factor (in 2D graphics) or level (elsewhere) */
 EX hyperpoint orthogonal_move_fol(const hyperpoint& h, double fol) {
   if(GDIM == 2) return scale_point(h, fol);
@@ -1854,10 +1875,14 @@ EX buckethash_t bucketer(hyperpoint h) {
     if(cgi.emb->is_euc_in_product() && in_h2xe()) h /= h[2];
     }
   if(elliptic && make_tuple(h[0], h[1], h[2], h[3]) < make_tuple(-h[0], -h[1], -h[2], -h[3])) h = -h;
-  hashmix(seed, bucketer(h[0]));
-  hashmix(seed, bucketer(h[1]));
-  hashmix(seed, bucketer(h[2]));
-  if(MDIM == 4) hashmix(seed, bucketer(h[3]));
+  // With one pass, e.g., (-149,9999,10000) vs (-298,19998,10000) is a hash collision,
+  // and that may happen during the rotation of a hex grid. So make two passes
+  for(int a=0; a<2; a++) {
+    hashmix(seed, bucketer(h[0]));
+    hashmix(seed, bucketer(h[1]));
+    hashmix(seed, bucketer(h[2]));
+    if(MDIM == 4) hashmix(seed, bucketer(h[3]));
+    }
   return seed;
   }  
 
@@ -2010,23 +2035,6 @@ EX hyperpoint towards_inf(hyperpoint material, hyperpoint dir, ld dist IS(1)) {
 
 EX bool clockwise(hyperpoint h1, hyperpoint h2) {
   return h1[0] * h2[1] > h1[1] * h2[0];
-  }
-
-EX ld worst_precision_error;
-
-#if HDR
-struct hr_precision_error : hr_exception { hr_precision_error() : hr_exception("precision error") {} };
-#endif
-
-/** check if a and b are the same, testing for equality. Throw an exception or warning if not sure */
-EX bool same_point_may_warn(hyperpoint a, hyperpoint b) {
-  ld d = hdist(a, b);
-  if(d > 1e-2) return false;
-  if(d > 1e-3) throw hr_precision_error();
-  if(d > 1e-6 && worst_precision_error <= 1e-6)
-    addMessage("warning: precision errors are building up!");
-  if(d > worst_precision_error) worst_precision_error = d;
-  return true;
   }
 
 /** compute the area of a shape -- v.back() must equal v[0] */

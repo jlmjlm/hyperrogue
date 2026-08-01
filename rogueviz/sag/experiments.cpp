@@ -8,7 +8,7 @@ namespace sag {
 
 int recover_from;
 
-vector<pair<dhrg::logistic, ld>> results;
+vector<pair<embeddings::logistic, ld>> results;
 
 ld bestcost;
 
@@ -189,9 +189,9 @@ void sag_test_mul() {
   }
 
 void write_colors(string s) {
-  auto_orth(true);
-  if(s == "-") return;
+  DEBBI(debug_init_sag, ("writing SAG colors to ", s));
   fhstream f(s, "wt");
+  if(!f.f) return file_error(s);
   for(int i=0; i<isize(vdata); i++) {
     println(f, vdata[i].name, ",", format("%8x", vdata[i].cp.color1));
     }
@@ -228,14 +228,39 @@ void output_stats() {
   println(hlog, "solution: ", sagid);
   int DN = isize(sagid);
   auto [mAP, MeanRank] = compute_mAP();
-  dhrg::iddata routing_result;
-  if(!known_pairs) { known_pairs = true; dhrg::prepare_pairs(DN, [] (int i) { return edges_yes[i]; }); }
-  dhrg::greedy_routing(routing_result, [] (int i, int j) { return sagdist[sagid[i]][sagid[j]]; });
-  print(hlog, "CSV;", logid++, ";", isize(sagnode), ";", DN, ";", isize(sagedges), ";", lgsag_pre.R, ";", lgsag_pre.T, ";", lgsag.R, ";", lgsag.T, ";", cost, ";", mAP, ";", MeanRank, ";", routing_result.suc / routing_result.tot, ";", routing_result.routedist / routing_result.bestdist);
+  embeddings::iddata routing_result;
+  if(!known_pairs) { known_pairs = true; embeddings::prepare_pairs(); }
+  embeddings::greedy_routing(routing_result);
+  print(hlog, "CSV;", logid++, ";", isize(sagnode), ";", DN, ";", isize(edgeinfos), ";", lgsag_pre.R, ";", lgsag_pre.T, ";", lgsag.R, ";", lgsag.T, ";", cost, ";", mAP, ";", MeanRank, ";", routing_result.suc / routing_result.tot, ";", routing_result.routedist / routing_result.tot);
   if(lastmethod) print(hlog, ";", lastmethod);
   if(mul_used) print(hlog, ";", mul_used);
   if(report_tempi) print(hlog, ";", hightemp,";",lowtemp,";",format("%lld", numiter));
   println(hlog);
+  println(hlog, "R=", lgsag.R, " T=", lgsag.T, " cost=", cost, " mAP=", mAP, " meanrank=", MeanRank);
+  }
+
+void sag_bridging(bool tw, int iters) {
+  init();
+  init_cells();
+  after_data();
+  println(hlog, "SAG for bridging started");
+  int DN = isize(sagid);
+  println(hlog, "DN = ", DN, " SN = ", isize(sagcells));
+  recost_each = DN; autofix_rt = 2;
+  hlog.flush();
+  twoway = tw; allow_doubles = tw;
+
+  method = smLogistic;
+  lgsag.R = max_sag_dist;
+  lgsag.T = 1;
+  compute_loglik_tab();
+  compute_cost();
+  best = lgsag; bestcost = HUGE_VAL;
+
+  /* find the rough values of R and T */
+  optimized_embedding(iters);
+  /* use it */
+  optimized_embedding(iters);
   }
 
 int exp_read_args() {
@@ -249,6 +274,7 @@ int exp_read_args() {
   else if(argis("-sag-v6")) sag_v6();
   else if(argis("-sag-new-viz")) sag_new_experiment_viz();
   else if(argis("-sag-test-mul")) sag_test_mul();
+  else if(argis("-sag-orth")) auto_orth(true);
   else if(argis("-sag-write-colors")) {
     shift(); write_colors(args());
     }
@@ -267,9 +293,13 @@ int exp_read_args() {
     method = smLogistic;
     lgsag.R = max_sag_dist;
     lgsag.T = 1;
-    opt_debug = true;
+    debug_opt.enabled = true;
     twoway = true; allow_doubles = true;
     optimize_sag_loglik_auto();
+    }
+
+  else if(argis("-sag-opt-debug")) {
+    debug_opt.enabled = true;
     }
 
   else if(argis("-sagstats-logid")) {
@@ -284,6 +314,14 @@ int exp_read_args() {
     }
   else if(argis("-sagstats")) {
     output_stats();
+    }
+  else if(argis("-sag-bridging")) {
+    sag_bridging(true, 10000);
+    }
+  else if(argis("-sag-bridging-param")) {
+    shift(); bool tw = argi();
+    shift(); auto iter = argi();
+    sag_bridging(tw, iter);
     }
 
   else return 1;  

@@ -1,3 +1,6 @@
+// Relative Hell: globals
+// Copyright (C) 2022-2025 Zeno Rogue, see '../../hyper.cpp' for details
+
 namespace hr {
 
 namespace ads_game {
@@ -58,6 +61,8 @@ bool view_proper_times = false;
 /** format for displaying time */
 const char *tformat = "%.2f";
 
+ld ship_history_period = 0;
+
 void game_menu();
 void restart();
 void change_scale(ld s);
@@ -66,6 +71,7 @@ void change_scale(ld s);
 vector<struct ads_object*> displayed;
 
 ld time_scale = .5;
+ld time_shift = 0;
 
 color_t missile_color = 0xFF0000FF;
 
@@ -78,7 +84,7 @@ struct player_data {
   int ammo;
   ld fuel;
   ld oxygen;
-  int score[score_types];
+  ld score[score_types];
   };
 
 ld ads_how_much_invincibility = TAU / 4;
@@ -87,6 +93,8 @@ ld ds_how_much_invincibility = TAU / 8;
 player_data pdata, ads_max_pdata, ads_tank_pdata, ds_max_pdata, ds_tank_pdata;
 
 bool auto_angle = true;
+
+bool keep_ship_angle = false;
 
 ld rock_density = 0.25;
 ld rock_max_rapidity = 1.5;
@@ -106,6 +114,7 @@ cell *starting_point;
 
 int max_gen_per_frame = 3;
 int draw_per_frame = 200;
+int draw_per_frame_equal = 200;
 
 bool simple_ship = false;
 
@@ -191,6 +200,7 @@ struct ads_object {
   expiry_data expire;
   vector<ld>* shape;
   ld last_shot;
+  ld shot_at;
   int hlast;
 
   map<ld, turret_state> turret_states;

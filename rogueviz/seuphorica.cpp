@@ -2,6 +2,8 @@
 // Copyright (C) 2025 Zeno Rogue, see 'hyper.cpp' for details
 // the Seuphorica repo (seuphorica.cpp and dictionary files) needs to be placed in the 'seuphorica' subdirectory
 
+// compile with: ./mymake -O3 -rv rogueviz/seuphorica.cpp and then launch with -seuphorica
+
 #include "rogueviz.h"
 #include <fstream>
 
@@ -566,6 +568,7 @@ bool draw(cell *c, const shiftmatrix& V) {
   bool inside = in_board(c);
   if(inside) {
     c->wall = waNone; c->landparam = 0x202020;
+    setdist(c, 6, nullptr);
     if(placing_portal) {
       int val; has_power(board.at(portal_from), sp::portal, val);
       if(dist(portal_from, c) <= val) c->landparam = 0x0000C0;
@@ -839,6 +842,7 @@ string get_setname() {
   if(!enabled_stay) res += "/nostay";
   if(!enabled_power) res += "/nopower";
   if(!enabled_id) res += "/noid";
+  if(is_basic) res += "/basic";
   return res;
   }
 
@@ -1030,12 +1034,16 @@ void seuphorica_screen() {
       post_achievements();
       if(roundindex == 21) {
         save();
-        if(is_daily && cheats == 0) rogueviz::rv_leaderboard(get_geom_name() + " daily " + its(daily), total_gain, 1, rvlc::num, rv_data());
-        if(cheats == 0) rogueviz::rv_leaderboard(get_geom_name() + get_setname() + " (20 turns)", total_gain, 1, rvlc::num, rv_data());
+        #if RVCOL
+        if(is_daily && cheats == 0) rogueviz::rv_leaderboard("Seuphorica daily " + its(daily) + ": " + get_geom_name(), total_gain, 1, rvlc::num, rv_data());
+        if(cheats == 0) rogueviz::rv_leaderboard("Seuphorica 20: " + get_geom_name() + get_setname(), total_gain, 1, rvlc::num, rv_data());
+        #endif
         }
       if(roundindex == 51) {
         save();
-        if(cheats == 0) rogueviz::rv_leaderboard(get_geom_name() + get_setname() + " (50 turns)", total_gain, 1, rvlc::num, rv_data());
+        #if RVCOL
+        if(cheats == 0) rogueviz::rv_leaderboard("Seuphorica 50: " + get_geom_name() + get_setname(), total_gain, 1, rvlc::num, rv_data());
+        #endif
         }
       });
     }
@@ -1053,8 +1061,8 @@ void seuphorica_screen() {
   keyhandler = [] (int sym, int uni) {
     handlePanning(sym, uni);
     dialog::handleNavigation(sym, uni);
-    if(uni == SDLK_ESCAPE) popScreen();
-    if(uni == PSEUDOKEY_RELEASE && hold_mode == 4 && tile_moved) {
+    if(uni == SDLK_ESCAPE) pushScreen(seuphorica_menu);
+    if(uni == PSEUDOKEY_RELEASE && hold_mode == 4 && tile_moved && !drawn.empty()) {
       swap(*tile_moved, drawn[0]);
       cast_spell(tile_boxid);
       }
@@ -1090,7 +1098,7 @@ void seuphorica_screen() {
         /* do nothing, it was already removed from the board */
         /* ... but assume we want the default interface */
         if(snapshots.empty()) snapshot();
-        for(auto& s: snapshots) {
+        if(!drawn.empty()) for(auto& s: snapshots) {
           s.erase(drawn[0].id);
           s.emplace(drawn[0].id, snaptile{ drawn[0], eupoint(mousex, mousey) });
           }
@@ -1118,10 +1126,13 @@ void seuphorica_screen() {
       auto at = mouseover;
       if(board.count(at)) {
         back_from_board(at); hold_mode = 1; tile_moved_from = mouseover;
-        holdmouse = true; tile_moved = &(drawn[0]); tile_boxid = 0; box_moved = &drawn;
+        holdmouse = true;
+        if(!drawn.empty()) {
+          tile_moved = &(drawn[0]); tile_boxid = 0; box_moved = &drawn;
+          }
         }
       else if(in_board(at) && tile_orientation.count(at)) {
-        for(auto& s: snapshots) s.erase(drawn[0].id);
+        if(!drawn.empty()) for(auto& s: snapshots) s.erase(drawn[0].id);
         drop_hand_on(at);
         if(snapshots.empty()) snapshot();
         for(auto& d: drawn) where_is_tile.erase(d.id);
@@ -1158,9 +1169,10 @@ void seuphorica_dictionary() {
   dialog::addHelp(fix(str_dict_help));
 
   keyhandler = [] (int sym, int uni) {
+    if(uni == '/') uni = '?';
     if(among(uni, '$', '?', '.')) { dialog::infix += uni; return; }
     dialog::handleNavigation(sym, uni);
-    if(dialog::editInfix(uni)) dialog::list_skip = 0;
+    if(dialog::editInfix(sym, uni)) dialog::list_skip = 0;
     else if(doexiton(sym, uni)) popScreen();
     };
 
@@ -1410,6 +1422,9 @@ void seuphorica_setgeom() {
   dialog::display();
   }
 
+bool show_customize = false;
+void do_show_customize();
+
 void seuphorica_newgame() {
   cmode = sm::DARKEN;
   gamescreen();
@@ -1421,23 +1436,39 @@ void seuphorica_newgame() {
   dialog::addSelItem("geometry", current_seuphgeom == -1 ? "custom" : seuphgeoms[current_seuphgeom].name, 'g');
   dialog::add_action_push(seuphorica_setgeom);
 
-  dialog::addItem("start new standard game", 's');
-  dialog::add_action([] {
-    save_old_game_if_needed();
-    reset_rv();
-    restart("", "", "");
-    reset_seuphorica_screen();
-    });
-  if(!is_daily) {
-    check_daily_time();
-    dialog::addSelItem("start new daily game", its(daily), 'd');
+  if(!show_customize) {
+    dialog::addItem("start new basic game", 'b');
     dialog::add_action([] {
       save_old_game_if_needed();
       reset_rv();
-      restart((its(daily) + "9").c_str(), "D", "8");
+      restart("", "B", "");
       reset_seuphorica_screen();
       });
+    dialog::addItem("start new standard game", 's');
+    dialog::add_action([] {
+      save_old_game_if_needed();
+      reset_rv();
+      restart("", "", "");
+      reset_seuphorica_screen();
+      });
+    if(!is_daily) {
+      check_daily_time();
+      dialog::addSelItem("start new daily game", its(daily), 'd');
+      dialog::add_action([] {
+        save_old_game_if_needed();
+        reset_rv();
+        restart((its(daily) + "9").c_str(), "D", "8");
+        reset_seuphorica_screen();
+        });
+      }
     }
+  dialog::addBoolItem_action("customize game", show_customize, 'c');
+  if(show_customize) do_show_customize();
+  dialog::addBack();
+  dialog::display();
+  }
+
+void do_show_customize() {
   dialog::addBreak(100);
   dialog::start_list(900, 900, 'A');
   int randoms = 0;
@@ -1467,7 +1498,7 @@ void seuphorica_newgame() {
   dialog::add_action([] {
     dialog::editNumber(want_seed, 0, 999999, 1, rand() % 1000000, "seed", "set to 0 for random");
     });
-  dialog::addItem("start custom game", 'c');
+  dialog::addItem("start custom game", 'd');
   dialog::add_action([] {
     save_old_game_if_needed();
     is_seeded = want_seed;
@@ -1517,9 +1548,6 @@ void seuphorica_newgame() {
     new_game();
     reset_seuphorica_screen();
     });
-
-  dialog::addBack();
-  dialog::display();
   }
 
 void seuphorica_settings() {
@@ -1599,6 +1627,10 @@ local_parameter_set lps_seuphorica("seuphorica:");
 
 void default_config() {
   lps_add(lps_seuphorica, menu_darkening, 3);
+  lps_add(lps_seuphorica, pconf.scale);
+  lps_add(lps_seuphorica, vid.use_smart_range);
+  lps_add(lps_seuphorica, vid.creature_scale);
+  lps_add(lps_seuphorica, req_disksize);
 
   param_i(tilesize, "seuphorica_tilesize", 20)
   -> editable(10, 50, 0.1, "Seuphorica tile size", "", 't')
@@ -1620,7 +1652,6 @@ void launch() {
   stop_game();
   enable_canvas();
   ccolor::set_plain_nowall(0x202020);
-  lps_enable(&lps_seuphorica);
   start_game();
   load();
 
@@ -1653,6 +1684,7 @@ auto seuphorica_hook =
     });
 
 void invoke() {
+  lps_enable(&lps_seuphorica);
   set_seuphorica_geometry(0);
   pushScreen([] { 
     quitmainloop = true;
@@ -1699,6 +1731,9 @@ void fill_gamedata() {
   if(bidirectional) cur.flags |= 64;
   cur.best_word = best_word;
   cur.best_turn_score = best_turn_score;
+  cur.turns = roundindex;
+  cur.score = total_gain;
+  cur.seed = gameseed;
   }
 
 void save(const gamedata& sd) {
@@ -1732,7 +1767,9 @@ string get_geom_name() {
 void save_old_game_if_needed() {
   // no point to save on the 1st turn, and also on 21st and 51st turn, it has just been saved
   if(!among(roundindex, 0, 1, 21, 51)) save();
-  if(cheats == 0) rogueviz::rv_leaderboard(get_geom_name() + get_setname() + " (endless)", total_gain, 1, rvlc::num);
+  #if RVCOL
+  if(cheats == 0) rogueviz::rv_leaderboard("Seuphorica endless: " + get_geom_name() + get_setname(), total_gain, 1, rvlc::num);
+  #endif
   }
 
 void load() {

@@ -57,7 +57,6 @@ struct celldrawer {
   void draw();
   bool cell_clipped();
   void draw_fallanims();
-  bool draw_shmup_monster();
   void draw_gravity_particles();
 
   void set_land_floor(const shiftmatrix& Vf);
@@ -96,6 +95,7 @@ EX colortable westwall_colors = { 0x211F6F, 0x413F8F };
 EX colortable endorian_colors = { 0x202010, 0x404030, 0x0000D0 };
 EX colortable canopy_colors = { 0x60C060, 0x489048 };
 EX colortable camelot_cheat_colors = { 0x606060, 0xC0C0C0 };
+EX colortable haunted_cheat_colors = { 0x609F60, 0xC0FFC0, 0x003F00 };
 
 /** return the special colortable for the given cell -- color menu uses this to know that a colortable should be edited */
 EX colortable* special_colortable_for(cell *c) {
@@ -105,7 +105,8 @@ EX colortable* special_colortable_for(cell *c) {
   if(c->land == laWestWall) return &westwall_colors;
   if(c->land == laEndorian && !c->wall) return &endorian_colors;
   if(c->land == laEndorian && c->wall == waCanopy) return &canopy_colors;
-  if(c->land == laCamelot && camelotcheat) return &camelot_cheat_colors;
+  if(c->land == laCamelot && (camelotcheat || shadingcheat)) return &camelot_cheat_colors;
+  if(isHaunted(c->land) && shadingcheat) return &haunted_cheat_colors;
   return nullptr;
   }
 
@@ -144,10 +145,12 @@ void eclectic_red(color_t& col) {
 constexpr ld spinspeed = .75 / M_PI;
 
 EX color_t apply_mine_knowledge(color_t wcol, cell* c) {
+  #if CAP_COMPLEX2
   if(mine::marked_safe(c))
     return gradient(wcol, 0x40FF40, 0, 0.2, 1);
   if(mine::marked_mine(c))
     return gradient(wcol, 0xFF4040, -1, vid.ispeed ? sintick(100) : 1, 1);
+  #endif
   return wcol;
   }
 
@@ -203,7 +206,7 @@ void celldrawer::setcolors() {
   // floor colors for all the lands
   else switch(c->land) {
     case laBurial: case laTrollheim: case laBarrier: case laOceanWall:
-    case laCrossroads2: case laCrossroads3: case laCrossroads4: case laCrossroads5:
+    case laCrossroads2: case laCrossroads3: case laCrossroads4: case laCrossroads5: case laCrossroads6: case laMasterCrossroads:
     case laRose: case laPower: case laWildWest: case laHalloween: case laRedRock:
     case laDragon: case laStorms: case laTerracotta: case laMercuryRiver:
     case laDesert: case laKraken: case laDocks: 
@@ -211,7 +214,7 @@ void celldrawer::setcolors() {
     case laRlyeh: case laHell: case laCrossroads: case laJungle:
     case laAlchemist: case laFrog: case laCursed: case laDice:
       fcol = floorcolors[c->land]; break;
-    
+
     case laCA:
       fcol = floorcolors[c->land]; 
       if(geosupport_chessboard()) {
@@ -287,6 +290,8 @@ void celldrawer::setcolors() {
     case laCaribbean: 
       if(c->wall != waCIsland && c->wall != waCIsland2)
         fcol = floorcolors[c->land];
+      else if(shadingcheat)
+        fcol = celldistAlt(c) % 2 ? winf[waCIsland].color : winf[waCIsland2].color;
       break;
 
     case laReptile:
@@ -441,11 +446,10 @@ void celldrawer::setcolors() {
       int d = ((eubinary||c->master->alt) ? celldistAltRelative(c) : 0);
   #if CAP_TOUR
       if(!tour::on) camelotcheat = false;
-      if(camelotcheat) 
-        fcol = get_color_auto3(d, camelot_cheat_colors);
-      else 
   #endif
-      if(d < 0) {
+      if(camelotcheat || shadingcheat)
+        fcol = get_color_auto3(d, camelot_cheat_colors);
+      else if(d < 0) {
         fcol = floorcolors[c->land];
         }
       else {
@@ -524,18 +528,24 @@ void celldrawer::setcolors() {
         if(c->wall == waSmallTree) wcol = 0x608000;
         }  
       if(isHaunted(c->land)) {
-        int itcolor = 0;
-        for(int i=0; i<c->type; i++) if(c->move(i) && c->move(i)->item)
-          itcolor = 1;
-        if(c->item) itcolor |= 2;
-        fcol = floorcolors[laHaunted] + 0x202020 * itcolor;
-    
-        forCellEx(c2, c) if(c2->monst == moFriendlyGhost)
-          fcol = gradient(fcol, fghostcolor(c2), 0, .25, 1);
-    
-        if(c->monst == moFriendlyGhost) 
-          fcol = gradient(fcol, fghostcolor(c), 0, .5, 1);
-    
+        if(shadingcheat) {
+          int d = getHauntedDepth(c);
+          if(d == 0) fcol = haunted_cheat_colors[2];
+          else fcol = get_color_auto3(d, haunted_cheat_colors, 1);
+        } else {
+          int itcolor = 0;
+          for(int i=0; i<c->type; i++) if(c->move(i) && c->move(i)->item)
+            itcolor = 1;
+          if(c->item) itcolor |= 2;
+          fcol = floorcolors[laHaunted] + 0x202020 * itcolor;
+
+          forCellEx(c2, c) if(c2->monst == moFriendlyGhost)
+            fcol = gradient(fcol, fghostcolor(c2), 0, .25, 1);
+
+          if(c->monst == moFriendlyGhost)
+            fcol = gradient(fcol, fghostcolor(c), 0, .5, 1);
+        }
+
         if (!higher_contrast) {
           if(c->wall == waSmallTree) wcol = 0x004000;
           else if(c->wall == waBigTree) wcol = 0x008000;
@@ -783,9 +793,22 @@ void celldrawer::draw_wall() {
     int hdir = 0;
     for(int i=0; i<c->type; i++) if(c->move(i) && c->move(i)->wall == waClosedGate)
       hdir = i;
-    shiftmatrix V2 = orthogonal_move_fol(V, wmspatial?cgi.WALL:1) * ddspin180(c, hdir); // to test
+    shiftmatrix V1 = V * ddspin180(c, hdir);
+
+    if(wmspatial) {
+      queuepolyat(V1, cgi.shPalaceGate, darkena(wcol, 0, 0xFF), wmspatial?PPR::WALL_DECO:PPR::WALL);
+      const int layers = 2 << detaillevel;
+      for(int z=1; z<layers; z++) {
+        double zg = zgrad0(0, geom3::actual_wall_height(), z, layers);
+        queuepolyat(xyzscale(V1, zg, zg), cgi.shPalaceGate, darkena(wcol, 0, 0xFF), wmspatial?PPR::WALL_DECO:PPR::WALL);
+        }
+      }
+
+    shiftmatrix V2 = orthogonal_move_fol(V1, wmspatial?cgi.WALL:1);
+
     queuepolyat(V2, cgi.shPalaceGate, darkena(wcol, 0, 0xFF), wmspatial?PPR::WALL_DECO:PPR::WALL);
     starcol = 0;
+    return;
     }
   
   hpcshape& shThisWall = isGrave(c->wall) ? cgi.shCross : cgi.shWall[ct6];
@@ -882,7 +905,10 @@ EX bool pick_for_grid(cell *c, int t) {
   cell *c1 = c->move(t);
   if(!c1) return false;
   // removed: if(WDIM == 3 && bt::in() && !sn::in()) return !among(t, 5, 6, 8);
-  return c < c1 || isWarped(c->move(t)) || fake::split();
+  if(c == c1 && t <= c->c.spin(t)) return true;
+  bool order = c < c1;
+  if(disksize) order = disk_index(c) < disk_index(c1);
+  return order || isWarped(c->move(t)) || fake::split();
   }
 
 void celldrawer::draw_grid() {
@@ -988,9 +1014,7 @@ void celldrawer::draw_grid_edge(int t, color_t col, int prec) {
 
 void celldrawer::draw_halfvine() {
 
-  int i =-1;
-  for(int t=0;t<6; t++) if(c->move(t) && c->move(t)->wall == c->wall)
-    i = t;
+  int i = halfvine_direction(c);
 
   qfi.spin = ddspin(c, i, M_PI/S3);
   shiftmatrix V2 = V * qfi.spin;
@@ -1437,6 +1461,8 @@ EX void draw_mine_numbers(int mines, const shiftmatrix& V, int ct6) {
   if(mines == 0 && mine_zero_display < (WDIM == 3 ? 1 : 2)) return;
   if(numerical_minefield) {
     string label = its(mines);
+    dynamicval<color_t> dc(poly_outline);
+    if(mines >= isize(minecolors)) poly_outline = darkena(minecolors[mines/isize(minecolors)], 0, 0xFF);
     queuestr(V, (mines >= 10 ? .5 : 1) * mapfontscale / 100, label, darkened(minecolors[mines]), 8);
     }
   else {
@@ -1445,6 +1471,7 @@ EX void draw_mine_numbers(int mines, const shiftmatrix& V, int ct6) {
     }
   }
 
+#if CAP_COMPLEX2
 EX void draw_mine_markers(cell *c, const shiftmatrix& V) {
   if(mine_markers && !mine::marked_safe(c)) {
     color_t col = 0xFF4040;
@@ -1454,6 +1481,7 @@ EX void draw_mine_markers(cell *c, const shiftmatrix& V) {
     queuepoly(V, cgi.shJoint, 0);
     }
   }
+#endif
 
 void celldrawer::draw_features() {
   char xch = winf[c->wall].glyph;
@@ -1555,8 +1583,8 @@ void celldrawer::draw_features() {
       if(wmescher && geosupport_football() == 2 && pseudohept(c) && c->land == laPalace) V2 = V * spin(M_PI / c->type);
       if(GDIM == 3) {
         #if MAXMDIM >= 4
-        draw_shapevec(c, V2 * lzpush(-cgi.human_height/40), cgi.shMFloor.levels[SIDE::FLOOR], darkena(winf[c->wall].color, 0, 0xFF));
-        draw_shapevec(c, V2 * lzpush(-cgi.human_height/35), cgi.shMFloor2.levels[SIDE::FLOOR], (!wmblack) ? darkena(fcol, 1, 0xFF) : darkena(0,1,0xFF));
+        draw_shapevec(c, V2 * lzpush(-cgi.human_height/60), cgi.shMFloor.levels[SIDE::FLOOR], darkena(winf[c->wall].color, 0, 0xFF));
+        draw_shapevec(c, V2 * lzpush(-cgi.human_height/30), cgi.shMFloor2.levels[SIDE::FLOOR], (!wmblack) ? darkena(fcol, 1, 0xFF) : darkena(0,1,0xFF));
         #endif
         }
       else {
@@ -1699,10 +1727,12 @@ void celldrawer::draw_features() {
       break;
       }
 
+    #if CAP_COMPLEX2
     case waMineUnknown: case waMineMine: {
       draw_mine_markers(c, V);
       break;
       }
+    #endif
     
     case waEditStatue:
       if(!mapeditor::drawUserShape(V * ddspin(c, c->mondir), mapeditor::sgWall, c->wparam, darkena(wcol, fd, 0xFF), c))
@@ -1820,8 +1850,10 @@ void celldrawer::draw_features_and_walls_3d() {
     if(anyshiftclick) return;
     }
 
+  #if CAP_COMPLEX2
   if(among(c->wall, waMineUnknown, waMineMine))
     draw_mine_markers(c, face_the_player(V));
+  #endif
 
   if(isWall3(c, wcol)) {
     if(!no_wall_rendering) {
@@ -2198,6 +2230,8 @@ void celldrawer::draw_cellstat() {
     shstream ss; print(ss, c);
     queuestr(V, mapfontscale / 200, ss.s, 0xFFFFFFFF);    
     queuepoly(V * ddspin(c, 0), cgi.shAsymmetric, darkena(0x000000, 0, 0xC0));
+    if(c->bardir < c->type)
+      queuepoly(V * ddspin(c, c->bardir), cgi.shAsymmetric, darkena(0xC00000, 0, 0xC0));
     }
   }
 
@@ -2357,7 +2391,7 @@ void celldrawer::draw_wall_full() {
       auto col = fcol;
       if(patterns::whichShape == '^') poly_outline = darkena(fcol, fd, flooralpha);
       if(sha.top == SIDE::WALL) col = wcol_star;
-      else if(sha.top >= SIDE::RED1) col = wcol;
+      else if(sha.top >= SIDE::RED1 && wmspatial) col = wcol;
 
       auto sf = sha.top; if(!wmspatial) sf = SIDE::FLOOR;
 
@@ -2901,8 +2935,13 @@ void celldrawer::draw() {
   
   checkTide(c);
   
-  if(1) {
-  
+  int seen = in_line_of_sight_for_player(c);
+
+  if(seen) {
+
+    dynamicval<eNeon> b(neon_mode, neon_mode);
+    if(!in_line_of_sight(c)) neon_mode = neon_magic_vision;
+
     if(inmirror(c)) {
       if(inmirrorcount >= 10) return;
       cellwalker cw(c);
@@ -2964,12 +3003,12 @@ void celldrawer::draw() {
       (highwall(c) && GDIM == 2) ? orthogonal_move_fol(V, (1+cgi.WALL)/2) :
 #if CAP_SHAPES
       (sha.top < SIDE::FLOOR) ? orthogonal_move_fol(V, GDIM == 3 ? cgi.WATERLEVEL - cgi.FLOOR : cgi.WATERLEVEL) :
-#endif
+#endif 
       V;
     
     Vboat = Vd;
       
-    draw_shmup_monster();
+    FOR_LIST(li, c->contents) li->draw(self);
 
     poly_outline = OUTLINE_DEFAULT;    
 
@@ -3042,23 +3081,24 @@ void celldrawer::draw() {
         queuestrn(V, mapfontscale / 100, s, darkenedby(asciicol, darken), 2);
       }
     
-    draw_grid();
-
     if(onradar && WDIM == 2 && GDIM == 3) addradar(V, asciichar, darkenedby(asciicol, darken), 0);
     
-    if(WDIM == 2 && GDIM == 3) radar_grid();
     #endif
-    
-    check_rotations();
-
-    #if CAP_EDIT
-    if(!inHighQual) mapeditor::drawGhosts(c, V, c->type);
-    #endif
-    
-#if CAP_MODEL
-    netgen::buildVertexInfo(c, unshift(V));
-#endif
     }
+
+  draw_grid();
+
+  if(WDIM == 2 && GDIM == 3) radar_grid();
+
+  check_rotations();
+
+  #if CAP_EDIT
+  if(!inHighQual) mapeditor::drawGhosts(c, V, c->type);
+  #endif
+    
+  #if CAP_MODEL
+  netgen::buildVertexInfo(c, unshift(V));
+  #endif
   }
 
 void celldrawer::set_towerfloor(const cellfunction& cf) {

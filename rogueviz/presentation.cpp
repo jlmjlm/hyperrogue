@@ -121,6 +121,8 @@ void empty_screen(presmode mode, color_t col) {
 void slide_error(presmode mode, string s) {
   empty_screen(mode, 0x400000);
   add_stat(mode, [s] {
+    cmode = sm::VR_MENU | sm::NOSCR;
+    gamescreen();
     dialog::init();
     dialog::addTitle(s, 0xFF0000, 150);
     dialog::display();
@@ -175,6 +177,7 @@ texture::texture_data& get_texture(string s, flagtype flags = 0) {
 
 void sub_picture(string s, flagtype flags, ld dx, ld dy, ld scale) {
   auto& tex = get_texture(s);
+  if(tex.textureid == 0) return;
   flat_model_enabler fme;
   draw_texture(tex, dx, dy, scale);
   }
@@ -206,7 +209,8 @@ string latex_cachename(string s, flagtype flags) {
   return hr::format("latex-cache/%08X.png", hash);
   }
 
-/* note: you pdftopng from the xpdf package for this to work! */
+/* note: for this to work, you need either pdftopng from the xpdf package,
+ * or pdftoppm from the poppler-utils package */
 string gen_latex(presmode mode, string s, int res, flagtype flags) {
   string filename = latex_cachename(s, flags);
   if(mode == pmStartAll) {
@@ -223,13 +227,15 @@ string gen_latex(presmode mode, string s, int res, flagtype flags) {
         "\\end{document}\n", latex_packages.c_str(), s.c_str());
       fclose(f);
       hr::ignore(system("cd latex-cache; pdflatex rogueviz-latex.tex"));
+      bool has_working_pdftopng = system("pdftopng -v > /dev/null 2>&1") == 0;
+      string pdftopng_command = has_working_pdftopng ? "pdftopng" : "pdftoppm -png";
       string pngline = 
-        (flags & LATEX_COLOR) ? 
-          "cd latex-cache; pdftopng -alpha -r " + its(res) + " rogueviz-latex.pdf t"
-        : "cd latex-cache; pdftopng -r " + its(res) + " rogueviz-latex.pdf t";
+        (flags & LATEX_COLOR) && has_working_pdftopng ?
+          "cd latex-cache; " + pdftopng_command + " -alpha -r " + its(res) + " rogueviz-latex.pdf t"
+        : "cd latex-cache; " + pdftopng_command + " -r " + its(res) + " rogueviz-latex.pdf t";
       println(hlog, "calling: ", pngline);
       hr::ignore(system(pngline.c_str()));
-      rename("latex-cache/t-000001.png", filename.c_str());
+      rename(has_working_pdftopng ? "latex-cache/t-000001.png" : "latex-cache/t-1.png", filename.c_str());
       }
     }
   return filename;
@@ -434,7 +440,7 @@ void show_animation(presmode mode, string s, int sx, int sy, int frames, int fps
   }
 
 void choose_presentation() {
-  cmode = sm::NOSCR;
+  cmode = sm::NOSCR | sm::VR_MENU;
   gamescreen();
 
   getcstat = ' ';
@@ -604,8 +610,11 @@ void uses_game(presmode mode, string name, reaction_t launcher, reaction_t resto
 
 color_t latex_ring = 0x00FF0080;
 
+string latex_s;
+
 void latex_slide(presmode mode, string s, flagtype flags, int size) {
   empty_screen(mode);
+  latex_s = s;
   add_stat(mode, [=] {
     tour::slide_backup(no_find_player, true);
     if(flags & sm::SIDE) {
@@ -621,11 +630,12 @@ void latex_slide(presmode mode, string s, flagtype flags, int size) {
       gamescreen();
     dialog::init();
     dialog_may_latex(
-      s,
+      latex_s,
       "(LaTeX is off)",
       dialog::dialogcolor, size, LATEX_COLOR
       );
     dialog::display();
+    callhooks(hooks_post_latex_slide);
     return true;
     });
   no_other_hud(mode);
@@ -655,7 +665,7 @@ int pres_hooks =
     }) +
   addHook_slideshows(300, [] (tour::ss::slideshow_callback cb) {
     if(rogueviz::pres::rvslides_data.empty()) pres::gen_rvtour_data();
-    cb(XLAT("non-Euclidean geometry in data analysis"), &pres::rvslides_data[0], 'd');
+    cb(XLAT("Non-Euclidean Geometry in Data Analysis"), &pres::rvslides_data[0], 'd');
 
     if(rogueviz::pres::rvslides_mixed.empty()) pres::gen_rvtour_mixed();
 
@@ -708,6 +718,28 @@ int runslide =
     arg::shift_arg_formula(angle);
     dir = 0;
     })
+  + arg::add3("-pres-key-at", [] {
+    arg::shift(); int *tickid = new int;
+    *tickid = arg::argi();
+    addHook(hooks_frame, 0, [tickid] {
+      if(ticks >= *tickid) {
+        presentation(pmKey);
+        *tickid = 999999999;
+        }
+      });
+    })
+  + arg::add3("-pres-key2-at", [] {
+    arg::shift(); int *tickid = new int;
+    *tickid = arg::argi();
+    addHook(hooks_frame, 0, [tickid] {
+      if(ticks >= *tickid) {
+        presentation(pmKeyAlt);
+        *tickid = 999999999;
+        }
+      });
+    })
+  + arg::add3("-pres-anf", [] { anims::noframes = anims::period * 60 / 1000; })
+  + arg::add3("-pres-mul", [] { arg::shift(); anims::noframes *= arg::argf(); })
   ;
 }
 #endif

@@ -31,8 +31,13 @@ extern flagtype state;
 
 extern vector<int> sagid;
 
+extern ld yes_for(ld d);
+
 void init();
 void clear();
+
+debugflag debug_sag("sag");
+debugflag debug_init_sag("init_sag", true);
 
 }
 }

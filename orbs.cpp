@@ -50,7 +50,7 @@ EX void useupOrb(eItem it, int qty) {
   }
 
 EX void drainOrb(eItem it, int target IS(0)) {
-  if(items[it] > target) useupOrb(it, items[it] - target);
+  if(!cheat_items_enabled && items[it] > target) useupOrb(it, items[it] - target);
   }
 
 EX void empathyMove(const movei& mi) {  
@@ -82,14 +82,18 @@ EX int intensify(int val) {
   return inv::on ? 2 * val : val * 6 / 5;
   }
 
+int orbs_drained;
+
 EX bool reduceOrbPower(eItem it, int cap) {
   if(items[it] && markOrb(itCurseDraining)) {
+    orbs_drained++;
     items[it] -= (markOrb(itOrbEnergy) ? 1 : 2) * multi::activePlayers();
     if(items[it] < 0) items[it] = 0;
     if(items[it] == 0 && it == itOrbLove) 
       princess::bringBack();
     }
   if(items[it] && (lastorbused[it] || (it == itOrbShield && items[it]>3) || !markOrb(itOrbTime))) {
+    orbs_drained++;
     items[it] -= multi::activePlayers();
     if(isHaunted(cwt.at->land)) 
       fail_survivalist();
@@ -106,6 +110,7 @@ EX bool reduceOrbPower(eItem it, int cap) {
 
 EX void reduceOrbPowerAlways(eItem it) {
   if(items[it]) {
+    orbs_drained++;
     items[it] -= multi::activePlayers();
     if(items[it] < 0) items[it] = 0;
     }
@@ -125,6 +130,8 @@ EX void reverse_curse(eItem curse, eItem orb, bool cancel) {
   }
 
 EX void reduceOrbPowers() {
+
+  orbs_drained = 0;
 
   reverse_curse(itCurseWeakness, itOrbSlaying, true);
   reverse_curse(itCurseFatigue, itOrbSpeed, false); // OK
@@ -183,7 +190,6 @@ EX void reduceOrbPowers() {
   reduceOrbPower(itOrbSword2, 100 + 20 * multi::activePlayers());
   reduceOrbPower(itOrbStone, 120);
   reduceOrbPower(itOrbNature, 120);
-  reduceOrbPower(itOrbRecall, 77);
   reduceOrbPower(itOrbBull, 120);
   reduceOrbPower(itOrbHorns, 77);
   reduceOrbPower(itOrbLava, 80);
@@ -214,6 +220,10 @@ EX void reduceOrbPowers() {
   mine::auto_teleport_charges();
   #endif
 
+  if(orbs_drained && items[itOrbRecall] && items[itOrbRecall] <= 10) 
+    items[itOrbRecall] = 11;
+  reduceOrbPower(itOrbRecall, 77);
+
   whirlwind::calcdirs(cwt.at); 
   items[itStrongWind] = !items[itOrbAether] && whirlwind::qdirs == 1;
   items[itWarning] = 0;
@@ -223,6 +233,14 @@ EX void reduceOrbPowers() {
     else
       items[itCrossbow]--;
     }
+  if(cheat_items_enabled)
+    for(int i=0; i<ittypes; i++) {
+      if(i == itOrbSpeed) {
+        if(items[i] < cheat_items[i]) items[i] = cheat_items[i] + 1; // Orb of Speed always needs to alternate between an odd and even number to work right
+        }
+      else if(itemclass(eItem(i)) == IC_ORB && i != itOrbSafety)
+        items[i] = cheat_items[i];
+      }
   }
 
 eWall orig_wall;
@@ -585,15 +603,20 @@ EX void activateLightning() {
 // roMouse/roKeyboard: 
 //    return orb type if successful, eItem(-1) if do nothing, 0 otherwise
 
-EX bool haveRangedTarget() {
+EX map<eItem, cell*> orb_used_where;
+
+EX bool haveRangedTarget(bool complete) {
+  orb_used_where.clear();
   if(!haveRangedOrb())
     return false;
   for(int i=0; i<isize(dcal); i++) {
     cell *c = dcal[i];
-    if(targetRangedOrb(c, roCheck)) {
-      return true;
+    if(eItem it = targetRangedOrb(c, roCheck)) {
+      if(complete && !orb_used_where.count(it)) orb_used_where[it] = c;
+      else return true;
       }
     }
+  if(complete) return orb_used_where.size();
   return false;
   }
 
@@ -601,7 +624,7 @@ void checkmoveO() {
   bow::bowpath_map.clear();
   if(multi::players > 1 && multi::activePlayers() == 1)
     multi::checklastmove();
-  if(multi::players == 1) checkmove();
+  if(multi::players == 1) checkmove(false);
   }
 
 int teleportAction() {
@@ -733,7 +756,7 @@ EX bool jumpTo(orbAction a, cell *dest, eItem byWhat, int bonuskill, jumpdata jd
     movecost(from, dest, 2);
     from = NULL;
     }
-  if(cwt.at->item != itOrbYendor && cwt.at->item != itHolyGrail) {
+  if(cwt.at->item != itOrbYendor && cwt.at->item != itHolyGrail && !cantGetGrimoire(cwt.at, true)) {
     auto c = collectItem(cwt.at, from, true);
     if(c) {
       return true;
@@ -757,7 +780,8 @@ EX bool jumpTo(orbAction a, cell *dest, eItem byWhat, int bonuskill, jumpdata jd
   fix_whichcopy(dest);
   countLocalTreasure();
   
-  for(int i=9; i>=0; i--)
+  int low = 7 - getDistLimit() - genrange_bonus;
+  for(int i=9; i>=low; i--)
     setdist(cwt.at, i, NULL);
   
   if(from) movecost(from, dest, 2);
@@ -847,9 +871,11 @@ void telekinesis(cell *dest) {
   eItem it = cwt.at->item;
   bool saf = it == itOrbSafety;
   collectItem(cwt.at, cwt.at, true);
-  if(cwt.at->item == it)
+  if(saf)
+    ;
+  else if(cwt.at->item == it)
     animateMovement(match(dest, cwt.at), LAYER_BOAT);
-  else if(!saf)
+  else
     animate_item_throw(dest, cwt.at, it);
 
   useupOrb(itOrbSpace, cost.first);
@@ -1118,9 +1144,7 @@ void stun_attack(cell *dest) {
   checkmoveO();
   }
 
-void poly_attack(cell *dest) {
-  playSound(dest, "orb-ranged");
-  eMonster orig = dest->monst;
+EX eMonster pick_poly_monster(eMonster orig) {
   auto polymonsters = {
     moYeti, moRunDog, moRanger,
     moMonkey, moCultist,
@@ -1131,16 +1155,23 @@ void poly_attack(cell *dest) {
   int ssf = 0;
   eMonster target = *(polymonsters.begin() + hrand(isize(polymonsters)));
   for(eMonster m: polymonsters)
-    if(kills[m] && m != dest->monst) {
+    if(kills[m] && m != orig) {
       ssf += kills[m];
       if(hrand(ssf) < kills[m])
         target = m;
       }
+  return target;
+  }
+
+void poly_attack(cell *dest) {
+  playSound(dest, "orb-ranged");
+  eMonster orig = dest->monst;
+  eMonster target = pick_poly_monster(orig);
   addMessage(XLAT("You polymorph %the1 into %the2!", dest->monst, target));
   dest->monst = target;
   if(!dest->stuntime) dest->stuntime = 1;
 
-  if(orig == moPair) {
+  if(among(orig, moPair, moSouthPole, moNorthPole)) {
     cell *dest2 = dest->move(dest->mondir);
     if(dest2->monst == moPair) {
       dest2->monst = dest->monst;
@@ -1371,6 +1402,11 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
         addMessage(XLAT("You cannot target that far away!"));
       return itNone;
       }
+    if(!in_line_of_sight_for_player(c)) {
+      if(!isWeakCheck(a))
+        addMessage(XLAT("You cannot target what you cannot see!"));
+      return itNone;
+      }
     }
   
   vector<string> orb_error_messages;
@@ -1456,7 +1492,7 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
         if(c->monst ? (
           CHK(canAttack(cf, moFriendlyIvy, c, c->monst, f), XLAT("Cannot attack there!"))
           ) : (
-          CHK(passable(c, cf, P_ISFRIEND | P_MONSTER), XLAT("Cannot grow there!")) &&
+          CHK(passable(c, cf, P_ISFRIEND | P_MONSTER | P_IVY), XLAT("Cannot grow there!")) &&
           CHK(!strictlyAgainstGravity(c, cf, false, MF_IVY), XLAT("Cannot grow against gravity!"))
           ))
           dirs.push_back(d);
@@ -1539,8 +1575,8 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
     }
   
   if(items[itOrbPhasing] && CHK(c->cpdist == 2, XLAT("Cannot phase that far!"))) {
-    changes.init(isCheck(a));
     if(shmup::on) shmup::pushmonsters();
+    changes.init(isCheck(a));
     int phasestate = check_phase(cwt.at, c, P_ISPLAYER, jdata);
     if(phasestate == 1 && c->monst) {
       orb_error_messages.push_back(XLAT("Cannot phase onto %the1!", c->monst));
@@ -1825,11 +1861,11 @@ EX int orbcharges(eItem it) {
   }
 
 EX bool isShmupLifeOrb(eItem it) {
-  return 
-    it == itOrbLife || it == itOrbFriend ||
-    it == itOrbNature || it == itOrbEmpathy ||
-    it == itOrbUndeath || it == itOrbLove ||
-    it == itOrbDomination || it == itOrbGravity; 
+  return among(it,
+    itOrbLife, itOrbFriend, itOrbNature, itOrbEmpathy,
+    itOrbUndeath, itOrbLove, itOrbDomination, itOrbGravity,
+    itOrbWoods, itOrbChaos, itOrbImpact, itOrbPlague
+    );
   }
 
 EX void makelava(cell *c, int i) {

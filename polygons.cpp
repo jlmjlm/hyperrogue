@@ -10,6 +10,8 @@
 
 namespace hr {
 
+EX debugflag debug_poly = {"graph_poly"};
+
 #if HDR
 static constexpr ld NEWSHAPE = (-13.5);
 #endif
@@ -156,13 +158,7 @@ void geometry_information::extra_vertices() {
 
 transmatrix geometry_information::ddi(int a, ld x) { return xspinpush(a * S_step, x); }
 
-void geometry_information::drawTentacle(hpcshape &h, ld rad, ld var, ld divby) {
-  double tlength = max(crossf, hexhexdist);
-  if(geometry == gBinaryTiling) tlength *= 0.7;
-  if(geometry == gBinary4) tlength *= 0.45;
-  #if CAP_ARCM
-  if(arcm::in()) tlength = arcm::current.scale();
-  #endif
+void geometry_information::drawTentacle(ld rad, ld var, ld divby, ld tlength) {
   int max = int(20 * pow(2, vid.linequality));
   for(ld i=0; i<=max; i++)
     hpcpush(ddi(S21, rad + var * sin(i * M_PI/divby)) * ddi(0, tlength * i/max) * C0);
@@ -595,10 +591,12 @@ void geometry_information::procedural_shapes() {
   bshape(shHalfDisk, PPR::ITEM);
   for(int i=0; i<=S84/2; i+=SD3)
     hpcpush(ddi(i, orbsize * .2) * TC0);
+  hpcpush(ddi(0, orbsize * .2) * TC0);
 
   bshape(shDiskSegment, PPR::ITEM);
   for(int i=0; i<=S84/2.5; i+=SD3)
     hpcpush(ddi(i, orbsize * .2) * TC0);
+  hpcpush(ddi(0, orbsize * .2) * TC0);
 
   bshape(shMoonDisk, PPR::ITEM);
   for(int i=0; i<=S84; i+=SD3)
@@ -1167,6 +1165,17 @@ void geometry_information::configure_floorshapes() {
   for(int i=0; i<3; i++) shRedRockFloor[i].scale = .9 - .1 * i;
   }
 
+length_adjusted_shapes& geometry_information::get_lash(ld len) {
+  int id = int(len * 100 + .5);
+  if(lash.count(id)) return lash[id];
+  auto& res = lash[id];
+  bshape(res.shIBranch, PPR::TENTACLE1);
+  drawTentacle(crossf * .1, crossf * .2, 5, len);
+  finishshape();
+  extra_vertices();
+  return res;
+  }
+
 void geometry_information::prepare_shapes() {
   require_basics();
   if(cgflags & qRAYONLY) return;
@@ -1178,7 +1187,7 @@ void geometry_information::prepare_shapes() {
 
   symmetriesAt.clear();
   allshapes.clear();
-  DEBBI(DF_POLY, ("buildpolys"));
+  DEBBI(debug_poly, ("buildpolys"));
 
   if(WDIM == 3 && !mhybrid) {
     if(sphere) SD3 = 3, SD7 = 5;
@@ -1343,12 +1352,15 @@ void geometry_information::prepare_shapes() {
   wormscale = WDIM == 3 ? 3 : 1;
 
   // first layer monsters
-  bshape(shTentacleX, PPR::TENTACLE0);
-  drawTentacle(shTentacleX, crossf * .25, crossf * .1, 10);
-  bshape(shIBranch, PPR::TENTACLE1);
-  drawTentacle(shIBranch, crossf * .1, crossf * .2, 5);
-  bshape(shTentacle, PPR::TENTACLE1);
-  drawTentacle(shTentacle, crossf * .2, crossf * .1, 10);
+  bshape(lash_default.shIBranch, PPR::TENTACLE1);
+  double tlength = max(crossf, hexhexdist);
+  if(geometry == gBinaryTiling) tlength *= 0.7;
+  if(geometry == gBinary4) tlength *= 0.45;
+  #if CAP_ARCM
+  if(arcm::in()) tlength = arcm::current.scale();
+  #endif
+  drawTentacle(crossf * .1, crossf * .2, 5, tlength);
+
   copyshape(shJoint, shDisk, PPR::ONTENTACLE);
   bshape(shTentHead, PPR::ONTENTACLE, scalefactor * wormscale, 79);
   bshape(shWormHead, PPR::ONTENTACLE, scalefactor * wormscale, 80);
@@ -1586,6 +1598,18 @@ void geometry_information::prepare_shapes() {
   bshape(shBugAntenna, PPR::MONSTER_BODY, scalefactor, 307);
   bshape(shCatBody, PPR::MONSTER_BODY, scalefactor, 139);
   bshape(shCatLegs, PPR::MONSTER_LEG, scalefactor, 140);
+
+  bshape(shBunnyBody, PPR::MONSTER_BODY, scalefactor, 434);
+  bshape(shBunnyHead, PPR::MONSTER_HEAD, scalefactor, 436);
+  bshape(shBunnyEar, PPR::MONSTER_HEAD, scalefactor, 437);
+  bshape(shBunnyTail, PPR::MONSTER_BODY, scalefactor, 438);
+
+  bshape(shDonkeyHead, PPR::MONSTER_HEAD, scalefactor, 439);
+  bshape(shDonkeyEar, PPR::MONSTER_HEAD, scalefactor, 440);
+  bshape(shDonkeyEye, PPR::MONSTER_HEAD, scalefactor, 441);
+  bshape(shDonkeyNose, PPR::MONSTER_HEAD, scalefactor, 442);
+  bshape(shDonkeyNose1, PPR::MONSTER_HEAD, scalefactor, 443);
+
   bshape(shFamiliarHead, PPR::MONSTER_HEAD, scalefactor, 141);
   bshape(shFamiliarEye, PPR::MONSTER_EYE1, scalefactor, 142);
   bshape(shCatHead, PPR::MONSTER_HEAD, scalefactor, 143);
@@ -1633,6 +1657,7 @@ void geometry_information::prepare_shapes() {
 
   bshape(shPikeBody, PPR::MONSTER_BODY, scalefactor, 402);
   bshape(shPikeEye, PPR::MONSTER_BODY, scalefactor, 403);
+  bshape(shSmallPike, PPR::MONSTER_BODY, scalefactor * 0.5, 402);
 
   // missiles
   bshape(shKnife, PPR::MISSILE, scalefactor, 87);
@@ -2558,6 +2583,29 @@ NEWSHAPE, 432, 1, 1, -0.0498532, 0.0220752,  -0.0675516, 0.0261371,  -0.0684933,
 
 // shSpaceship
 NEWSHAPE, 433, 1, 1, 0.0699706, 0, 0.0509304, 0.019032, 0.0056909, 0.023788, 0.0318813, 0.0309258, 0.0330715, 0.0368693, 0.00331668, 0.0380512, -0.0630665, 0.0699568, -0.0619577, 0.041535, -0.0678691, 0.0415233, -0.0678946, 0.0261072, -0.0572505, 0.0237463, -0.0572505, -0.0237463, -0.0678946, -0.0261072, -0.0678691, -0.0415233, -0.0619577, -0.041535, -0.0630665, -0.0699568, 0.00331668, -0.0380512, 0.0330715, -0.0368693, 0.0318813, -0.0309258, 0.0056909, -0.023788, 0.0509304, -0.019032,
+
+// shBunnyBody
+NEWSHAPE, 434, 1, 2, -0.182836, 0.00134439,  -0.166475, 0.00939776,  -0.184217, 0.0174805,  -0.166723, 0.024617,  -0.17245, 0.042553,  -0.157684, 0.035786,  -0.164538, 0.051488,  -0.14867, 0.046949,  -0.155517, 0.061536,  -0.140794, 0.054753,  -0.141981, 0.068196,  -0.125033, 0.058051,  -0.125087, 0.071478,  -0.112675, 0.059126,  -0.113871, 0.078147,  -0.099238, 0.065787,  -0.09929, 0.080325,  -0.089161, 0.065756,  -0.086969, 0.080279,  -0.080217, 0.066848,  -0.07356, 0.083591,  -0.06347, 0.067924,  -0.055703, 0.086897,  -0.048978, 0.070128,  -0.045663, 0.085757,  -0.036721, 0.067879,  -0.028944, 0.082379,  -0.024473, 0.063406,  -0.016698, 0.085718,  -0.012236, 0.066743,  -0.001113, 0.080128,  0.005561, 0.062283,  0.014465, 0.073436,  0.017795, 0.058945,  0.026707, 0.073445,  0.030032, 0.057839,  0.042293, 0.070117,  0.044501, 0.055626,  0.053427, 0.064557,  0.054515, 0.046727,  0.072375, 0.056786,  0.070112, 0.038951,  0.082394, 0.040084,  0.070104, 0.03227,  0.077909, 0.026712,  0.075671, 0.020031,  0.089069, 0.014474,  0.075666, 0.011127,  0.085713, 0.005566,  0.077896, -0.001113,
+
+// shBunnyHead
+NEWSHAPE, 436, 1, 2, 0.073175, 0,  0.058843, 0.007699,  0.07428, 0.010454,  0.062705, 0.019251,  0.077045, 0.019811,  0.068229, 0.032464,  0.084236, 0.031933,  0.077073, 0.043491,  0.091431, 0.037454,  0.098645, 0.047394,  0.108865, 0.0406363,  0.121029, 0.0547394,  0.125041, 0.0426847,  0.141797, 0.0512883,  0.136185, 0.0422124,  0.157048, 0.0488258,  0.147348, 0.0397287,  0.167717, 0.041514,  0.160393, 0.029313,  0.171614, 0.030448,  0.164858, 0.020469,  0.171594, 0.021588,  0.174963, 0.020486,  0.178894, 0.017169,  0.181703, 0.013295,  0.183949, 0.005541,
+
+// shBunnyEar
+NEWSHAPE, 437, 1, 1, 0.0826431, 0.0110191,  0.0685843, 0.0150185,  0.0575504, 0.0140123,  0.0535413, 0.0150116,  0.0425239, 0.0210118,  0.0325139, 0.0255109,  0.0210093, 0.0365162,  0.0205116, 0.0430244,  0.0190131, 0.0490339,  0.040542, 0.0500518,  0.0766509, 0.0450888,  0.0871982, 0.0390888,  0.0992563, 0.0230596,  0.101266, 0.0175461,  0.0856591, 0.0110205,
+
+// shBunnyTail
+NEWSHAPE, 438, 1, 2, -0.146275, -0.00452397,  -0.135622, -0.0105484,  -0.149835, -0.0100561,  -0.145778, -0.0180966,  -0.158996, -0.0100631,  -0.159013, -0.0231475,  -0.164607, -0.013088,  -0.187654, -0.0257267,  -0.184047, -0.0176483,  -0.195877, -0.0267564,  -0.195345, -0.0186764,  -0.205659, -0.0242546,  -0.203064, -0.0161643,  -0.21598, -0.0187149,  -0.20873, -0.00960259,  -0.221145, -0.0101211,  -0.21441, -0.00455116,  -0.224251, -0.000506209,
+
+// shDonkeyHead
+NEWSHAPE, 439, 1, 2, 0.141885, -0.00274332,  0.144278, -0.0370474,  0.159392, -0.0525318,  0.183785, -0.0674361,  0.218544, -0.0733929,  0.249519, -0.0754558,  0.289387, -0.067464,  0.320447, -0.0572191,  0.344632, -0.0467354,  0.367791, -0.0365713,  0.379818, -0.0306014,  0.388846, -0.0243753,  0.397776, -0.0112394,
+// shDonkeyEar
+NEWSHAPE, 440, 1, 1, 0.171061, -0.0482674,  0.149489, -0.0613995,  0.139544, -0.0914065,  0.144359, -0.114972,  0.167865, -0.152457,  0.178229, -0.158325,  0.195798, -0.143858,  0.196623, -0.110976,  0.195014, -0.0686527,  0.194023, -0.0384967,
+// shDonkeyEye
+NEWSHAPE, 441, 1, 1, 0.243631, -0.0507072,  0.262267, -0.0626241,  0.27915, -0.0563335,  0.284712, -0.0528977,  0.285417, -0.0445066,  0.27623, -0.0358126,  0.261109, -0.0361227,  0.25035, -0.040157,
+// shDonkeyNose
+NEWSHAPE, 442, 1, 2, 0.347879, -0.00441473,  0.352974, -0.0161136,  0.360187, -0.0325723,  0.374383, -0.038211,  0.392379, -0.0355181,  0.41147, -0.0282191,  0.416974, -0.0205207,  0.417167, -0.0176551,  0.417904, -0.0159756,
+// shDonkeyNose1
+NEWSHAPE, 443, 1, 1, 0.377805, -0.0161794,  0.382946, -0.0211042,  0.392107, -0.0217376,  0.395905, -0.0202777,  0.39504, -0.0150657,  0.392388, -0.00917143,  0.385029, -0.00925563,
 
 NEWSHAPE, NEWSHAPE
 };

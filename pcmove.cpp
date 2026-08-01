@@ -9,6 +9,8 @@
 
 namespace hr {
 
+EX debugflag debug_turn = {"turn"};
+
 EX int illegal_moves;
 
 EX bool keepLightning = false;
@@ -271,6 +273,9 @@ bool pcmove::vmsg(moveissue mi) {
   return errormsgs && !checkonly;
   }
 
+EX int attempts = 0;
+EX int movehints_ticks = 0;
+
 EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   checked_move_issue.type = miVALID;
   pcmove pcm;
@@ -279,6 +284,39 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   pcm.subdir = subdir;
   auto b = pcm.movepcto();
   global_pushto = pcm.mip.t;
+  if(!checkonly && !b && multi::players == 1) {
+    attempts++;
+    if(attempts == 3) {
+      attempts = 0;
+      checkmove(true);
+      movehints_ticks = ticks + 1000;
+      if(legalmoves[cwt.at->type]) {
+        if(!DEFAULTCONTROL) addMessage(XLAT("You can skip your turn."));
+#if ISMOBILE
+        else if(vid.mobilecompasssize) addMessage(XLAT("Touch the center of the compass to skip your turn."));
+#else
+        else if(vid.mobilecompasssize) addMessage(XLAT("Click the center of the compass to skip your turn."));
+#endif
+        else if(dialog::display_keys == 3) addMessage(XLAT("Press Ⓐ to skip your turn."));
+        else if(dialog::actual_display_keys()) addMessage(XLAT("Press . or s to skip your turn."));
+#if ISMOBILE
+        else if(true) addMessage(XLAT("Touch the Rogue to skip your turn."));
+#endif
+        else addMessage(XLAT("Click the Rogue to skip your turn."));
+        if(among(cwt.at->land, laPalace, laCaves, laWarpCoast, laWarpSea))
+          addMessage(XLAT("Wait about 100 turns to let the ghosts decide your fate."));
+        }
+      if(orb_used_where.size() == 1)
+        addMessage(XLAT("You can use your %1.\n", orb_used_where.begin()->first));
+      else if(orb_used_where.size() > 1) {
+        string txt;
+        for(auto x: orb_used_where) { if(txt != "") txt += ", "; txt += dnameof(x.first); }
+        addMessage(XLAT("You can use: %1.\n", txt));
+        }
+      if(orb_used_where.size()) addMessage(ranged_click_help());
+      if(bowtarget && bowtarget->cpdist >= 2) addMessage(XLAT("You have a bow target."));
+      }
+    }
   return b;
   }
 
@@ -320,7 +358,7 @@ bool pcmove::try_shooting(bool auto_target) {
     if(checkonly) return true;
     if(changes.on) changes.commit();
     addMessage(XLAT("(shooting while unstable -- no turn passes)"));
-    checkmove();
+    checkmove(false);
     return true;
     }
 
@@ -366,7 +404,7 @@ bool pcmove::movepcto() {
     flipplayer = false;
     if(multi::players > 1) multi::flipped[multi::cpid] = false;
     }
-  DEBBI(checkonly ? 0 : DF_TURN, ("movepc"));
+  DEBBI(checkonly ? 0 : debug_turn, ("movepc"));
   if(!checkonly) invismove = false;  
   boatmove = false;
   
@@ -426,7 +464,8 @@ bool pcmove::movepcto() {
       if(checkonly) { nextmovetype = lmInstant; return true; }
       if(warning_shown || orbProtection(itOrbFlash)) return true;
       activateFlash();
-      checkmove();
+      create_los();
+      checkmove(false);
       return true;
       }
 
@@ -434,7 +473,8 @@ bool pcmove::movepcto() {
       if(checkonly) { nextmovetype = lmInstant; return true; }
       if(warning_shown || orbProtection(itOrbLightning)) return true;
       activateLightning();
-      checkmove();
+      create_los();
+      checkmove(false);
       return true;
       }
           
@@ -486,7 +526,7 @@ bool pcmove::after_move() {
     achievement_gain("SEVENMINE");
     }
 
-  DEBB(DF_TURN, ("done"));
+  DEBB(debug_turn, ("done"));
   return true;
   }
 
@@ -518,7 +558,7 @@ bool pcmove::after_instant(bool kl) {
   bfs();
   keepLightning = false;
   if(multi::players > 1) { multi::whereto[multi::cpid].d = MD_UNDECIDED; return false; }
-  checkmove();
+  checkmove(false);
   return true;
   }
 
@@ -754,6 +794,7 @@ void apply_chaos() {
   }
   
 bool pcmove::actual_move() {
+  eMonster pushedMonster = moNone;
 
   origd = d;
   if(d >= 0) {
@@ -805,6 +846,7 @@ bool pcmove::actual_move() {
     if(mip.proper()) {
       auto tgt = roll_effect(mip, dice::data[c2]);
       if(tgt.happy() > 0) {
+        pushedMonster = c2->monst;
         changes.ccell(c2);
         c2->monst = moNone;
         c2->wall = waRichDie;
@@ -840,7 +882,8 @@ bool pcmove::actual_move() {
       return false;
       }
     nextmovetype = lmMove;
-    addMessage(XLAT("You push %the1.", c2->wall));
+    if(pushedMonster == moNone) addMessage(XLAT("You push %the1.", c2->wall));
+    else addMessage(XLAT("You push %the1.", pushedMonster));
     lastmovetype = lmPush; lastmove = cwt.at;
     pushThumper(mip);
     changes.push_push(mip.t);
@@ -965,6 +1008,8 @@ void pcmove::tell_why_cannot_attack() {
 bool pcmove::after_escape() {
   cell*& c2 = mi.t;
   
+  bool woods_used = orbused[itOrbWoods];
+
   bool push_behind = c2->wall == waBigStatue || (among(c2->wall, waCTree, waSmallTree, waBigTree, waShrub, waVinePlant) && !c2->monst && markOrb(itOrbWoods));
   
   if(thruVine(c2, cwt.at) && markOrb(itOrbWoods)) push_behind = true;
@@ -972,6 +1017,10 @@ bool pcmove::after_escape() {
   if(push_behind && !c2->monst && !nonAdjacentPlayer(c2, cwt.at) && fmsMove) {
     eWall what = c2->wall;
     if(!thruVine(c2, cwt.at) && !canPushStatueOn(cwt.at, P_ISPLAYER)) {
+      if(markOrb(itOrbAether)) {
+        orbused[itOrbWoods] = woods_used;
+        goto normal_aether_movement;
+        }
       if(vmsg(miRESTRICTED, siWALL, c2, moNone)) {
         if(isFire(cwt.at))
           addMessage(XLAT("You have to escape first!"));
@@ -999,6 +1048,7 @@ bool pcmove::after_escape() {
     return perform_actual_move();
     }
 
+  normal_aether_movement:
   bool attackable;
   attackable = 
     c2->wall == waBigTree ||
@@ -1091,6 +1141,9 @@ bool pcmove::move_if_okay() {
       return false;
     }
 
+  if(getOLR(c2->item, c2->land) == olrDangerous && !checkonly && warningprotection(XLAT("Collecting %the1 in %the2 can be dangerous -- are you sure?", c2->item, c2->land)))
+    return false;
+
   if(switchplace_prevent(cwt.at, c2, *this))
     return false;
   if(!checkonly && warningprotection_hit(do_we_stab_a_friend(mi, moPlayer)))
@@ -1128,7 +1181,7 @@ void pcmove::tell_why_impassable() {
     if(vmsg(miRESTRICTED, siGRAVITY, c2, moNone))
       addMessage(XLAT("Gravity does not allow this!"));
     }
-  else if(c2->wall == waChasm && c2->land == laDual) {
+  else if(c2->land == laDual && pseudohept(c2)) {
     if(vmsg(miRESTRICTED, siWALL, c2, moNone))
       addMessage(XLAT("You cannot move there!"));
     }
@@ -1266,6 +1319,20 @@ bool alchMayDuplicate(eWall w) {
   return !isDie(w) && w != waBoat && w != waArrowTrap;
 }
 
+EX bool winter_collect(cell *c2) {
+  int qty = 0;
+  if(items[itOrbWinter])
+    forCellEx(c3, c2) if(c3->wall == waIcewall && c3->item) {
+      changes.ccell(c3);
+      markOrb(itOrbWinter);
+      eItem it = c3->item;
+      if(collectItem(c3, cwt.at)) qty++;
+      if(!c3->item)
+        animate_item_throw(c3, c2, it);
+      }
+  return qty;
+  }
+
 bool pcmove::perform_actual_move() {
   cell*& c2 = mi.t;
   changes.at_commit([&] {
@@ -1321,17 +1388,8 @@ bool pcmove::perform_actual_move() {
     invismove = false;
     cwt.at->wall = waIcewall;
     }
-  
-  if(items[itOrbWinter])
-    forCellEx(c3, c2) if(c3->wall == waIcewall && c3->item) {
-      changes.ccell(c3);
-      markOrb(itOrbWinter);
-      eItem it = c3->item;
-      if(collectItem(c3, cwt.at))
-        return true;
-      if(!c3->item)
-        animate_item_throw(c3, c2, it);
-      }
+
+  if(winter_collect(c2)) return true;
   
   movecost(cwt.at, c2, 2);
 
@@ -1468,7 +1526,10 @@ EX bool warningprotection(const string& s) {
   return true;
   }
 
+EX int warn_before_killing_friends;
+
 EX bool warningprotection_hit(eMonster m) {
+  if(warn_before_killing_friends < (m == moTameBomberbird ? 1 : 2)) return false;
   if(m && warningprotection(XLAT("Are you sure you want to hit %the1?", m)))
     return true;
   return false;
@@ -1608,7 +1669,7 @@ EX void playerMoveEffects(movei mi) {
 EX void afterplayermoved() {
   pregen();
   if(!racing::on)
-  setdist(cwt.at, 7 - getDistLimit() - genrange_bonus, NULL);
+  setdist(cwt.at, 7 - getDistLimit() - genrange_bonus, cwt.peek());
   prairie::treasures();
   if(generatingEquidistant) {
     printf("Warning: generatingEquidistant set to true\n");

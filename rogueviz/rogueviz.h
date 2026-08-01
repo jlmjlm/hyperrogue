@@ -54,6 +54,7 @@ namespace rogueviz {
     double visible_from_hi;
     unsigned color, color_hi;
     string name;
+    double arrow_scale = 0;
     };
 
   edgetype *add_edgetype(const string& name);
@@ -72,16 +73,16 @@ namespace rogueviz {
     cell *orig;
     int lastdraw;
     edgetype *type;
+    int edge_id;
     edgeinfo(edgetype *t) { orig = NULL; lastdraw = -1; type = t; }
+    vector<shmup::monster*> extenders;
     };
 
   extern vector<edgeinfo*> edgeinfos;
-  void addedge0(int i, int j, edgeinfo *ei);
-  void addedge(int i, int j, edgeinfo *ei);
-  void addedge(int i, int j, double wei, bool subdiv, edgetype *t);
+  void addedge(int i, int j, double wei, edgetype *t);
   extern vector<int> legend;
   extern vector<cell*> named;
-  
+
   int readLabel(fhstream& f);
 
   #if CAP_TEXTURE
@@ -96,31 +97,48 @@ namespace rogueviz {
 
   struct colorpair {
     color_t color1, color2;
+    color_t color_border;
+    char border_type;
     char shade;
     #if CAP_TEXTURE
     shared_ptr<rvimage> img;
     #endif
-    colorpair(color_t col = 0xC0C0C0FF) { shade = 0; color1 = color2 = col; }
+    colorpair(color_t col = 0xC0C0C0FF) { shade = 0; color1 = color2 = col; color_border = 0; border_type = 0; }
+    bool operator == (const colorpair& cp) {
+      return tie(color1, color2, shade, img) == tie(cp.color1, cp.color2, cp.shade, cp.img);
+      }
+    bool operator != (const colorpair& cp) { return !(self == cp); }
     };
   
+  struct titleline {
+    string text;
+    ld x, y, size;
+    int align;
+    };
+
   struct vertexdata {
+    int id;
     vector<pair<int, edgeinfo*> > edges;
+    vector<titleline> title;
     string name;
     colorpair cp;
-    edgeinfo *virt;
     bool special;
     int data;
     vector<string> urls;
     vector<string> infos;
     color_t spillcolor;
     shmup::monster *m;
-    vertexdata() { virt = NULL; m = NULL; special = false; spillcolor = DEFAULT_COLOR; }
+    vertexdata() { m = NULL; special = false; spillcolor = DEFAULT_COLOR; }
+    void be_nowhere();
+    void be(cell *c, transmatrix at);
     };
   
   extern vector<vertexdata> vdata;
+  vertexdata& add_vertex();
+  void resize_vertices(int n);
+
+  extern int rv_quality;
  
-  void storeall(int from = 0);
-  
   extern bool showlabels;
 
   extern bool rog3;
@@ -167,7 +185,6 @@ template<class T, class U> function<void(presmode)> roguevizslide(char c, const 
   
     if(mode == 3 || mode == pmGeometry || mode == pmGeometryReset) {
       rogueviz::close();
-      shmup::clearMonsters();
       if(mode == pmGeometryReset && !(slides[currentslide].flags & QUICKGEO)) t();
       }
   
@@ -190,7 +207,6 @@ function<void(presmode)> roguevizslide_action(char c, const T& t, const U& act) 
 
     if(mode == pmStop || mode == pmGeometry || mode == pmGeometryReset) {
       rogueviz::close();
-      shmup::clearMonsters();
       if(mode == pmGeometryReset && !(slides[currentslide].flags & QUICKGEO)) t();
       }
   
@@ -247,15 +263,13 @@ function<void(presmode)> roguevizslide_action(char c, const T& t, const U& act) 
   void latex_slide(presmode mode, string s, flagtype flags = 0, int size = 100);
   void latex_in_space(const shiftmatrix& V, ld scale, string s, color_t col, flagtype flags);
   
-  inline purehookset hooks_latex_slide;
+  inline purehookset hooks_latex_slide, hooks_post_latex_slide;
 
   inline ld angle = 0;
   inline int dir = -1;
   hyperpoint p2(ld x, ld y);
 #endif
   }
-
-  void createViz(int id, cell *c, transmatrix at);
 
   extern map<string, int> labeler;
   bool id_known(const string& s);
@@ -383,9 +397,15 @@ namespace smoothcam {
   }
 
 #if RVCOL
+enum class rvlc { num, s, ms };
 void rv_achievement(const string& name);
-void rv_leaderboard(const string& name, int score);
+void rv_leaderboard(const string& name, int score, int highisgood, rvlc x);
+void rv_leaderboard(const string& name, int score, int highisgood, rvlc x, const string& data);
 #endif
 }
+
+#if RVCOL
+using rogueviz::rvlc;
+#endif
 
 #endif

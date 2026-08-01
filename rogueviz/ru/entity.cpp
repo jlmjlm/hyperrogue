@@ -2,17 +2,31 @@ namespace rogue_unlike {
 
 man m;
 
-bbox entity::get_pixel_bbox_at(xy p) {
+bbox entity::get_pixel_bbox_at(xy p, ld scalex, ld scaley) {
   bbox b;
   double d = get_scale_at(p.y);
+  ld dx = d * scalex;
+  ld dy = d * scaley;
   double man_x = siz().x;
   double man_y = siz().y;
-  b.minx = p.x - man_x * d / 2;
-  b.maxx = p.x + man_x * d / 2 + 1;
-  b.miny = p.y - man_y * d / 2;
-  b.maxy = p.y + man_y * d / 2 + 1;
+  b.minx = p.x - man_x * dx / 2;
+  b.maxx = p.x + man_x * dx / 2 + 1;
+  b.miny = p.y - man_y * dy / 2;
+  b.maxy = p.y + man_y * dy / 2 + 1;
+  if(ldebug) println(hlog, tie(man_x, man_y, d));
   return b;
   }
+
+xy entity::get_precise_bbox_at(xy p, int mx, int my, ld scalex, ld scaley) {
+  double d = get_scale_at(p.y);
+  ld dx = d * scalex;
+  ld dy = d * scaley;
+  double man_x = siz().x;
+  double man_y = siz().y;
+  return xy { p.x + mx * man_x * dx / 2, p.y + my * man_y * dy / 2 };
+  }
+
+void entity::on_fountain() { hs(fountain_resetter); }
 
 bool entity::visible(room *r) {
   auto bb = get_intersect(pixel_to_block(get_pixel_bbox()), room_bb);
@@ -102,10 +116,24 @@ void entity::apply_walls() {
     return true;
     };
 
+  auto allside = [this] (int x, int y, eWall b) {
+    if(b == wRogueWallHidden && is_disarmer()) {
+      current_room->replace_block_frev(x, y, wRogueWall);
+      if(current_room->fov[y][x])
+        addMessage("Your " + hal()->get_name() + " exposes a fake wall!");
+      }
+    };
+
   for(int x = obb.minx; x < obb.maxx; x++) for(int y = obb.maxy; y < jbb.maxy; y++) {
     eWall b = current_room->at(x, y);
+    if(walls[b].flags & W_DOWNWARD) continue;
+    allside(x, y, b);
     if(walls[b].flags & blocking) {
-      if(walls[b].flags & W_BOUNCY) { vel.y = -vel.y; on_bounce = true; goto again; }
+      if(walls[b].flags & W_BOUNCY) {
+        vel.y = -vel.y;
+        if(walls[b].flags & W_HYPERBOUNCY) vel.y *= 10;
+        apply_grav(); apply_grav(); if(vel.y > 0) vel.y = 0; on_bounce = true; goto again;
+        }
       on_floor = true;
       if(walls[b].flags & W_FROZEN) on_ice = true;
       vel.y /= 2;
@@ -131,7 +159,13 @@ void entity::apply_walls() {
 
   for(int x = obb.minx; x < obb.maxx; x++) for(int y = jbb.miny; y < obb.miny; y++) {
     eWall b = current_room->at(x, y);
+    allside(x, y, b);
     if(walls[b].flags & W_BLOCK) {
+      if(walls[b].flags & W_BOUNCY) {
+        vel.y = -vel.y;
+        if(walls[b].flags & W_HYPERBOUNCY) vel.y *= 10;
+        apply_grav(); apply_grav(); on_bounce = true; goto again;
+        }
       vel.y /= 2;
       if(abs(vel.y) < 1e-6) vel.y = 0;
       if(pixel_to_block(get_pixel_bbox_at(where + vel)).miny > y) where.y += vel.y;
@@ -153,7 +187,14 @@ void entity::apply_walls() {
 
   for(int x = obb.maxx; x < jbb.maxx; x++) for(int y = jbb.miny; y < jbb.maxy; y++) {
     eWall b = current_room->at(x, y);
+    allside(x, y, b);
+    if((walls[b].flags & W_DOWNWARD) && b == current_room->at(x-1, y)) continue;
     if(walls[b].flags & W_BLOCK) {
+      if(walls[b].flags & W_BOUNCY) {
+        vel.x = -vel.x;
+        if(walls[b].flags & W_HYPERBOUNCY) vel.x *= 10;
+        on_bounce = true; goto again;
+        }
       if(freezing()) { hit_wall(); }
       if(burning()) {
         if(b == wWoodWall) current_room->replace_block_frev(x, y, wAir);
@@ -168,7 +209,10 @@ void entity::apply_walls() {
   
   for(int x = jbb.minx; x < obb.minx; x++) for(int y = jbb.miny; y < jbb.maxy; y++) {
     eWall b = current_room->at(x, y);
+    allside(x, y, b);
+    if((walls[b].flags & W_DOWNWARD) && b == current_room->at(x+1, y)) continue;
     if(walls[b].flags & W_BLOCK) {
+      if(walls[b].flags & W_BOUNCY) { vel.x = -vel.x; on_bounce = true; goto again; }
       if(freezing()) { hit_wall(); }
       if(burning()) {
         if(b == wWoodWall) current_room->replace_block_frev(x, y, wAir);
@@ -179,6 +223,13 @@ void entity::apply_walls() {
       goto again;
       }
     if((walls[b].flags & W_PAIN) && pain_effect()) goto again;
+    }
+
+  for(int x = jbb.minx; x < jbb.maxx; x++) for(int y = obb.maxy; y < jbb.maxy; y++) {
+    eWall b = current_room->at(x, y);
+    if((walls[b].flags & W_PAIN_DOWN) && hurt_by_spikes()) {
+      reduce_hp(40); spike_message();
+      }
     }
 
   if(loopcount < 100) for(auto& e: current_room->entities) if(auto p = e->as_platform()) {
@@ -230,6 +281,43 @@ void entity::apply_walls() {
       if(reset) goto again;
       }
     }
+
+  for(int x = jbb.minx; x < jbb.maxx; x++) for(int y = jbb.miny; y < jbb.maxy; y++) {
+    eWall b = current_room->at(x, y);
+    if(walls[b].flags & W_SLOPE) {
+
+      bool left = walls[b].glyph[0] == '\\';
+
+      // in big slopes, ignore one of the corners
+      if(current_room->subwall(x, y) == (left ? 5 : 4)) continue;
+
+      auto bad = [&] (xy p) {
+        if(left)
+          return -p.x + p.y >= -block_x * x + block_y * y && p.y >= block_y * y && p.x <= block_x * (x + 1);
+        else
+          return p.x + p.y >= block_x * x + block_y * y + block_x && p.y >= block_y * y && p.x >= block_x * x;
+        };
+      auto p = get_precise_bbox_at(where + vel, left ? -1 : 1, 1);
+
+      if(loopcount > 200) {
+        println(hlog, "[slope loop error]");
+        continue;
+        }
+
+      if(bad(p)) {
+        ld target_vy;
+        target_vy = left ? vel.x : -vel.x;
+        if(target_vy > 0) target_vy *= .9;
+        if(vel.y > target_vy - 1e-6) vel.y = target_vy;
+        else if(vel.y > target_vy + 1e-6) vel.y = (vel.y + target_vy) / 2;
+        on_floor = true;
+        if(walls[b].flags & W_STABLE) is_stable = true;
+        goto again;
+        }
+      }
+    }
+
+  // println(hlog, format("%.20lf %.20lf %.20lf %.20lf L%d -> %.20lf %.20lf", where.x, where.y, vel.x, vel.y, loopcount, (where+vel).x, (where+vel).y));
   }
 
 bool entity::stay_on_screen() {
@@ -239,6 +327,13 @@ bool entity::stay_on_screen() {
   if(where.y < t_margin_at && vel.y < 0) vel.y = -vel.y, res = true;
   if(where.y > b_margin_at && vel.y > 0) vel.y = -vel.y, res = true;
   return res;
+  }
+
+void entity::kill_off_screen() {
+  if(where.x < l_margin_at && vel.x < 0) existing = false;
+  if(where.x > r_margin_at && vel.x > 0) existing = false;
+  if(where.y < t_margin_at && vel.y < 0) existing = false;
+  if(where.y > b_margin_at && vel.y > 0) existing = false;
   }
 
 void entity::kino() {
@@ -273,7 +368,7 @@ void missile::act() {
     if(freezing() && e->as_missile() && e->burning()) { destroyed = true; e->destroyed = true; }
     hit_list.insert(&*e);
     e->invinc_end = 0;
-    e->attacked(power);
+    e->attacked(power, burning() ? fire_power : freezing() ? ice_power : nullptr);
     }
   }
 
@@ -293,6 +388,20 @@ void npc_or_trader::act() {
     }
   }
 
+void mapswitch::act() {
+  if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
+    bool didsomething = false;
+    for(auto& ev: events) {
+      for(int y=ev.box.miny; y<ev.box.maxy; y++)
+      for(int x=ev.box.minx; x<ev.box.maxx; x++) {
+        int b = current_room->at(x, y);
+        if(b != ev.wall) { didsomething = true; current_room->replace_block_death(x, y, ev.wall); }
+        }
+      }
+    if(didsomething) addMessage(text);
+    }
+  }
+
 extern int gold_id;
 
 string shopitem::glyph() { if(bought) return powers[gold_id].get_glyph(); else return item::glyph(); }
@@ -309,6 +418,16 @@ void timed_orb::act() {
     }
   if(intersect(get_pixel_bbox(), m.get_pixel_bbox()))
     current_room->timed_orb_end = gframeid + duration;
+  }
+
+void dark_orb::preact() {
+  for(int y=box.miny; y<box.maxy; y++)
+  for(int x=box.minx; x<box.maxx; x++)
+    current_room->unreveal(x, y);
+  if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
+    addMessage("You shatter the orb of darkness!");
+    existing = false;
+    }
   }
 
 void trader::act() {
@@ -332,7 +451,7 @@ void boar::act() {
   kino();
   if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
     int s = where.x < m.where.x ? -1 : 1;
-    if(m.reduce_hp(15)) addMessage("The wild boar gores you!");
+    if(m.reduce_hp(15)) addMessage("The " + hal()->get_name() + " gores you!");
     auto dat = get_dat();
     auto mdat = m.get_dat();
     if(m.on_floor) m.vel.x = mdat.d * mdat.modv * -s * 1.5, m.vel.y = -mdat.d * mdat.modv * 2;
@@ -349,15 +468,15 @@ void boar::act() {
     }
   }
 
-void enemy::attacked(int dmg) {
+void enemy::attacked(int dmg, power *p) {
   current_target = this;
   if(reduce_hp(dmg)) {
-    if(!existing) addMessage("You kill the " + get_name() + "."); else addMessage("You hit the " + get_name() + ".");
+    if(!existing) addMessage("You kill the " + hal()->get_name() + "."); else addMessage("You hit the " + hal()->get_name() + ".");
     }
   }
 
-void boar::attacked(int dmg) {
-  enemy::attacked(dmg);
+void boar::attacked(int dmg, power *p) {
+  enemy::attacked(dmg, p);
   auto dat = get_dat();
   int s = where.x < m.where.x ? -1 : 1;
   if(on_floor) vel.x = dat.d * dat.modv * s * 2, vel.y = -dat.d * dat.modv * 2.5;
@@ -410,14 +529,15 @@ void frog::act() {
     }
   }
 
-void frog::attacked(int dmg) {
-  enemy::attacked(dmg);
+void frog::attacked(int dmg, power *p) {
+  enemy::attacked(dmg, p);
   auto dat = get_dat();
   int s = where.x < m.where.x ? -1 : 1;
   if(on_floor) vel.x = dat.d * dat.modv * s * 2, vel.y = -dat.d * dat.modv * 2.5;
   }
 
 void ghost::act() {
+  if(gframeid >= invinc_end && extra_invinc) gframeid += extra_invinc, extra_invinc = 0;
   hyperpoint g = to_hyper(where);
   hyperpoint h = to_hyper(m.where);
   ld d = hdist(g, h);
@@ -430,27 +550,72 @@ void ghost::act() {
   apply_vel();
   if(intersect(get_pixel_bbox(), m.get_pixel_bbox()) && gframeid > invinc_end) {
     invinc_end = gframeid + 200;
-    if(m.reduce_hp(20)) addMessage("The ghost passes through you!");
+    if(m.reduce_hp(20)) addMessage("The " + hal()->get_name() + " passes through you!");
     }
   }
 
 void snake::act() {
   stay_on_screen();
   kino();
-  if(abs(vel.x) < 1e-6) {
+  if(on_floor) {
     auto dat = get_dat();
+    if(abs(vel.x) < 1e-6) {
+      dir = -dir;
+      }
     vel.x = zero_vel.x + dat.d * dat.modv * dir;
-    dir = -dir;
     }
-  if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
-    if(m.reduce_hp(25)) addMessage("The snake bites you!");
+  if(intersect(get_pixel_bbox(), m.get_pixel_bbox()) && gframeid > invinc_end) {
+    if(m.reduce_hp(bite())) addMessage("The " + hal()->get_name() + " bites you!");
     }
   }
 
-void snake::attacked(int dmg) {
-  enemy::attacked(dmg);
+void snake::attacked(int dmg, power *p) {
+  enemy::attacked(dmg, p);
+  dir *= -1;
   if(where.x < m.where.x) vel.x = -abs(vel.x);
   if(where.x > m.where.x) vel.x = +abs(vel.x);
+  }
+
+void naga_warrior::act() {
+  stay_on_screen();
+  kino();
+  if(on_floor) {
+    auto dat = get_dat();
+    if(abs(vel.x) < 1e-6) {
+      dir = -dir;
+      }
+    vel.x = zero_vel.x + dat.d * dat.modv * dir;
+    }
+  if(gmod(gframeid, 100) == 0) {
+    bbox b = get_pixel_bbox_at(xy{where.x + dir * dsiz().x, where.y});
+    if(intersect(b, m.get_pixel_bbox()) && gframeid > invinc_end) {
+      if(m.reduce_hp(chop())) addMessage("The " + hal()->get_name() + " chops you!");
+      }
+    }
+  if(intersect(get_pixel_bbox(), m.get_pixel_bbox()) && gframeid > invinc_end) {
+    if(m.reduce_hp(bite())) addMessage("The " + hal()->get_name() + " bites you!");
+    }
+  }
+
+void naga_warrior::draw() {
+  entity::draw();
+
+  int t = gmod(gframeid, 100);
+  if(t <= 50) {
+    bbox b = get_pixel_bbox_at(xy{where.x + dir * (1-0.01 * t) * dsiz().x, where.y});
+    auto col = 0xFFFFFFFF;
+    auto& alpha = part(col, 0);
+    alpha = max<int> (0, alpha - 5 * t);
+    asciiletter(
+      b.minx, b.miny,
+      b.maxx, b.maxy,
+      dir == -1 ? "(" : ")", col
+      );
+    }
+  }
+
+void naga_warrior::attacked(int dmg, power *p) {
+  enemy::attacked(dmg, p); // do not reverse on being attacked!
   }
 
 void hint::act() {
@@ -462,29 +627,98 @@ void hint::act() {
   state = cur;
   }
 
+void avoid::act() {
+  bool cur = intersect(get_pixel_bbox(), m.get_pixel_bbox());
+  if(gframeid < 300) cur = 0;
+  if(whom && cur && !state && !whom->avoided && whom->existing && !done) {
+    whom->avoided = true; done = true; whom->score();
+    addMessage(parse_markup(hint_text));
+    }
+  state = cur;
+  }
+
 xy ferris_platform::location_at(ld t) {
-  return from_hyper(rgpushxto0(to_hyper(ctr)) * xspinpush0(t / game_fps + shift, radius));
+  return from_hyper(rgpushxto0(to_hyper(ctr)) * xspinpush0(t / game_fps / period * TAU + shift, radius));
   }
 
 xy rope_platform::location_at(ld t) {
   return from_hyper(eupush(to_hyper(ctr)) * xspinpush0(sin(t / game_fps / period * TAU + shift) * max_swing, dist));
   }
 
+void rope_platform::draw() {
+  if(cmode == mode::editmap) {
+    for(int a=-50; a<=50; a++) {
+      auto h = from_hyper(eupush(to_hyper(ctr)) * xspinpush0(a/50. * max_swing, dist));
+      curvepoint(eupush(h.x, h.y) * C0);
+      }
+    color_t col = color_t(dist * 0x41268517) | 0xFF;
+    queuecurve(scrm, col, 0, PPR::LINE);
+    }
+
+  moving_platform::draw();
+  }
+
 xy pendulum_platform::location_at(ld t) {
   auto h1 = to_hyper(a);
   auto h2 = to_hyper(b);
   auto d = hdist(h1, h2);
-  auto x = (1 - cos(t / game_fps * TAU / period)) / 2 * d;
+  auto x = (1 - cos(shift + t / game_fps * TAU / period)) / 2 * d;
   return from_hyper(rgpushxto0(h1) * rspintox(gpushxto0(h1) * h2) * xpush0(x));
+  }
+
+xy horoplatform::location_at(ld t) {
+  ld tp = t / game_fps / period - shift;
+  tp = tp - floor(tp);
+  tp = min(2*tp, 2-2*tp);
+  return xy(lerp(a.x, b.x, tp), lerp(a.y, b.y, tp));
+  }
+
+xy cycloid_platform::location_at(ld t) {
+  auto b =base->location_at(t);
+  auto h1 = to_hyper(b);
+  auto ph = t / game_fps / period + shift;
+  auto h2 = rgpushxto0(h1) * xspinpush0(ph * TAU, radius);
+  auto p = from_hyper(h2);
+  return p;
+  }
+
+xy ellipse_platform::location_at(ld t) {
+  if(points.empty()) {
+    auto h1 = to_hyper(a);
+    auto h2 = to_hyper(b);
+    auto m = mid(h1, h2);
+    ld wanted = hdist(h1, h2) * ratio;
+    for(int it=0; it<360; it++) {
+      auto p = [&] (ld x) { return rgpushxto0(m) * spin(it*1._deg) * xpush0(x); };
+      ld x = binsearch(0, 5, [&] (ld x) { auto px = p(x); return hdist(h1, px) + hdist(h2, px) >= wanted; });
+      points.push_back(p(x));
+      }
+    int N = isize(points);
+    points.push_back(points[0]);
+    ld ls = 0;
+    for(int i=0; i<N; i++) {
+      lengthsum.push_back(ls);
+      ls += hdist(points[i], points[i+1]);
+      }
+    lengthsum.push_back(ls);
+    }
+  ld our_t = (t + shift * game_fps) / (period * game_fps);
+  our_t -= floor(our_t);
+  our_t *= lengthsum.back();
+  auto it = lower_bound(lengthsum.begin(), lengthsum.end(), our_t);
+  auto index = it - lengthsum.begin();
+  auto& h1 = points[index-1];
+  auto& h2 = points[index];
+  return from_hyper(rgpushxto0(h1) * rspintox(gpushxto0(h1) * h2) * xpush0(our_t - lengthsum[index-1]));
   }
 
 void moving_platform::draw() {
   double d = get_scale();
   auto wi = width();
   for(int w=0; w<wi; w++) {
-    ld minx = where.x + siz().x * d * (w - 0.5) / wi;
+    ld minx = where.x + siz().x * d * (((w+0.) / wi ) - 0.5);
     ld miny = where.y - siz().y * d / 2;
-    ld maxx = where.x + siz().x * d * (w + 0.5) / wi;
+    ld maxx = where.x + siz().x * d * (((w+1.) / wi) - 0.5);
     ld maxy = where.y + siz().y * d / 2;
     asciiletter(minx, miny, maxx, maxy, glyph(), color());
     }
@@ -492,6 +726,48 @@ void moving_platform::draw() {
 
 void moving_platform::act() {
   where = location_at(gframeid);
+  }
+
+void saw::act() {
+  where = base->location_at(gframeid);
+  auto bb = get_pixel_bbox();
+  if(intersect(bb, m.get_pixel_bbox())) {
+    if(m.reduce_hp(40)) addMessage("The " + get_name() + " shreds you!");
+    }
+  }
+
+void weaksaw::attacked(int s, power *p) {
+  if(p->flags & WEAPON_AXE) {
+    addMessage("You smash the " + get_name() + "!");
+    existing = false;
+    }
+  }
+
+void woodsaw::attacked(int s, power *p) {
+  if(p == fire_power) {
+    addMessage("You incinerate the " + get_name() + "!");
+    existing = false;
+    }
+  }
+
+void fakesaw::act() {
+  where = base->location_at(gframeid);
+  auto bb = get_pixel_bbox();
+  if(intersect(bb, m.get_pixel_bbox())) {
+    addMessage("This " + get_name() + " turned out to be an illusion!");
+    existing = false;
+    }
+  if(m.can_see(self)) {
+    addMessage("You realize that the " + get_name() + " is an illusion!");
+    existing = false;
+    }
+  }
+
+void fakesaw::attacked(int s, power *p) {
+  if(p == thief_power) {
+    addMessage("Your attack goes right through the " + get_name() + "!");
+    existing = false;
+    }
   }
 
 void entity::apply_walls_reflect() {
@@ -542,14 +818,27 @@ void kestrel::act() {
   apply_vel();
 
   if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
-    if(m.reduce_hp(15)) addMessage("The kestrel claws you!");
+    if(m.reduce_hp(chop())) addMessage("The " + hal()->get_name() + " claws you!");
+    }
+  }
+
+void healthbubble::act() {
+  stay_on_screen();
+  apply_walls_reflect();
+  apply_vel();
+
+  if(intersect(get_pixel_bbox(), m.get_pixel_bbox()) && gframeid >= invinc_end) {
+    addMessage("The " + hal()->get_name() + " heals you!");
+    m.hp += power;
+    existing = false;
+    if(m.hp > m.max_hp()) m.hp = m.max_hp();
     }
   }
 
 void gridbug::act() {
 
   if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
-    if(m.reduce_hp(15)) addMessage("The grid bug zaps you!");
+    if(m.reduce_hp(15)) addMessage("The " + hal()->get_name() + " zaps you!");
     }
 
   if(gframeid < next_move || !visible(current_room) || gframeid < invinc_end) return;
@@ -625,8 +914,80 @@ void bat::act() {
   apply_vel();
 
   if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
-    if(m.reduce_hp(15)) addMessage("The bat bites you!");
+    if(m.reduce_hp(15)) addMessage("The " + hal()->get_name() + " bites you!");
     }
+  }
+
+void guineapig::act() {
+
+  if(falling) {
+    stay_on_screen();
+    kino();
+    if(on_floor) { ca = 0; falling = false; }
+    return;
+    }
+
+  auto nonblocked = [this] (int angle, int mul) {
+    auto w1 = from_hyper(eupush(to_hyper(where)) * xspinpush0(angle * 45._deg * spindir, pigvel * mul));
+
+    auto obb = pixel_to_block(get_pixel_bbox());
+    auto nbb = pixel_to_block(get_pixel_bbox_at(w1));
+    auto jbb = join(obb, nbb);
+
+    flagtype blocking = (W_BLOCK | W_BLOCKBIRD);
+
+    bool ok = true;
+
+    if(w1.x < 0 || w1.x > screen_x || w1.y < 0 || w1.y > screen_y) ok = false;
+
+    for(int x = obb.minx; x < obb.maxx; x++) for(int y = obb.maxy; y < jbb.maxy; y++) {
+      eWall b = current_room->at(x, y);
+      if(walls[b].flags & blocking) ok = false;
+      }
+
+    for(int x = obb.minx; x < obb.maxx; x++) for(int y = jbb.miny; y < obb.miny; y++) {
+      eWall b = current_room->at(x, y);
+      if(walls[b].flags & blocking) ok = false;
+      }
+
+    for(int x = nbb.minx; x < nbb.maxx; x++) for(int y = jbb.miny; y < jbb.maxy; y++) {
+      eWall b = current_room->at(x, y);
+      if(walls[b].flags & blocking) ok = false;
+      }
+
+    for(int x = obb.maxx; x < jbb.maxx; x++) for(int y = jbb.miny; y < jbb.maxy; y++) {
+      eWall b = current_room->at(x, y);
+      if(walls[b].flags & blocking) ok = false;
+      }
+
+    return pair(w1, ok);
+    };
+
+  for(int s: {1, 2, 3}) {
+    for(int i=0; i<8; i++) {
+      if(!nonblocked(ca+i-3, s).second) {
+        for(int j=i+1; j<i+8; j++) {
+          if(nonblocked(ca+j-3, s).second) {
+            where = nonblocked(ca = gmod(ca+j-3, 8), s).first;
+            if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
+              if(m.reduce_hp(15)) {
+                addMessage("The " + hal()->get_name() + " bites you!");
+                spindir *= -1;
+                }
+              }
+            return;
+            }
+          }
+        }
+      }
+    }
+
+  falling = true; vel = xy(0, 0);
+  }
+
+void guineapig::attacked(int dmg, power *p) {
+  enemy::attacked(dmg, p);
+  spindir *= -1;
   }
 
 void vtrap::act() {
@@ -640,32 +1001,203 @@ void vtrap::act() {
   apply_vel();
 
   if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
-    if(m.reduce_hp(200)) addMessage("The trap zaps you!");
+    if(m.reduce_hp(200)) addMessage("The " + hal()->get_name() + " zaps you!");
     }
   }
 
-void kestrel::attacked(int dmg) {
-  enemy::attacked(dmg);
+void kestrel::attacked(int dmg, power *p) {
+  enemy::attacked(dmg, p);
   if(where.x < m.where.x) vel.x = -abs(vel.x);
   if(where.x > m.where.x) vel.x = +abs(vel.x);
   }
 
-void bat::attacked(int dmg) {
-  enemy::attacked(dmg);
+void bat::attacked(int dmg, power *p) {
+  enemy::attacked(dmg, p);
   if(where.x < m.where.x) vel.x = -abs(vel.x);
   if(where.x > m.where.x) vel.x = +abs(vel.x);
   if(where.y < m.where.y) vel.y = -abs(vel.y);
   if(where.y > m.where.y) vel.y = +abs(vel.y);
   }
 
-vector<cat_color> cat_colors = {
-  cat_color{"red", 0xC04040FF},
-  cat_color{"black", 0x505060FF},
-  cat_color{"white", 0xF0F0F0FF}
-  };
-
 cat::cat() {
   col = hrand_elt(cat_colors);
   }
+
+void disnake::act() {
+  snake::act();
+  kill_off_screen();
+  for(auto& e: current_room->entities)
+    if(e->hidden() && e->existing && intersect(e->get_pixel_bbox(), get_pixel_bbox())) {
+      addMessage("Your hear a sound of the " + e->hal()->get_name() + " colliding with the " + hal()->get_name() + ".");
+      e->existing = false;
+      destroyed = true;
+      }
+  }
+
+void icicle::act() {
+  fallthru = true;
+  if(fallframes.empty()) {
+    while(isize(fallframes) < 9999) {
+      fallframes.push_back(where);
+      kino();
+      if(on_floor) break;
+      }
+    where = respawn;
+    }
+  if(state == 0) {
+    auto w = m.where;
+    for(auto f: fallframes) {
+      if(intersect(get_pixel_bbox_at(f), m.get_pixel_bbox_at(w))) state = 1;
+      w += m.vel;
+      }
+    }
+  if(state == 1) {
+    kino();
+    if(on_floor && vel.y > 0) existing = false;
+    if(vel.y < 0) state = 2;
+    }
+  if(state == 2) {
+    kino();
+    if(vel.y >= 0) state = 0;
+    }
+  if(state != 0) {
+    if(intersect(get_pixel_bbox(), m.get_pixel_bbox())) {
+      if(m.reduce_hp(50)) addMessage("The " + hal()->get_name() + " falls on you!");
+      }
+    }
+  }
+
+void guard_event::act() {
+  if(monster == nullptr) {
+    if(!entity_by_id.count(monster_name)) {
+      println(hlog, "Guard event not connected correctly: ", monster_name);
+      existing = false;
+      return;
+      }
+    monster = entity_by_id[monster_name];
+    println(hlog, "guard event connected");
+    }
+  if(item->existing && monster->existing) {
+    active = true;
+    monster->existing = false;
+    println(hlog, "guard event activated");
+    }
+  if(active && !item->existing && !monster->existing) {
+    monster->existing = true;
+    monster->invinc_end = max(monster->invinc_end, gframeid + 100);
+    active = false;
+    println(hlog, "guard event deactivated");
+    }
+  }
+
+void rollingsaw::act() {
+  stay_on_screen();
+  kino();
+  if(on_floor) {
+    auto dat = get_dat();
+    if(abs(vel.x) < 1e-6) {
+      dir = -dir;
+      }
+    vel.x = zero_vel.x + dat.d * dat.modv * dir;
+    }
+  if(intersect(get_pixel_bbox(), m.get_pixel_bbox()) && gframeid > invinc_end) {
+    if(m.reduce_hp(60)) addMessage("The " + hal()->get_name() + " shreds you!");
+    }
+  }
+
+void reflector::draw() {
+  hyperpoint h1 = to_hyper(pos1);
+  hyperpoint h2 = to_hyper(pos2);
+  for(int i=0; i<=100; i++) {
+    hyperpoint h = lerp(h1, h2, i/100.);
+    auto p = from_hyper(h);
+    curvepoint(eupush(p.x, p.y) * C0);
+    }
+  queuecurve(scrm, 0xFF0000FF, 0, PPR::LINE);
+  }
+
+void reflector::act() {
+  auto x1 = to_hyper(pos1);
+  auto x2 = to_hyper(pos2);
+  transmatrix T = gpushxto0(x1);
+  x2 = T * x2;
+  transmatrix T1 = spintox(x2);
+  T = T1 * T;
+  x2 = T1 * x2;
+  for(auto& e: current_room->entities) if(e->existing && e->get_name() != "REFLECTOR") {
+    hyperpoint h_at = T * to_hyper(e->where);
+    hyperpoint h_was = T * to_hyper(e->where - e->vel);
+    if(h_at[0] >= 0 && h_at[0] < x2[0])
+    if(h_was[0] >= 0 && h_was[0] < x2[0])
+    if(h_was[1] > 0 && h_at[1] <= 0) {
+      h_was[1] *= -1;
+      h_at[1] *= -1;
+      e->where = from_hyper(iso_inverse(T) * h_at);
+      e->vel = e->where - from_hyper(iso_inverse(T) * h_was);
+      }
+    }
+  }
+
+void trader::attacked(int dmg, power *p) {
+  addMessage(hal()->get_name() + " laughs at your attack!");
+  }
+
+void fight_trader::attacked(int dmg, power *p) {
+  if(p->flags & WEAPON_AXE) {
+    angered = true;
+    current_target = this;
+    if(reduce_hp(dmg)) {
+      if(!existing) addMessage("You kill the " + hal()->get_name() + "."); else addMessage("You hit the " + hal()->get_name() + ".");
+      if(!existing) {
+        walls[wShopDoor].glyph = '\'';
+        walls[wShopDoor].flags = W_TRANS;
+        }
+      }
+    if(where.x < m.where.x) vel.x = -abs(vel.x);
+    if(where.x > m.where.x) vel.x = +abs(vel.x);
+    }
+  else trader::attacked(dmg, p);
+  }
+
+void fight_trader::act() {
+  if(!angered) { trader::act(); return; }
+  if(stay_on_screen()) dir = -dir;
+  kino();
+  if(on_floor) {
+    auto dat = get_dat();
+    if(abs(vel.x) < 1e-6) {
+      dir = -dir;
+      }
+    vel.x = zero_vel.x + dat.d * dat.modv * dir;
+    }
+  if(gmod(gframeid, 100) == 0) {
+    bbox b = get_pixel_bbox_at(xy{where.x + dir * dsiz().x, where.y});
+    if(intersect(b, m.get_pixel_bbox()) && gframeid > invinc_end) {
+      if(m.reduce_hp(30)) addMessage("The " + hal()->get_name() + " chops you!");
+      }
+    }
+  if(intersect(get_pixel_bbox(), m.get_pixel_bbox()) && gframeid > invinc_end) {
+    if(m.reduce_hp(20)) addMessage("The " + hal()->get_name() + " slaps you!");
+    }
+  }
+
+void fight_trader::draw() {
+  entity::draw();
+  if(!angered) return;
+
+  int t = gmod(gframeid, 100);
+  if(t <= 50) {
+    bbox b = get_pixel_bbox_at(xy{where.x + dir * (1-0.01 * t) * dsiz().x, where.y});
+    auto col = 0xFFFFFFFF;
+    auto& alpha = part(col, 0);
+    alpha = max<int> (0, alpha - 5 * t);
+    asciiletter(
+      b.minx, b.miny,
+      b.maxx, b.maxy,
+      dir == -1 ? "(" : ")", col
+      );
+    }
+  }
+
 
 }

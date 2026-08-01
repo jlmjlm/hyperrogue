@@ -38,6 +38,7 @@ EX namespace multi {
   EX bool friendly_fire = true;
   EX bool self_hits;
   EX bool two_focus;
+  EX bool multi_autojoy = true;
 
   EX int players = 1;
   EX cellwalker player[MAXPLAYER];
@@ -70,6 +71,7 @@ EX namespace multi {
   EX shiftmatrix crosscenter[MAXPLAYER];
   EX double ccdist[MAXPLAYER];
   EX cell *ccat[MAXPLAYER];
+  EX bool accepted[MAXPLAYER], after_accepted[MAXPLAYER];
   
   bool combo[MAXPLAYER];
 
@@ -102,7 +104,7 @@ EX namespace multi {
   vector<string> playercmds_turn = {
     "move up-right", "move up-left", "move down-right", "move down-left", 
     "move up", "move right", "move down", "move left", 
-    "stay in place (left + right)", "cancel move", "leave the game", 
+    "accept (left + right to stay in place)", "cancel move", "leave the game",
     "drop Dead Orb (up + down)", "center the map on me", "",
     ""
     };
@@ -183,6 +185,14 @@ EX int centerplayer = -1;
 int* axeconfigs[24]; int numaxeconfigs;
 int* dzconfigs[24];
 
+vector<string> controller_button_names = {
+  "Ⓐ", "Ⓑ", "Ⓧ", "Ⓨ",
+  "(back)", "(guide)", "(start)", "(left stick)", "(right stick)",
+  "(left shoulder)", "(right shoulder)",
+  "(up)", "(down)", "(left)", "(right)",
+  "(misc)", "(p1)", "(p2)", "(p3)", "(p4)", "(touchpad)"
+  };
+
 string listkeys(config& scfg, int id) {
 #if CAP_SDL
   string lk = "";
@@ -194,15 +204,22 @@ string listkeys(config& scfg, int id) {
       lk = lk + " " + SDL_GetKeyName(SDLKey(i));
       #endif
 #if CAP_SDLJOY
-  for(int i=0; i<numsticks; i++) for(int k=0; k<SDL_GetNumJoystickButtons(sticks[i]) && k<MAXBUTTON; k++)
-    if(scfg.joyaction[i][k] == id) {
-      lk = lk + " " + cts('A'+i)+"-B"+its(k);
-      }
-  for(int i=0; i<numsticks; i++) for(int k=0; k<SDL_GetNumJoystickHats(sticks[i]) && k<MAXHAT; k++)
-    for(int d=0; d<4; d++)
-      if(scfg.hataction[i][k][d] == id) {
-        lk = lk + " " + cts('A'+i)+"-"+"URDL"[d];
+  for(int i=0; i<isize(sticks); i++) {
+    auto& s = sticks[i];
+    for(int k=0; k<gjoy_buttons(s) && k<MAXBUTTON; k++)
+      if(scfg.joyaction[i][k] == id) {
+        #if SDLVER >= 2
+        if(s.gc) lk = lk + " " + cts('A'+i) + "-" + controller_button_names[k];
+        else
+        #endif
+        lk = lk + " " + cts('A'+i)+"-B"+its(k);
         }
+    for(int k=0; k<gjoy_hats(s) && k<MAXHAT; k++)
+      for(int d=0; d<4; d++)
+        if(scfg.hataction[i][k][d] == id) {
+          lk = lk + " " + cts('A'+i)+"-"+"URDL"[d];
+          }
+    }
 #endif
   return lk;
 #else
@@ -293,7 +310,19 @@ struct key_configurer {
 
 #if CAP_SDLJOY    
     joyhandler = [this] (SDL_Event& ev) { 
+      #if SDLVER >= 2
+      if(ev.type == SDL_CONTROLLERBUTTONDOWN && setwhat) {
+        int joyid = gjoy_myid(ev.cbutton.which);
+        int button = ev.cbutton.button;
+        if(joyid < 8 && button < 32)
+           which_config->joyaction[joyid][button] = setwhat;
+        setwhat = 0;
+        return true;
+        }
+      #endif
+
       if(ev.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN && setwhat) {
+        if(gjoy_is_controller(ev.jaxis.which)) return false;
         int joyid = ev.jbutton.which;
         int button = ev.jbutton.button;
         if(joyid < 8 && button < 32)
@@ -303,6 +332,7 @@ struct key_configurer {
         }
   
       else if(ev.type == SDL_EVENT_JOYSTICK_HAT_MOTION && setwhat) {
+        if(gjoy_is_controller(ev.jaxis.which)) return false;
         int joyid = ev.jhat.which;
         int hat = ev.jhat.hat;
         int dir = 4;
@@ -356,9 +386,10 @@ struct joy_configurer {
     dialog::init();
     getcstat = ' ';
     numaxeconfigs = 0;
-    for(int j=0; j<numsticks; j++) {
-      for(int ax=0; ax<SDL_GetNumJoystickAxes(sticks[j]) && ax < MAXAXE; ax++) if(numaxeconfigs<24) {
-        int y = SDL_GetJoystickAxis(sticks[j], ax);
+    int j = 0;
+    for(auto& s: sticks) {
+      for(int ax=0; ax<gjoy_axes(s) && ax < MAXAXE; ax++) if(numaxeconfigs<24) {
+        int y = gjoy_axis(s, ax);
         string buf = " ";
         if(configdead)
           buf += its(y);
@@ -378,6 +409,7 @@ struct joy_configurer {
           what, 'a'+numaxeconfigs);
         numaxeconfigs++;
         }
+      j++;
       }
     
     dialog::addBoolItem(XLAT("Configure dead zones"), (configdead), 'z');
@@ -414,7 +446,7 @@ struct shmup_configurer {
 
   void operator()() {
   #if CAP_SDL
-    cmode = sm::SHMUPCONFIG | sm::SIDE | sm::DARKEN;
+    cmode = sm::SHMUPCONFIG | sm::SIDE | sm::MAYDARK;
     gamescreen();
     dialog::init(XLAT("keyboard & joysticks"));
     auto& cmdlist = shmup::on ? (WDIM == 3 ? playercmds_shmup3 : playercmds_shmup) : playercmds_turn;
@@ -495,7 +527,7 @@ struct shmup_configurer {
     else dialog::addBreak(100);
   
   #if CAP_SDLJOY
-    if(numsticks > 0) {
+    if(sticks.size()) {
       if(shmup::on || multi::alwaysuse || players > 1)  {
         dialog::addItem(XLAT("configure joystick axes"), 'x');
         dialog::add_action_push(joy_configurer(players, scfg_default));
@@ -506,9 +538,9 @@ struct shmup_configurer {
   
     add_edit(joy_init);
 
+    if(haveconfig && !shmup::on) add_edit(multi::multi_autojoy);
+
     dialog::addBreak(50);
-  
-    dialog::addHelp();
   
     dialog::addBack();
     dialog::display();
@@ -622,10 +654,18 @@ EX int key_to_scan(int sym) {
   }
 
 EX bool notremapped(int sym) {
+  int k;
   auto& scfg = scfg_default;
-  int sc = key_to_scan(sym);
-  if(sc < 0 || sc >= SCANCODES) return true;
-  int k = scfg.keyaction[sc];
+  if(is_joy_any(sym)) {
+    int joystick_id = gmod(gmod(sym, PSEUDOKEY_JOY) / JOY_ID, MAXJOY);
+    int button_id = gmod(gmod(sym, JOY_ID), MAXBUTTON);
+    k = scfg.joyaction[joystick_id][button_id];
+    }
+  else {
+    int sc = key_to_scan(sym);
+    if(sc < 0 || sc >= SCANCODES) return true;
+    k = scfg.keyaction[sc];
+    }
   if(k == 0) return true;
   k /= 16;
   if(k > 3) k--; else if(k==3) k = 0;
@@ -643,7 +683,7 @@ EX void sconfig_savers(config& scfg, string prefix) {
       param_i(scfg.joyaction[i][j], pre+"-B"+its(j));
     for(int j=0; j<MAXAXE; j++) {
       param_i(scfg.axeaction[i][j], pre+" axis "+its(j));
-      param_i(scfg.deadzoneval[i][j], pre+" deadzone "+its(j));
+      param_i(scfg.deadzoneval[i][j], pre+" deadzone "+its(j), 2000);
       }
     for(int j=0; j<MAXHAT; j++) for(int k=0; k<4; k++) {
       param_i(scfg.hataction[i][j][k], pre+" hat "+its(j)+" "+"URDL"[k]);
@@ -761,8 +801,8 @@ EX void initConfig() {
 
   scfg.axeaction[0][0] = 4;
   scfg.axeaction[0][1] = 5;
-  scfg.axeaction[0][3] = 2;
-  scfg.axeaction[0][4] = 3;
+  scfg.axeaction[0][2] = 2;
+  scfg.axeaction[0][3] = 3;
 
   scfg.axeaction[1][0] = 8;
   scfg.axeaction[1][1] = 9;
@@ -820,6 +860,8 @@ EX void initConfig() {
   param_b(multi::two_focus, "two_focus", false)
     ->editable("auto-adjust dual-focus projections", 'f');
   param_b(alwaysuse, "use configured keys");
+  param_b(multi::multi_autojoy, "multi_autojoy")
+    ->editable("auto-accept moves", 'j');
 
   for(int i=0; i<7; i++) paramset(multi::scs[i], "player"+its(i));
 
@@ -840,27 +882,30 @@ EX void get_actions(config& scfg) {
     pressaction(scfg.keyaction[i]);
 
 #if CAP_SDLJOY  
-  for(int j=0; j<numsticks; j++) {
+  int j = 0;
+  for(auto& s: sticks) {
 
-    for(int b=0; b<SDL_GetNumJoystickButtons(sticks[j]) && b<MAXBUTTON; b++)
-      if(SDL_GetJoystickButton(sticks[j], b))
+    for(int b=0; b<gjoy_buttons(s) && b<MAXBUTTON; b++)
+      if(gjoy_button(s, b))
         pressaction(scfg.joyaction[j][b]);
 
-    for(int b=0; b<SDL_GetNumJoystickHats(sticks[j]) && b<MAXHAT; b++) {
-      int stat = SDL_GetJoystickHat(sticks[j], b);
+    for(int b=0; b<gjoy_hats(s) && b<MAXHAT; b++) {
+      int stat = SDL_GetJoystickHat(s.joy, b);
       if(stat & SDL_HAT_UP) pressaction(scfg.hataction[j][b][0]);
       if(stat & SDL_HAT_RIGHT) pressaction(scfg.hataction[j][b][1]);
       if(stat & SDL_HAT_DOWN) pressaction(scfg.hataction[j][b][2]);
       if(stat & SDL_HAT_LEFT) pressaction(scfg.hataction[j][b][3]);
       }
     
-    for(int b=0; b<SDL_GetNumJoystickAxes(sticks[j]) && b<MAXAXE; b++) {
-      int value = SDL_GetJoystickAxis(sticks[j], b);
+    for(int b=0; b<gjoy_axes(s) && b<MAXAXE; b++) {
+      int value = gjoy_axis(s, b);
       int dz = scfg.deadzoneval[j][b];
       if(value > dz) value -= dz; else if(value < -dz) value += dz;
       else value = 0;
       axe_states[scfg.axeaction[j][b] % SHMUPAXES] += value;
       }
+
+    j++;
     }
 #endif
 #endif
@@ -870,11 +915,14 @@ EX void get_actions(config& scfg) {
 static constexpr int pantable = 3;
 #endif
 
+EX purehookset hooks_handleInput;
+
 EX void handleInput(int delta, config &scfg) {
 #if CAP_SDL
   double d = delta / 500.;
 
   get_actions(scfg);
+  callhooks(hooks_handleInput);
 
   const sdl_keystate_type *keystate = SDL12_GetKeyState(NULL);
 
@@ -900,7 +948,7 @@ EX void handleInput(int delta, config &scfg) {
     get_o_key().second();
   
   if(act[panReviewQuest].pressed())
-    showMissionScreen();
+    showMissionScreen(true);
   
 #if CAP_INV
   if(act[panInventory].pressed() && inv::on)
@@ -976,7 +1024,7 @@ EX void handleInput(int delta, config &scfg) {
       }
     if(multi::activePlayers() == 1) {
       multi::checkonly = true;
-      checkmove();
+      checkmove(false);
       multi::checkonly = false;
       }
     }
@@ -1017,7 +1065,7 @@ EX void handleInput(int delta, config &scfg) {
       auto &axes = axes_for(cpid);
 
       for(int ik=0; ik<4; ik++)
-        if(axes[ik])
+        if(axes[ik] && !accepted[i])
           anypressed = true, playermoved = true, multi::combo[i] = false;
       
       double mdx = 
@@ -1035,18 +1083,25 @@ EX void handleInput(int delta, config &scfg) {
       multi::mdy[i] = multi::mdy[i] * (1 - delta / 1000.) + mdy * delta / 2000.;
   
       if(WDIM == 2) {
-        if(mdx != 0 || mdy != 0) if(!multi::combo[i]) {
+        if(mdx != 0 || mdy != 0) if(!multi::combo[i] && !accepted[i]) {
           cwtV = multi::whereis[i]; cwt = multi::player[i];
-          flipplayer = multi::flipped[i];
+          if(activePlayers() > 1) flipplayer = multi::flipped[i];
           multi::whereto[i] = vectodir(hpxy(multi::mdx[i], multi::mdy[i]));
           }
         }
       
-      if(act[pcFire] ||(act[pcMoveLeft] && act[pcMoveRight]))
+      if(act[pcMoveLeft] && act[pcMoveRight])
         multi::combo[i] = true, multi::whereto[i].d = MD_WAIT;
+
+      if(act[pcFire]) {
+        if(multi::whereto[i].d == MD_UNDECIDED || (multi::mdx[i] == 0 && multi::mdy[i] == 0)) multi::whereto[i].d = MD_WAIT;
+        multi::accepted[i] = true;
+        }
   
-      if(act[pcFace])
+      if(act[pcFace]) {
         multi::whereto[i].d = MD_UNDECIDED;
+        multi::accepted[i] = false;
+        }
       
       cwt.at = multi::player[i].at;      
       if(multi::ccat[i] && !multi::combo[i] && targetRangedOrb(multi::ccat[i], roMultiCheck)) {
@@ -1066,9 +1121,16 @@ EX void handleInput(int delta, config &scfg) {
         centerplayer = cpid; centerpc(100); playermoved = true; 
         }
   
+      for(int ik=0; ik<16; ik++) if(act[ik] && (!accepted[i] || ik >= 8)) anypressed = true;
+
+      if(after_accepted[i] && !accepted[i] && !anypressed) {
+        multi::whereto[i].d = MD_UNDECIDED;
+        after_accepted[i] = false;
+        }
+
       if(multi::whereto[i].d == MD_UNDECIDED) alldecided = false;
-      
-      for(int ik=0; ik<16; ik++) if(act[ik]) anypressed = true;
+
+      if(!multi::multi_autojoy && !accepted[i]) alldecided = false;
 
       if(anypressed) alldecided = false, needinput = false;
       else multi::mdx[i] = multi::mdy[i] = 0;
@@ -1085,6 +1147,8 @@ EX void handleInput(int delta, config &scfg) {
       for(int i: player_indices()) {
         origpos[i] = player[i].at;
         origtarget[i] = multiPlayerTarget(i);
+        multi::after_accepted[i] = multi::accepted[i];
+        multi::accepted[i] = false;
         }
   
       for(int i: player_indices())
@@ -1141,18 +1205,23 @@ EX void handleInput(int delta, config &scfg) {
         int scdir = cdir;
         bool isUndecided = cdir == MD_UNDECIDED;
         if(countplayers_undecided > 0 && ! isUndecided) continue;
-        if(playerpos(i) == c)
+        if(playerpos(i) == c) {
           multi::whereto[i].d = MD_WAIT;
+          multi::accepted[i] = true;
+          }
         else if(!mouseout()) {
           for(int d=0; d<playerpos(i)->type; d++) {
             cdir = d;
-            if(multi::multiPlayerTarget(i) == c) break;
+            if(multi::multiPlayerTarget(i) == c) {
+              multi::accepted[i] = true;
+              cwt = multi::player[i];
+              calcMousedest();
+              auto& sd = multi::whereto[i].subdir;
+              sd = mousedest.subdir;
+              if(sd == 0) sd = 1;
+              break;
+              }
             cdir = scdir;
-            cwt = multi::player[i];
-            calcMousedest();
-            auto& sd = multi::whereto[i].subdir;
-            sd = mousedest.subdir;
-            if(sd == 0) sd = 1;
             }
           }
         }
