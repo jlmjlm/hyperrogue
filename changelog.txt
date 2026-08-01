@@ -5693,3 +5693,19 @@ RogueViz:
 - many improvements to 'embeddings'
 - added triangle centers visualization
 - fixed some links in presentations
+
+2026-08-01 12:13 Update 13.1m:
+Version 13.1m:
+- line-of-sight mode: walls block sight, both for you and for your enemies
+- in PTM, added the 'minimal' mode which shows just the one best run
+
+Bug fixes:
+- fixed Elemental Planes in some land structures
+- fixed a crash in World Overview if all lands have been disabled in custom mode
+- fixed the 'all on one page' layout in PTM and World Overview
+- in shmup, don't waste all energy at once with flash+energy, also don't shoot at once
+- in shmup, don't crash on safety
+- fixed how the closed gates are displayed in 3D, also improved the pseudo-3D style in 2D
+- improved the open/close plate z levels so that z-fighting is less likely
+- fixed missing ceiling configuration for CR6, MCR, DR and CC
+- [donkey implemented], [morph both poles]
