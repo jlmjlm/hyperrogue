@@ -1092,6 +1092,11 @@ EX void save_mode_data(hstream& f) {
         }
       }
     }
+  if(lineofsight != los::none || lineofsightAt >= PURELOS_LEVEL) {
+    f.write<char>(9);
+    f.write<char>((char) lineofsight);
+    f.write<char>(lineofsightAt >= PURELOS_LEVEL);
+    }
   }
 
 EX eLandStructure get_default_land_structure() {
@@ -1121,6 +1126,8 @@ EX void other_settings_default() {
   horodisk_from = -2;
   randomwalk_size = 10;
   landscape_div = 25;
+  lineofsight = los::none;
+  lineofsightAt = 0;
   }
 
 EX void load_mode_data_with_zero(hstream& f) {
@@ -1196,6 +1203,11 @@ EX void load_mode_data_with_zero(hstream& f) {
           custom_land_ptm_mult[i] = f.get<char>();
           }
         break;
+        }
+
+      case 9: {
+        lineofsight = (los) f.get<char>();
+        lineofsightAt = f.get<char>() ? PURELOS_LEVEL : 0;
         }
 
       default:
