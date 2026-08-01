@@ -430,6 +430,7 @@ EX namespace elec {
       drawLightning();
       for(int i=2; i<isize(charges); i++) if(charges[i].fire)
         affect(charges[i].c);
+      recompute_los = true;
       }
     }
   
@@ -2520,6 +2521,8 @@ EX void livecaves() {
       if(hv < 0 && c->wall == waBoat) c->wall = waStrandedBoat;
       if(hv < 0 && c->wall == waSea) c->wall = waNone;
       }
+
+    if(c->wall != old) recompute_los = true;
     }
   
   for(int i=0; i<isize(bringlife); i++) {

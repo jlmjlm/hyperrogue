@@ -912,6 +912,8 @@ EX void monstersTurn() {
   for(cell *pc: player_positions())
     history::movehistory.push_back(pc);
 #endif
+
+  if(recompute_los) create_los();
   }
 
 /** check if whirlline is looped, if yes, remove the repeat; may not detect loops immediately */
@@ -945,6 +947,7 @@ enum class los { none, geodesic, geometric };
 EX los lineofsight;
 /** when did we switch the lineofsight mode */
 EX int lineofsightAt;
+EX bool recompute_los = false;
 
 EX map<cell*, int> current_fov; // 1 == seen, 2 = see through
 
@@ -1013,6 +1016,7 @@ EX void create_los() {
         }
       }
     }
+  recompute_los = false;
   }
 
 }
