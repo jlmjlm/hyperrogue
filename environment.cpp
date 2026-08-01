@@ -958,7 +958,9 @@ EX bool blocks_sight(cell *c, cell *last) {
     return blocks_sight(cw2.at, cw2.cpeek());
     }
   if(c->monst == passive_switch) return true;
-  return (isWall(c) && !among(c->wall, waFreshGrave, waAncientGrave, waClosedGate, waMirrorWall)) || thruVine(c, last);
+  if(among(c->wall, waBigStatue, waMirror, waCloud)) return c->cpdist > 1;
+  if(snakelevel(c) == 3 && !(c->cpdist == 1 && snakelevel(cwt.at) >= 2)) return true;
+  return (isWall(c) && !among(c->wall, waFreshGrave, waAncientGrave, waClosedGate, waMirrorWall, waSmallTree, waShrub)) || thruVine(c, last);
   }
 
 EX bool in_line_of_sight(cell *c) {
@@ -1016,6 +1018,11 @@ EX void create_los() {
         }
       }
     }
+  int magicrange = 0;
+  for(auto c: dcal) if(!in_line_of_sight(c) && in_line_of_sight_for_player(c)) magicrange = c->cpdist;
+  if(magicrange > 3) markOrb(itOrbInvis);
+  else if(magicrange > 2) markOrb(itOrbFrog), markOrb(itOrbDash), markOrb(itOrbPhasing);
+  else markOrb(itOrbAether);
   recompute_los = false;
   }
 
