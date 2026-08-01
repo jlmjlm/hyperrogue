@@ -156,6 +156,7 @@ EX color_t kind_outline(eItem it) {
 /** should objects fly slightly up and down in product/twisted product geometries */
 EX bool bobbing = true;
 
+#if 0   // BD_Plain mod
 EX color_t orb_auxiliary_color(eItem it) {
   if(it == itOrbFire) return firecolor(200);
   if(it == itOrbWater) return 0x000060;
@@ -190,6 +191,7 @@ EX color_t orb_inner_color(eItem it) {
   if(it == itOrbSpace) return 0x40C0C0;
   return iinf[it].color;
   }
+#endif
 
 EX void draw_ascii(const shiftmatrix& V, const string& s, color_t col, ld size, ld size2) {
   int id = isize(ptds);
