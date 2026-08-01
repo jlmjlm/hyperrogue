@@ -941,7 +941,9 @@ EX void describeMouseover() {
   if(!c || instat || getcstat != '-') { }
   else if(!in_line_of_sight_for_player(c)) {
     out = XLAT("you cannot see this place");
-    help = XLAT("You cannot currently see this tile.\n\nThis also means that your enemies (except ghosts) will not try to reach you through this tile.");
+    help = XLAT("You cannot currently see this tile.\n\nThis also means that most enemies will not try to reach you through this tile.\n\n");
+    help += XLAT("Enemies which ignore this restriction:");
+    help += XLAT(" ghosts, demon sharks, hyperbugs");
     }
   else if(c->wall != waInvisibleFloor) {
     out = XLAT1(linf[c->land].name);
@@ -1140,8 +1142,10 @@ EX void describeMouseover() {
     if(isWarped(c) && !isWarpedType(c->land))
       out += ", warped";
 
-    if(!in_line_of_sight(c))
+    if(!in_line_of_sight(c)) {
       out += " (magical vision)";
+      appendHelp("\n\nWhile you magically know what is there, most enemies won't track you through here.");
+      }
 
     if(isWarped(c)) {
       appendHelp(string("\n\n") + XLAT(warpdesc));
