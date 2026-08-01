@@ -1678,6 +1678,7 @@ EX void initConfig() {
      {"geodesic", "Graph geodesic: any sequence of tiles is OK for line-of-sight as long as there are no shortcuts"},
      {"geometric", "Approximations of geometric straight lines."}},
      "line-of-sight mode", 'v')
+   ->add_extra([] { add_edit(neon_magic_vision); })
    ->set_reaction(switchLOS_quiet);
 
   param_f(vid.plevel_factor, "plevel_factor", 0.7);
@@ -1876,12 +1877,13 @@ EX void initConfig() {
   param_i(nilv::nilperiod[0], "nilperiod_x");
   param_i(nilv::nilperiod[1], "nilperiod_y");
   param_i(nilv::nilperiod[2], "nilperiod_z");
+
+  vector<pair<string, string>> neon_options = {{"OFF", ""}, {"standard", ""}, {"no boundary mode", ""}, {"neon mode II", ""}, {"illustration mode", ""}};
   
-  param_enum(neon_mode, "neon_mode", neon_mode)
-    ->editable(
-        {{"OFF", ""}, {"standard", ""}, {"no boundary mode", ""}, {"neon mode II", ""}, {"illustration mode", ""}}, 
-        "neon mode", 'M'
-        );
+  param_enum(neon_mode, "neon_mode", neon_mode)->editable(neon_options, "neon mode", 'M');
+
+  param_enum(neon_magic_vision, "neon_mode", neon_magic_vision)->editable(neon_options, "neon mode in magic vision", 'V')
+  ->add_extra([] { dialog::addHelp("Some Orbs let you see tiles you would not normally see. Such tiles can be shown differently."); });
 
   param_enum(bow::weapon, "pc_class", bow::weapon)
     -> editable({{"blade", "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way."},

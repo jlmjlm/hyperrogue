@@ -2921,6 +2921,9 @@ void celldrawer::draw() {
 
   if(seen) {
 
+    dynamicval<eNeon> b(neon_mode, neon_mode);
+    if(!in_line_of_sight(c)) neon_mode = neon_magic_vision;
+
     if(inmirror(c)) {
       if(inmirrorcount >= 10) return;
       cellwalker cw(c);
