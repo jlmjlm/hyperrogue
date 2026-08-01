@@ -2492,6 +2492,7 @@ EX void livecaves() {
 
   for(int i=0; i<dcs; i++) {
     cell *c = allcells[i];
+    auto old = c->wall;
     if(!doall && c->cpdist > gr+1) break;
     int hv = heatvals[i];
 
