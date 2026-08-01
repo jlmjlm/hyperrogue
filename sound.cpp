@@ -40,6 +40,7 @@ EX void playSeenSound(cell *c) {
   bool nearme = c->cpdist <= 7;
   forCellEx(c2, c) if(c2->cpdist <= 7) nearme = true; 
   if(!nearme) return;
+  if(!in_line_of_sight(c)) return;
   if(among(c->monst, moEagle, moWindCrow, moAcidBird))
     playSound(c, "seen-eagle");
   else if(c->monst == moEarthElemental) 
