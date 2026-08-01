@@ -1908,7 +1908,7 @@ EX void specialMoves() {
       c->stuntime = 1;
       }
     
-    else if(m == moPyroCultist && !peace::on) {
+    else if(m == moPyroCultist && !peace::on && in_line_of_sight(c)) {
       bool shot = false;
       bool dont_approach = false;
       // smaller range on the sphere
@@ -1930,7 +1930,7 @@ EX void specialMoves() {
       if(shot || dont_approach) c->stuntime = 1;
       }
 
-    else if(m == moHexer && c->item && (classflag(c->item) & IF_CURSE) && !peace::on) {
+    else if(m == moHexer && c->item && (classflag(c->item) & IF_CURSE) && !peace::on && in_line_of_sight(c)) {
       // bool dont_approach = false;
       // smaller range on the sphere
       int firerange = (sphere || getDistLimit() < 5) ? 2 : 4;
